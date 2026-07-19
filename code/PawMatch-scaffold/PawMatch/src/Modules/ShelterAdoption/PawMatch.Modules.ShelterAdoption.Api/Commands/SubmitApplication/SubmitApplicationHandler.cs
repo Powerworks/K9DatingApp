@@ -28,6 +28,16 @@ namespace PawMatch.Modules.ShelterAdoption.Api.Commands.SubmitApplication;
 /// beyond the counters above; add a request body if a real form
 /// requirement shows up.
 ///
+/// Updated (drafts feature): also covers the emlang yaml's "Submit
+/// Application" -> "Application Submitted" when it carries a
+/// draftApplicationId - if the applicant already has a Draft going for
+/// this exact dog (started via StartDraftApplicationHandler, possibly
+/// edited via EditApplicationDetailsHandler), this graduates it straight
+/// to Pending instead of creating a second Application or treating it as
+/// a duplicate. A Draft doesn't count toward maxOpenApplications (see
+/// Application.IsOpen), so graduating one is never blocked by the limit
+/// that would apply to a brand-new submission.
+///
 /// Any verified owner can apply - no Shelter/Admin role needed.
 /// </summary>
 public static class SubmitApplicationHandler
@@ -55,6 +65,17 @@ public static class SubmitApplicationHandler
         var existingForThisDog = applicantApplications.FirstOrDefault(x => x.DogListingId == dogListingId && x.IsOpen);
         if (existingForThisDog is not null)
             return TypedResults.Ok(new SubmitApplicationResponse(existingForThisDog.Id, WasDuplicate: true));
+
+        var draftForThisDog = applicantApplications.FirstOrDefault(
+            x => x.DogListingId == dogListingId && x.Status == ApplicationStatus.Draft);
+        if (draftForThisDog is not null)
+        {
+            draftForThisDog.SubmitDraft();
+            session.Store(draftForThisDog);
+            await session.SaveChangesAsync(cancellationToken);
+
+            return TypedResults.Ok(new SubmitApplicationResponse(draftForThisDog.Id, WasDuplicate: false));
+        }
 
         var openCount = applicantApplications.Count(x => x.IsOpen);
         if (openCount >= MaxOpenApplications)
