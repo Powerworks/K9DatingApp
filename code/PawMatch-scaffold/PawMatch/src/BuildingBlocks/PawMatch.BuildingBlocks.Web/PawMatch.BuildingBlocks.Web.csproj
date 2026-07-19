@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    This is a class library (IModule.cs, etc.), not an application - it
+    was originally on Sdk="Microsoft.NET.Sdk.Web", which implicitly sets
+    OutputType=Exe and expects a Main entry point (that's what produced
+    "CS5001: Program does not contain a static 'Main' method"). Plain
+    Microsoft.NET.Sdk + an explicit FrameworkReference is the correct
+    pattern for a shared library that needs ASP.NET Core types
+    (WebApplication, IServiceCollection, etc.) without being an app itself.
+  -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PawMatch.BuildingBlocks.Domain\PawMatch.BuildingBlocks.Domain.csproj" />
+    <ProjectReference Include="..\PawMatch.BuildingBlocks.Persistence\PawMatch.BuildingBlocks.Persistence.csproj" />
+  </ItemGroup>
+
+</Project>

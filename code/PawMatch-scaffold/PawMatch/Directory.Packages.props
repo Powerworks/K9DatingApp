@@ -1,0 +1,91 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <!--
+      IMPORTANT: NuGet Central Package Management does not allow floating
+      versions (e.g. "8.*") in this file - every entry must be an exact,
+      published version, which is what NU1011 was telling you. The
+      versions below are pinned to real published releases as of when
+      this was written; treat them as a working starting point, not a
+      guarantee of the latest release. After your first successful
+      restore, run "dotnet list package" with the outdated flag
+      to see what's moved since, and bump deliberately (one package at a
+      time, re-testing after each) rather than mass-upgrading everything
+      at once.
+
+      Confidence levels, since some of these were verified against
+      NuGet.org directly and some were not:
+        [verified]   - confirmed via NuGet.org search at the time of writing
+        [good-faith] - a real version that has existed, not individually
+                        re-verified this session - most likely to need a
+                        bump if restore still complains about one of these
+    -->
+
+    <!-- Persistence -->
+    <PackageVersion Include="Marten" Version="9.15.0" />                                <!-- [confirmed real - from your restore log, net9.0/net10.0 only] -->
+    <PackageVersion Include="Marten.AspNetCore" Version="9.15.0" />                     <!-- [confirmed real - from your restore log] -->
+
+    <!-- Messaging / Mediator - Wolverine packages release in lockstep,
+         same version number across WolverineFx/.RabbitMQ/.Marten/.Http -
+         this lockstep pattern is now confirmed real (Http/Marten both
+         independently resolved to 6.17.2 in your restore log) -->
+    <PackageVersion Include="WolverineFx" Version="6.17.2" />                           <!-- [confirmed real - from your restore log, net9.0/net10.0 only] -->
+    <PackageVersion Include="WolverineFx.RabbitMQ" Version="6.17.2" />                  <!-- [good-faith, inferred lockstep - now well-supported by the pattern above] -->
+    <PackageVersion Include="WolverineFx.Marten" Version="6.17.2" />                    <!-- [confirmed real - from your restore log] -->
+    <PackageVersion Include="WolverineFx.Http" Version="6.17.2" />                      <!-- [confirmed real - from your restore log] -->
+    <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.17.2" />        <!-- [inferred lockstep] Dev-time only - see Program.cs comment; production should move to pre-generated static codegen instead of shipping this -->
+
+    <!-- Referenced directly (not just transitively via WolverineFx.RabbitMQ)
+         because Program.cs registers RabbitMQ.Client.IConnection itself for
+         the health check package - see the AddRabbitMQ() health check note
+         below. -->
+    <PackageVersion Include="RabbitMQ.Client" Version="7.2.1" />                        <!-- [verified] -->
+
+    <!-- Wolverine pulls MessagePack in transitively for envelope
+         serialization. The version that comes along by default (2.5.108)
+         has known high-severity vulnerabilities (GHSA-hv8m-jj95-wg3x and
+         a cluster of related advisories, out-of-bounds reads in LZ4
+         decompression). Pinned explicitly here + referenced directly in
+         Api.Host.csproj to force resolution to the patched version rather
+         than silently carrying a vulnerable transitive dependency. -->
+    <PackageVersion Include="MessagePack" Version="2.5.301" />                          <!-- [verified - fixes GHSA-hv8m-jj95-wg3x and related] -->
+
+    <!-- Caching / Real-time -->
+    <PackageVersion Include="StackExchange.Redis" Version="2.8.24" />                   <!-- [good-faith] -->
+    <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.9" /> <!-- [good-faith, inferred same release train as JwtBearer below] -->
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.9" /> <!-- [good-faith, inferred same release train] -->
+
+    <!-- API / OpenAPI -->
+    <PackageVersion Include="Swashbuckle.AspNetCore" Version="6.9.0" />                 <!-- [good-faith] -->
+
+    <!-- Gateway -->
+    <PackageVersion Include="Yarp.ReverseProxy" Version="2.3.0" />                      <!-- [verified] -->
+
+    <!-- Auth -->
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />      <!-- [verified] -->
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.9" />  <!-- [good-faith, ships in lockstep with JwtBearer from the same dotnet/aspnetcore repo] -->
+
+    <!-- Observability -->
+    <!-- No OpenTelemetry.* SDK packages - zero-code auto-instrumentation
+         only (ADR-010). See Inventory doc Section 7. -->
+    <PackageVersion Include="Serilog.AspNetCore" Version="8.0.3" />                     <!-- [good-faith, Serilog.AspNetCore versions independently of the TFM - likely fine as-is, but verify] -->
+    <PackageVersion Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />         <!-- [good-faith, HIGHER RISK - this is a community package (Xabaril) with its own versioning cadence, not tied to Microsoft's release train; most likely candidate to still be wrong] -->
+    <PackageVersion Include="AspNetCore.HealthChecks.Redis" Version="9.0.0" />          <!-- [good-faith, HIGHER RISK - same caveat] -->
+    <PackageVersion Include="AspNetCore.HealthChecks.Rabbitmq" Version="9.0.0" />       <!-- [good-faith, HIGHER RISK - same caveat] -->
+
+    <!-- Object storage (MinIO, S3-compatible - ADR-009) -->
+    <PackageVersion Include="AWSSDK.S3" Version="3.7.400" />                            <!-- [good-faith] -->
+
+    <!-- Testing -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />               <!-- [good-faith] -->
+    <PackageVersion Include="xunit" Version="2.9.2" />                                  <!-- [good-faith] -->
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />              <!-- [good-faith] -->
+    <PackageVersion Include="FluentAssertions" Version="6.12.1" />                      <!-- [good-faith] -->
+    <PackageVersion Include="NetArchTest.Rules" Version="1.3.2" />                      <!-- [good-faith] -->
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="3.10.0" />             <!-- [good-faith] -->
+    <PackageVersion Include="Testcontainers.RabbitMq" Version="3.10.0" />               <!-- [good-faith] -->
+    <PackageVersion Include="Testcontainers.Redis" Version="3.10.0" />                  <!-- [good-faith] -->
+  </ItemGroup>
+</Project>

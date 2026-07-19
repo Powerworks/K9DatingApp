@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <!-- Auto render mode per ADR-004: SSR by default, Interactive Server
+         for the swipe/chat experience today, with a path to WebAssembly
+         per-component later without a project restructure. -->
+    <StaticWebAssetProjectMode>Default</StaticWebAssetProjectMode>
+  </PropertyGroup>
+
+</Project>

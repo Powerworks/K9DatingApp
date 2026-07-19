@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    This project has NO dependencies on any module. It defines the shared
+    vocabulary (base entity types, integration event contract) that every
+    module's Domain and Contracts projects may reference. Nothing else.
+  -->
+
+</Project>

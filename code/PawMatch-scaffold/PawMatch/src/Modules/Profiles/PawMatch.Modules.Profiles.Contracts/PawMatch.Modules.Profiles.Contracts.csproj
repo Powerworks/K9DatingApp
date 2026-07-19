@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\PawMatch.BuildingBlocks.Domain\PawMatch.BuildingBlocks.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

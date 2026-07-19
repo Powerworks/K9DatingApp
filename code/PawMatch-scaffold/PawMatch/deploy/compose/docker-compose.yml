@@ -1,0 +1,60 @@
+
+# Local dev infra only - the .NET apps (Api.Host, Gateway, Blazor.App) are
+# NOT in here. Run those with `dotnet run` on your host so you get fast
+# rebuild/debug cycles; they connect to these containers via localhost
+# ports, matching src/Host/PawMatch.Api.Host/appsettings.Development.json.
+#
+# Usage: docker compose -f deploy/compose/docker-compose.yml up -d
+#
+# NOTE: Postgres and object storage used to be here (Postgres+PostGIS and
+# MinIO containers). Both are superseded by ADR-024 - Postgres and Storage
+# are now Supabase-managed (external, no local container). Create a
+# Supabase project at https://supabase.com and put its connection details
+# into appsettings.Development.json - see GETTING_STARTED.md Step 2.
+# Auth was already Supabase-managed before that (ADR-005) - this just
+# extends the same external dependency to two more concerns.
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    ports:
+      - "5672:5672"   # AMQP
+      - "15672:15672" # management UI - http://localhost:15672 (guest/guest)
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Bundles Grafana + Loki + Tempo + Mimir + an OTLP receiver in one image -
+  # stands in for the full Alloy + separate-LGTM-components production
+  # topology (ADR-010) so local dev needs zero extra setup. Runs with
+  # local-disk storage, not Supabase Storage or any other object store -
+  # see ADR-024 for why that decision was deliberately deferred rather
+  # than assumed to just work.
+  otel-lgtm:
+    image: grafana/otel-lgtm
+    ports:
+      - "3000:3000"  # Grafana UI - http://localhost:3000 (admin/admin)
+      - "4317:4317"  # OTLP gRPC
+      - "4318:4318"  # OTLP HTTP
+
+  # Fake SMTP server for local dev - Notifications sends real emails here
+  # instead of a real provider (SendGrid/Postmark, per the Inventory doc)
+  # in every environment except production. Nothing gets actually
+  # delivered; smtp4dev just captures it and shows it in a web inbox.
+  smtp4dev:
+    image: rnwood/smtp4dev:latest
+    ports:
+      - "5080:80"    # Web UI - http://localhost:5080
+      - "2525:25"    # SMTP - point Notifications' dev SMTP config here

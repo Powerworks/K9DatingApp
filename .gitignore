@@ -1,0 +1,25 @@
+## Claude Code local settings (per-developer, accumulates command history -
+## never meant to be shared/committed; settings.json without ".local" is
+## the shared/team config and stays tracked)
+.claude/settings.local.json
+
+## .NET (also covered inside code/PawMatch-scaffold/PawMatch/.gitignore,
+## repeated here in case other .NET projects get added outside that folder)
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+## Rider / VS Code
+.idea/
+.vscode/
+
+## Local secrets & env
+.env
+*.local.json
+appsettings.*.local.json
+
+## OS
+.DS_Store
+Thumbs.db

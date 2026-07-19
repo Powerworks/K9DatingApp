@@ -1,0 +1,23 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+## Rider / VS Code
+.idea/
+.vscode/
+
+## Local secrets & env
+.env
+*.local.json
+appsettings.*.local.json
+
+## Test / coverage output
+TestResults/
+coverage/*.xml
+
+## OS
+.DS_Store
+Thumbs.db
