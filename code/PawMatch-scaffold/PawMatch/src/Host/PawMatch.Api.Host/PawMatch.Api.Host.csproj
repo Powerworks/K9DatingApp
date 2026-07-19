@@ -1,5 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <!-- Links this project to its local-only secrets store
+       (~/.microsoft/usersecrets/<id>/secrets.json, outside the repo) -
+       just an id, not a secret itself, safe to commit. Set real local
+       values with `dotnet user-secrets set "Key:SubKey" "value"` from
+       this project's directory; see GETTING_STARTED.md. -->
+  <PropertyGroup>
+    <UserSecretsId>7e90f6a1-8de1-47f6-bcbb-f0d4b528b925</UserSecretsId>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="WolverineFx" />
     <PackageReference Include="WolverineFx.RabbitMQ" />
