@@ -3,7 +3,7 @@
 ## the shared/team config and stays tracked)
 .claude/settings.local.json
 
-## .NET (also covered inside code/PawMatch-scaffold/PawMatch/.gitignore,
+## .NET (also covered inside code/K9Crush-scaffold/K9Crush/.gitignore,
 ## repeated here in case other .NET projects get added outside that folder)
 bin/
 obj/
@@ -19,6 +19,18 @@ obj/
 .env
 *.local.json
 appsettings.*.local.json
+
+## Build-kit board credentials (eventmodelers.ai token — see .claude/skills/connect)
+.eventmodelers/config.json
+
+## Build-kit runtime/scratch state (Ralph loop task queue, slice cache, progress log)
+build-kit-dotnet/.slices/
+build-kit-dotnet/tasks.json
+build-kit-dotnet/progress.txt
+
+## Node (build-kit-dotnet's Ralph/CodeExport tools, same as build-kit/)
+node_modules/
+build-kit-dotnet/config.json
 
 ## OS
 .DS_Store

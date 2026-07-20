@@ -1,0 +1,44 @@
+@page "/"
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>K9Crush</PageTitle>
+
+<h1>Discover</h1>
+
+@if (_isLoading)
+{
+    <p>Loading nearby dogs...</p>
+}
+else if (_feed is { Items.Count: 0 })
+{
+    <p>No dogs nearby yet - check back soon!</p>
+}
+else if (_feed is not null)
+{
+    <ul>
+        @foreach (var item in _feed.Items)
+        {
+            <li>@item.Breed - @item.DistanceKm.ToString("0.0") km away</li>
+        }
+    </ul>
+}
+
+@code {
+    private bool _isLoading = true;
+    private DiscoveryFeedResponse? _feed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Placeholder coordinates for scaffold purposes - a real
+        // implementation resolves this from the owner's stored location
+        // or a browser geolocation prompt.
+        var client = HttpClientFactory.CreateClient("K9CrushApi");
+        _feed = await client.GetFromJsonAsync<DiscoveryFeedResponse>(
+            "/api/v1/discovery/feed?latitude=53.3498&longitude=-6.2603&radiusKm=25");
+        _isLoading = false;
+    }
+
+    private sealed record DiscoveryFeedEntry(Guid DogProfileId, string Breed, double DistanceKm);
+    private sealed record DiscoveryFeedResponse(IReadOnlyList<DiscoveryFeedEntry> Items);
+}

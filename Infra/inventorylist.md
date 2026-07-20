@@ -1,25 +1,25 @@
-# Inventory List — PawMatch Platform
+# Inventory List — K9Crush Platform
  
 ## 1. Solution / Project Inventory
  
 Modular monolith with one solution, one repo. Each business module is a set of projects following the same internal shape (vertical slice architecture — folders per feature/slice inside `Application`, not per technical layer).
  
 ```
-PawMatch.sln
+K9Crush.sln
 │
 ├── src/
 │   ├── BuildingBlocks/
-│   │   ├── PawMatch.BuildingBlocks.Domain          (base entity/aggregate, IEvent, ValueObject)
-│   │   ├── PawMatch.BuildingBlocks.Messaging        (MassTransit conventions, outbox contracts)
-│   │   ├── PawMatch.BuildingBlocks.Persistence      (Marten config helpers, session factory)
-│   │   └── PawMatch.BuildingBlocks.Web              (minimal API conventions, ProblemDetails, auth helpers)
+│   │   ├── K9Crush.BuildingBlocks.Domain          (base entity/aggregate, IEvent, ValueObject)
+│   │   ├── K9Crush.BuildingBlocks.Messaging        (MassTransit conventions, outbox contracts)
+│   │   ├── K9Crush.BuildingBlocks.Persistence      (Marten config helpers, session factory)
+│   │   └── K9Crush.BuildingBlocks.Web              (minimal API conventions, ProblemDetails, auth helpers)
 │   │
 │   ├── Modules/
 │   │   ├── Identity/
-│   │   │   ├── PawMatch.Modules.Identity.Api        (module's minimal API endpoints / slices)
-│   │   │   ├── PawMatch.Modules.Identity.Domain
-│   │   │   ├── PawMatch.Modules.Identity.Infrastructure
-│   │   │   └── PawMatch.Modules.Identity.Contracts  (public integration events/DTOs only)
+│   │   │   ├── K9Crush.Modules.Identity.Api        (module's minimal API endpoints / slices)
+│   │   │   ├── K9Crush.Modules.Identity.Domain
+│   │   │   ├── K9Crush.Modules.Identity.Infrastructure
+│   │   │   └── K9Crush.Modules.Identity.Contracts  (public integration events/DTOs only)
 │   │   │
 │   │   ├── Profiles/          (dog + owner profiles, same shape as above)
 │   │   ├── Discovery/         (matching/swiping, same shape)
@@ -30,15 +30,15 @@ PawMatch.sln
 │   │   └── Moderation/        (same shape)
 │   │
 │   ├── Host/
-│   │   └── PawMatch.Api.Host                        (composition root: wires all modules, Program.cs)
+│   │   └── K9Crush.Api.Host                        (composition root: wires all modules, Program.cs)
 │   │
 │   └── Web/
-│       └── PawMatch.Blazor.App                       (Blazor Web App, Interactive Server + WASM)
+│       └── K9Crush.Blazor.App                       (Blazor Web App, Interactive Server + WASM)
 │
 ├── tests/
-│   ├── PawMatch.ArchitectureTests                    (NetArchTest boundary enforcement)
-│   ├── PawMatch.Modules.*.UnitTests                   (per module)
-│   └── PawMatch.Modules.*.IntegrationTests             (Testcontainers-based, per module)
+│   ├── K9Crush.ArchitectureTests                    (NetArchTest boundary enforcement)
+│   ├── K9Crush.Modules.*.UnitTests                   (per module)
+│   └── K9Crush.Modules.*.IntegrationTests             (Testcontainers-based, per module)
 │
 ├── deploy/
 │   ├── docker/                                        (Dockerfiles per deployable: Api.Host, Blazor.App)

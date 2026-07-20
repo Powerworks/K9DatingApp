@@ -1,0 +1,74 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- Links this project to its local-only secrets store
+       (~/.microsoft/usersecrets/<id>/secrets.json, outside the repo) -
+       just an id, not a secret itself, safe to commit. Set real local
+       values with `dotnet user-secrets set "Key:SubKey" "value"` from
+       this project's directory; see GETTING_STARTED.md. -->
+  <PropertyGroup>
+    <UserSecretsId>7e90f6a1-8de1-47f6-bcbb-f0d4b528b925</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WolverineFx" />
+    <PackageReference Include="WolverineFx.RabbitMQ" />
+    <PackageReference Include="WolverineFx.Marten" />
+    <PackageReference Include="WolverineFx.Http" />
+    <!-- Direct reference to force the patched version - see Directory.Packages.props
+         for why (Wolverine pulls a vulnerable MessagePack transitively otherwise). -->
+    <PackageReference Include="MessagePack" />
+    <PackageReference Include="Marten" />
+    <PackageReference Include="Marten.AspNetCore" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" />
+    <PackageReference Include="Swashbuckle.AspNetCore" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <!--
+      No OpenTelemetry.* packages here. Tracing/metrics/logs come from the
+      zero-code OpenTelemetry .NET Automatic Instrumentation agent baked
+      into this project's Dockerfile and configured via environment
+      variables (OTEL_EXPORTER_OTLP_ENDPOINT, etc.) - see Inventory doc
+      Section 7 and Solution Architecture doc Section 9 (ADR-010). Adding
+      a NuGet-based OpenTelemetry SDK on top of that would double up
+      instrumentation - don't.
+    -->
+    <PackageReference Include="AspNetCore.HealthChecks.NpgSql" />
+    <PackageReference Include="AspNetCore.HealthChecks.Redis" />
+    <PackageReference Include="AspNetCore.HealthChecks.Rabbitmq" />
+    <PackageReference Include="RabbitMQ.Client" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Wolverine 6's runtime-generated handler code needs a Roslyn compiler,
+      which core WolverineFx no longer bundles - this package supplies it.
+      Referenced unconditionally (not Debug-only) because the alternative -
+      pre-generating handler code via the "codegen write" command as a
+      CI step, then running with CodeGeneration.TypeLoadMode = Static -
+      genuinely is the better fit for production (no Roslyn shipped, faster
+      cold start) but ISN'T IMPLEMENTED YET (no CI step, no generated code
+      committed, Program.cs doesn't set TypeLoadMode). Making this
+      Debug-only before that exists would silently crash the first Release
+      build/production deploy with this exact error, with no obvious cause
+      since local Debug would keep working fine. Revisit when the
+      Dockerfile/CI pipeline actually gets built - see GETTING_STARTED.md.
+    -->
+    <PackageReference Include="WolverineFx.RuntimeCompilation" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Api.Host is the ONLY project allowed to reference every module's Api
+      project directly - that's what "composition root" means here. No
+      module references another module's Api project; they only see each
+      other's Contracts.
+    -->
+    <ProjectReference Include="..\..\BuildingBlocks\K9Crush.BuildingBlocks.Web\K9Crush.BuildingBlocks.Web.csproj" />
+    <ProjectReference Include="..\..\Modules\Identity\K9Crush.Modules.Identity.Api\K9Crush.Modules.Identity.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Profiles\K9Crush.Modules.Profiles.Api\K9Crush.Modules.Profiles.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Discovery\K9Crush.Modules.Discovery.Api\K9Crush.Modules.Discovery.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\ShelterAdoption\K9Crush.Modules.ShelterAdoption.Api\K9Crush.Modules.ShelterAdoption.Api.csproj" />
+  </ItemGroup>
+
+</Project>

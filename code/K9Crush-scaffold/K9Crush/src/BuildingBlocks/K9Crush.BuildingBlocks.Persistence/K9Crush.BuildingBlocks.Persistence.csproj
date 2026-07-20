@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Marten" />
+    <PackageReference Include="WolverineFx.Marten" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\K9Crush.BuildingBlocks.Domain\K9Crush.BuildingBlocks.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

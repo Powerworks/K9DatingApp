@@ -1,4 +1,4 @@
-# Solution Architecture Document — PawMatch Platform
+# Solution Architecture Document — K9Crush Platform
 
 ## 1. Architectural Style
 **Modular Monolith** using **Vertical Slice Architecture** inside each module, deployed as a small number of containers rather than dozens of microservices — while keeping module boundaries strict enough to extract a module into its own service later with minimal rework.
@@ -109,7 +109,7 @@ This same discipline applies going forward to every event-sourced module (Chat, 
 Example: `Modules/Discovery`
 
 ```
-PawMatch.Modules.Discovery.Api/
+K9Crush.Modules.Discovery.Api/
 ├── Features/
 │   ├── SwipeOnDog/
 │   │   ├── SwipeOnDog.cs               (command record)
@@ -128,7 +128,7 @@ PawMatch.Modules.Discovery.Api/
 ├── Module.cs                          (IModuleInstaller: DI registration, endpoint mapping)
 └── DiscoveryModuleDbConfig.cs         (Marten schema/index config for this module)
 
-PawMatch.Modules.Discovery.Domain/
+K9Crush.Modules.Discovery.Domain/
 ├── Aggregates/
 │   └── SwipeSession.cs / MatchAggregate.cs
 ├── Events/
@@ -138,11 +138,11 @@ PawMatch.Modules.Discovery.Domain/
 └── ValueObjects/
     └── GeoCoordinate.cs
 
-PawMatch.Modules.Discovery.Infrastructure/
+K9Crush.Modules.Discovery.Infrastructure/
 ├── MartenDiscoveryStore.cs
 └── ExternalGeoServiceClient.cs
 
-PawMatch.Modules.Discovery.Contracts/
+K9Crush.Modules.Discovery.Contracts/
 └── (public DTOs + integration events other modules may reference)
 ```
 
@@ -163,7 +163,7 @@ Each module exposes a single `Module.cs` implementing a shared `IModuleInstaller
 
 ```mermaid
 flowchart LR
-    DI[Discovery Module] -->|publish MatchCreated| EX{{pawmatch.events exchange - topic}}
+    DI[Discovery Module] -->|publish MatchCreated| EX{{k9crush.events exchange - topic}}
     EX -->|match.created| CHQ[[chat.matchcreated.queue]]
     EX -->|match.created| NOQ[[notifications.matchcreated.queue]]
     CH[Chat Module] --- CHQ
@@ -172,7 +172,7 @@ flowchart LR
     CH -->|publish MessageSent| EX
 ```
 
-- **Topic exchange** (`pawmatch.events`) with routing keys like `match.created`, `message.sent`, `content.flagged`. Wolverine's RabbitMQ transport maps this via `PublishMessage<T>().ToRabbitExchange("pawmatch.events")` conventions, configured once in `Api.Host` composition.
+- **Topic exchange** (`k9crush.events`) with routing keys like `match.created`, `message.sent`, `content.flagged`. Wolverine's RabbitMQ transport maps this via `PublishMessage<T>().ToRabbitExchange("k9crush.events")` conventions, configured once in `Api.Host` composition.
 - Each consumer module owns its own durable queue bound to the events it cares about — publishers never know who's listening (loose coupling). A module's Wolverine handler for an integration event looks identical to a handler for a local command (`public static Task Handle(MatchCreated evt, ...)`), so there's no special "consumer" ceremony to learn.
 - **Dead-letter queues** per consumer queue for poison messages; alerting on DLQ depth. Wolverine's built-in retry/error-handling policies (`OnException<T>().RetryWithCooldown(...)`, then move-to-dead-letter) cover this without extra infrastructure code.
 - **Durable inbox/outbox via `WolverineFx.Marten`**: outgoing messages are written to Wolverine's envelope tables in the *same* Postgres transaction as the Marten session that recorded the domain change (no separate outbox document to maintain by hand, as would be needed with a bare messaging library), and incoming messages are deduplicated by envelope ID automatically — Wolverine handles the idempotency, so handlers don't need to.
@@ -230,16 +230,16 @@ flowchart TB
 ```mermaid
 flowchart TB
     subgraph Cluster[Kubernetes cluster - ADR-006]
-        subgraph ns1[Namespace: pawmatch]
+        subgraph ns1[Namespace: k9crush]
             GW[YARP Gateway - N replicas]
             APIHOST[Api.Host - N replicas]
             BLAZOR[Blazor.App - N replicas]
         end
-        subgraph ns2[Namespace: pawmatch-data]
+        subgraph ns2[Namespace: k9crush-data]
             RMQ{{RabbitMQ - Cluster Operator, quorum queues}}
             REDIS[(Redis - Operator/Helm, Sentinel)]
         end
-        subgraph ns4[Namespace: pawmatch-observability]
+        subgraph ns4[Namespace: k9crush-observability]
             ALLOY[Grafana Alloy collector]
             LGTM[Loki / Tempo / Mimir / Grafana - local-disk storage for now, ADR-024]
             OTELOP[OpenTelemetry Operator - annotation-based auto-injection]
@@ -267,7 +267,7 @@ flowchart TB
     Reg --> Cluster
 ```
 
-- **Three deployable images**: `PawMatch.Gateway` (YARP, public entry point), `Api.Host` (all backend modules in one process), and `Blazor.App` (frontend). The gateway is the only one exposed by the ingress; `Api.Host` and `Blazor.App` are internal-only ClusterIP services it routes to.
+- **Three deployable images**: `K9Crush.Gateway` (YARP, public entry point), `Api.Host` (all backend modules in one process), and `Blazor.App` (frontend). The gateway is the only one exposed by the ingress; `Api.Host` and `Blazor.App` are internal-only ClusterIP services it routes to.
 - **Data tier is partly self-hosted in-cluster, partly Supabase-managed (ADR-011/024)** — the operators remaining in-cluster are still the reason Kubernetes was chosen over Azure Container Apps (ADR-006), though that justification is lighter than it was:
   - **Postgres**: no longer in this cluster. Supabase-managed (ADR-024) — connect via its session-mode connection string, not the default transaction-mode pooled one (Marten's advisory-lock-based leader election needs session-level behavior). Backups are Supabase's responsibility, not ours.
   - **RabbitMQ**: official RabbitMQ Cluster Operator, quorum queues for durability across pod restarts/rescheduling.
@@ -290,7 +290,7 @@ As of ADR-024, self-hosted responsibility is down to RabbitMQ and Redis (plus th
 - **AuthZ**: Policy-based (`[Authorize(Policy = "VerifiedOwner")]`) at the endpoint level per slice. **Role model expanded (ADR-017)**: `Api.Host` now resolves Owner/Vendor/Shelter/Admin roles via its own Postgres lookup keyed by the Supabase JWT's `sub` claim, not just a single authenticated-user shape - Shop and Places endpoints that manage a listing require `Vendor`, Shelter & Adoption's org-side endpoints require `Shelter`, and existing dating/social endpoints stay on the original `VerifiedOwner` policy unchanged.
 - **Transport**: TLS everywhere (ingress terminates TLS via cert-manager; optionally mTLS between ingress and pods).
 - **Secrets**: never in source/images. **External Secrets Operator (ESO)** syncs secrets from a self-hosted **HashiCorp Vault** into native K8s Secrets — consistent with ADR-011's self-hosting direction rather than a cloud secrets manager. Application deployables only ever see the resulting K8s Secret; nothing in-cluster talks to Vault directly except ESO itself, which keeps the Vault token/AppRole credential blast radius to one component.
-- **Payments (ADR-015)**: Stripe Checkout/Elements only - card data never touches PawMatch's servers, keeping PCI scope to SAQ-A. Webhook signatures verified before processing; webhook handlers are idempotent (Wolverine inbox) since Stripe retries on any non-2xx response.
+- **Payments (ADR-015)**: Stripe Checkout/Elements only - card data never touches K9Crush's servers, keeping PCI scope to SAQ-A. Webhook signatures verified before processing; webhook handlers are idempotent (Wolverine inbox) since Stripe retries on any non-2xx response.
 - **Media**: signed, time-limited URLs for photo/video access; upload validated (file type/size) before persisting.
 - **Rate limiting & abuse prevention**: per-user swipe-rate limits, report-abuse throttling, CAPTCHA on registration.
 - **Data privacy**: location data stored at reduced precision for discovery display; full precision only used server-side for distance calculation.
@@ -321,13 +321,13 @@ As of ADR-024, self-hosted responsibility is down to RabbitMQ and Redis (plus th
 | ADR-012 | Secrets: External Secrets Operator syncing from a self-hosted HashiCorp Vault into K8s Secrets, rather than a cloud secrets manager | **Decided** |
 | ADR-013 | CD strategy: push-based — GitHub Actions runs `helm upgrade`/`kubectl apply` directly against the cluster after building images — rather than GitOps (ArgoCD/Flux watching a manifests repo) | **Decided** |
 | ADR-014 | PostGIS enabled from Phase 1 (not deferred) - Places, Lost & Found, and Discovery all need real proximity queries at once rather than the earlier bounding-box/Haversine placeholder | **Decided** |
-| ADR-015 | Payments: Stripe Checkout/Elements for Shop and Subscriptions - PawMatch never stores raw card data; webhook-driven confirmation consumed idempotently via Wolverine's inbox | **Decided** |
+| ADR-015 | Payments: Stripe Checkout/Elements for Shop and Subscriptions - K9Crush never stores raw card data; webhook-driven confirmation consumed idempotently via Wolverine's inbox | **Decided** |
 | ADR-016 | Video: async FFmpeg-based transcoding worker triggered off `MediaUploaded`, storing outputs back to Supabase Storage (superseding the original MinIO target per ADR-024) - no managed transcoding service for Train C, revisit if volume grows | **Decided** |
 | ADR-017 | Identity roles: **role dimension (Owner / Vendor / Shelter / Admin) is looked up from our own Postgres, not carried as a Supabase custom claim.** Originally scoped as "Keycloak realm gains a role dimension" - Keycloak's realm-role model doesn't exist in Supabase. Supabase's equivalent (a Custom Access Token Hook injecting claims from Supabase's *own* managed Postgres) would mean the source of truth for roles lives in Supabase's database, requiring role data to be duplicated/synced there. Instead, `Api.Host` resolves the caller's role via a lookup against our own self-hosted Postgres (ADR-011), keyed by the `sub` claim from the validated Supabase JWT - single source of truth stays in our own data, at the cost of one extra lookup per authorization check (cacheable in Redis if it becomes a hot path). Revisit if this becomes a real bottleneck. | **Decided** |
 | ADR-023 | ~~Supabase adoption is scoped to Auth only~~ **Superseded by ADR-024** one turn later — Postgres and Storage moved to Supabase too, so the "Auth only" framing no longer holds. Kept for history since the reasoning (avoid one convenient managed service quietly absorbing decisions made deliberately elsewhere) is still worth reading even though the conclusion changed. | **Superseded (see ADR-024)** |
 | ADR-024 | **Supabase scope expanded to Auth + Postgres + Storage**, replacing self-hosted CloudNativePG Postgres (ADR-011) and self-hosted MinIO (ADR-009) entirely. This actually resolves ADR-023's "two separate Postgres instances" tension rather than deepening it — there's now one Postgres (Supabase's), not two. RabbitMQ and Redis are unaffected and remain self-hosted per ADR-011. Two things this creates that need explicit attention, not just a config change: <br>**(1) Connection pooling mode matters for Marten.** Marten's async daemon uses Postgres advisory locks for projection/subscription leader election. Supabase's default pooler (Supavisor) can run in transaction mode, which doesn't reliably support session-level features like advisory locks. Use Supabase's session-mode/direct connection string for the app's Postgres connection, not the default transaction-mode pooled one — get this wrong and the failure is subtle (leader election misbehaving silently) rather than an obvious startup error. <br>**(2) The Grafana LGTM stack (ADR-010) loses its MinIO backing store.** Loki/Tempo/Mimir were architected to reuse the self-hosted MinIO instance for their own object storage. Supabase Storage's S3 compatibility is confirmed for general use, but hasn't been verified against Loki/Tempo/Mimir's specific requirements (more demanding than typical file storage - prefix listing patterns, write consistency). **Default here: run LGTM components with local-disk storage for now, deferring the object-storage decision** rather than forcing an immediate Supabase-Storage-vs-keep-a-small-MinIO-just-for-this choice - revisit once retention/durability requirements are clearer. Flagged, not silently decided; override if you'd rather resolve it now. | **Decided** |
 | ADR-025 | **MVP hosting: a single Hetzner Cloud VPS running `docker-compose.prod.yml` directly** (gateway, api-host, blazor-app, rabbitmq, redis) — not the Kubernetes/Helm/operator setup from ADR-006/011. This does **not** reverse ADR-006; Kubernetes remains the target once scale, HA, or team size actually justifies the operational complexity. Hetzner+Compose is explicitly the MVP-stage choice: cheapest path to a real public deployment, single point of failure accepted deliberately for this stage. Consequences that need follow-up, not yet resolved (see Section 7.3): no TLS termination in the current compose file (plain HTTP only), no automated backup of the self-hosted RabbitMQ/Redis Docker volumes (single-box - if the disk dies, that data is gone, unlike Postgres/Storage which are Supabase's problem now per ADR-024), and ADR-013's push-based CD assumed `helm upgrade` against a cluster, not SSH/`docker compose` against a single box - the CD mechanism itself needs revisiting, not just retargeting. | **Decided** |
-| ADR-026 | **Do not enable Row Level Security on Marten's tables in the Supabase Postgres database.** RLS protects a pattern this app doesn't use — Supabase's RLS model assumes clients talk to Postgres directly (via PostgREST/Supabase SDK) using JWT-scoped roles, with RLS as the sole access-control layer. PawMatch never does this: `Api.Host` is the sole gatekeeper, doing its own authorization in C# (`VerifiedOwner` policy, ADR-017's role lookup, per-handler ownership checks like `SwipeOnDogHandler`'s). If `ConnectionStrings:Postgres` connects as a role that respects RLS (not `postgres`/anything with `BYPASSRLS`) and RLS gets enabled on a table with no matching policy, the default is deny-all — Marten would silently lose the ability to read/write its own auto-created tables, with no workflow in this architecture to write a matching policy every time Marten creates a new one as modules grow. Confirm which role the connection string uses before ever touching this toggle. **Exception, not covered by this ADR:** Supabase Storage's access control is genuinely built on RLS policies against `storage.objects` — that's how bucket permissions work, not optional. When the Media module is built, real RLS policies on Storage (e.g. "only a dog's owner can delete its photos") belong there. This ADR is about the application database only. | **Decided** |
+| ADR-026 | **Do not enable Row Level Security on Marten's tables in the Supabase Postgres database.** RLS protects a pattern this app doesn't use — Supabase's RLS model assumes clients talk to Postgres directly (via PostgREST/Supabase SDK) using JWT-scoped roles, with RLS as the sole access-control layer. K9Crush never does this: `Api.Host` is the sole gatekeeper, doing its own authorization in C# (`VerifiedOwner` policy, ADR-017's role lookup, per-handler ownership checks like `SwipeOnDogHandler`'s). If `ConnectionStrings:Postgres` connects as a role that respects RLS (not `postgres`/anything with `BYPASSRLS`) and RLS gets enabled on a table with no matching policy, the default is deny-all — Marten would silently lose the ability to read/write its own auto-created tables, with no workflow in this architecture to write a matching policy every time Marten creates a new one as modules grow. Confirm which role the connection string uses before ever touching this toggle. **Exception, not covered by this ADR:** Supabase Storage's access control is genuinely built on RLS policies against `storage.objects` — that's how bucket permissions work, not optional. When the Media module is built, real RLS policies on Storage (e.g. "only a dog's owner can delete its photos") belong there. This ADR is about the application database only. | **Decided** |
 | ADR-018 | Content & newsletter: lightweight CMS + third-party email platform (not custom-built) for training/health tips and the newsletter | **Decided** |
 | ADR-019 | Command validation state is per-command, minimal, and computed live from events (`[CommandName]State`) — never a shared, persisted DDD-style aggregate bundle reused across commands. Distinct from query read models (ADR-008's state-view lane), which remain rich and persisted. | **Decided** |
 | ADR-020 | Runtime: **.NET 10** (LTS), moved from the originally planned .NET 8. Not a preference — current Marten (9.x) and Wolverine (6.x) dropped net8.0 support entirely and only target net9.0/net10.0. .NET 10 chosen over .NET 9 since it's the LTS release (even-numbered .NET versions are LTS) and .NET 8's own LTS window is what's being moved away from in the first place, so landing on another LTS keeps the support story consistent. | **Decided** |

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Class library (Wolverine.Http handlers, no Program.cs of its own -
+       Api.Host is what actually runs) - needs FrameworkReference for
+       ASP.NET Core types, not Sdk.Web which implies an entry point. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WolverineFx" />
+    <PackageReference Include="WolverineFx.Http" />
+    <PackageReference Include="Marten" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A module's Api project may reference: its own Domain, its own
+         Contracts, BuildingBlocks (any), and OTHER MODULES' Contracts
+         ONLY (never another module's Domain/Api/Infrastructure). -->
+    <ProjectReference Include="..\K9Crush.Modules.ShelterAdoption.Domain\K9Crush.Modules.ShelterAdoption.Domain.csproj" />
+    <ProjectReference Include="..\K9Crush.Modules.ShelterAdoption.Contracts\K9Crush.Modules.ShelterAdoption.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\K9Crush.BuildingBlocks.Web\K9Crush.BuildingBlocks.Web.csproj" />
+  </ItemGroup>
+
+</Project>
