@@ -26,6 +26,29 @@ public class OwnerAccount : Entity
     [JsonInclude] public OwnerRole Role { get; private set; }
     [JsonInclude] public DateTimeOffset CreatedAt { get; private set; }
 
+    /// <summary>
+    /// AccountProfileSettings' "Update Profile Details" - the yaml lists
+    /// no props for this command, so this is a disclosed judgment call:
+    /// the only human-facing "profile detail" that plausibly belongs on
+    /// the owner's own account rather than a dog's (K9Crush.Modules.
+    /// Profiles.Domain.DogProfile owns everything dog-related). Null
+    /// until the owner sets one.
+    /// </summary>
+    [JsonInclude] public string? DisplayName { get; private set; }
+
+    /// <summary>
+    /// AccountProfileSettings' deletion saga (see Commands/RequestAccountDeletion,
+    /// ConfirmAccountDeletion, RecoverAccount, Automations/
+    /// PermanentlyDeleteAccountAfterGracePeriod). Non-null from Request
+    /// through to either RecoverAccount (cleared) or permanent deletion
+    /// (left set, historical). GracePeriodEndsAt is null until
+    /// ConfirmAccountDeletion; its presence (not DeletionRequestedAt's)
+    /// is what actually starts the 30-day clock.
+    /// </summary>
+    [JsonInclude] public DateTimeOffset? DeletionRequestedAt { get; private set; }
+    [JsonInclude] public DateTimeOffset? GracePeriodEndsAt { get; private set; }
+    [JsonInclude] public bool IsPermanentlyDeleted { get; private set; }
+
     [JsonConstructor]
     private OwnerAccount() { }
 
@@ -62,4 +85,39 @@ public class OwnerAccount : Entity
     /// Vendor via the API.
     /// </summary>
     public void PromoteToAdmin() => Role = OwnerRole.Admin;
+
+    /// <summary>The emlang yaml's "Update Profile Details" -> "Profile Details Updated". State-guard (not permanently deleted) lives in the handler.</summary>
+    public void UpdateDisplayName(string displayName) => DisplayName = displayName.Trim();
+
+    /// <summary>The emlang yaml's "Request Account Deletion" -> "Account Deletion Requested". State-guard (not already pending/deleted) lives in the handler.</summary>
+    public void RequestDeletion() => DeletionRequestedAt = DateTimeOffset.UtcNow;
+
+    /// <summary>
+    /// The emlang yaml's "Confirm Account Deletion" -> "Account Deleted"
+    /// (gracePeriodDays: 30, recoverable: true). Setting GracePeriodEndsAt
+    /// (not DeletionRequestedAt) is what actually starts the recoverable
+    /// grace period - the handler schedules the matching ADR-026 check
+    /// message for gracePeriodDays out. State-guard (deletion was
+    /// requested, not already confirmed) lives in the handler.
+    /// </summary>
+    public void ConfirmDeletion(int gracePeriodDays) => GracePeriodEndsAt = DateTimeOffset.UtcNow.AddDays(gracePeriodDays);
+
+    /// <summary>The emlang yaml's "Log In During Grace Period" -> "Account Recovered". State-guard (grace period still open) lives in the handler.</summary>
+    public void RecoverAccount()
+    {
+        DeletionRequestedAt = null;
+        GracePeriodEndsAt = null;
+    }
+
+    /// <summary>
+    /// The emlang yaml's "Permanently Delete Account After Grace Period"
+    /// -> "Account Permanently Deleted" (ADR-026 scheduled message,
+    /// re-checked live in Automations/PermanentlyDeleteAccountAfterGracePeriod
+    /// before calling this - same re-check discipline as
+    /// MarkApplicationStaleHandler). Deliberately does not purge Email/
+    /// DisplayName/other fields or hard-delete the document - Supabase
+    /// (ADR-005) owns the actual auth user lifecycle, this flag is only
+    /// this module's own record that the account is terminally gone.
+    /// </summary>
+    public void PermanentlyDelete() => IsPermanentlyDeleted = true;
 }

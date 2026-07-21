@@ -40,6 +40,11 @@ public sealed class IdentityModule : IModule
             options.Schema.For<OwnerAccount>()
                 .DatabaseSchemaName(SchemaName)
                 .Identity(x => x.Id);
+
+            options.Schema.For<Feedback>()
+                .DatabaseSchemaName(SchemaName)
+                .Identity(x => x.Id)
+                .Index(x => x.OwnerId);
         }
     }
 }

@@ -19,6 +19,8 @@
          ONLY (never another module's Domain/Api/Infrastructure). -->
     <ProjectReference Include="..\K9Crush.Modules.ShelterAdoption.Domain\K9Crush.Modules.ShelterAdoption.Domain.csproj" />
     <ProjectReference Include="..\K9Crush.Modules.ShelterAdoption.Contracts\K9Crush.Modules.ShelterAdoption.Contracts.csproj" />
+    <!-- Consumes AccountDeletionRequestedV1 in Automations/WithdrawApplicationsOnAccountDeletionRequested -->
+    <ProjectReference Include="..\..\Identity\K9Crush.Modules.Identity.Contracts\K9Crush.Modules.Identity.Contracts.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\K9Crush.BuildingBlocks.Web\K9Crush.BuildingBlocks.Web.csproj" />
   </ItemGroup>
 
