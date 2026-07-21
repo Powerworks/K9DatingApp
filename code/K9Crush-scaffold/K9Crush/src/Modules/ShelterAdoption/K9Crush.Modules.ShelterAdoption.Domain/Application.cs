@@ -8,13 +8,11 @@ namespace K9Crush.Modules.ShelterAdoption.Domain;
 /// specific DogListing - from Spec/K9CRUSH.emlang.yaml's TheWouldBeAdopter/
 /// CheckingApplicationStatus/ShelterReviewsApplication chapters.
 ///
-/// Only the statuses actually driven by a built slice exist here (per the
-/// yaml's own richer enum: pending/under_review/returned_for_alteration/
-/// approved/rejected/stale/closed/withdrawn). Stale/Closed are time-based
-/// (staleAfterDays/closesAfterDays) and need a scheduler that doesn't
-/// exist anywhere in this codebase yet - not modeled until one does, same
-/// "no infra, no slice" call made for ShelterManagingListings' cascading
-/// automations.
+/// Stale/Closed (ShelterReviewsApplication's time-based pair) are now
+/// modeled - see ADR-026 (docs/03-solution-architecture.md Section 10):
+/// Wolverine scheduled messages (`IMessageBus.ScheduleAsync`) are the
+/// scheduler this doc comment used to say didn't exist yet. See
+/// Automations/MarkApplicationStale and Automations/CloseStaleApplication.
 ///
 /// ShelterAccountId is denormalized from DogListing.ShelterAccountId at
 /// submission time (not looked up fresh on every query) - a listing
@@ -37,7 +35,16 @@ public enum ApplicationStatus
     // change what any already-persisted Application document's Status
     // means. Add new members here, always at the end.
     Draft,
-    ClosedDogNoLongerAvailable
+    ClosedDogNoLongerAvailable,
+
+    // ShelterReviewsApplication's time-based pair - see ADR-026. Stale is
+    // reached from ReturnedForAlteration after staleAfterDays (15) of no
+    // response; Closed is reached from Stale after a further
+    // closesAfterDays (30). Distinct from ClosedDogNoLongerAvailable,
+    // which is ResumingADraftApplication's unrelated "the dog is gone"
+    // closure and only ever reached from Draft.
+    Stale,
+    Closed
 }
 
 public class Application : Entity
@@ -169,4 +176,21 @@ public class Application : Entity
     /// valid from Draft) lives in the handler.
     /// </summary>
     public void CloseDraftDogNoLongerAvailable() => Status = ApplicationStatus.ClosedDogNoLongerAvailable;
+
+    /// <summary>
+    /// The emlang yaml's "Mark Application Stale" -> "Application Marked
+    /// Stale" (ADR-026). State-guard (only valid from
+    /// ReturnedForAlteration - i.e. the applicant never responded to
+    /// RequestAdditionalDetails) lives in MarkApplicationStaleHandler,
+    /// which re-checks this on every scheduled-message delivery so a
+    /// meanwhile-submitted response is never overwritten.
+    /// </summary>
+    public void MarkStale() => Status = ApplicationStatus.Stale;
+
+    /// <summary>
+    /// The emlang yaml's "Close Stale Application" -> "Application
+    /// Closed" (ADR-026). State-guard (only valid from Stale) lives in
+    /// CloseStaleApplicationHandler.
+    /// </summary>
+    public void Close() => Status = ApplicationStatus.Closed;
 }
