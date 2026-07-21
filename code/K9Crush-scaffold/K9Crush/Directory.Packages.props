@@ -70,7 +70,7 @@
     <!-- Observability -->
     <!-- No OpenTelemetry.* SDK packages - zero-code auto-instrumentation
          only (ADR-010). See Inventory doc Section 7. -->
-    <PackageVersion Include="Serilog.AspNetCore" Version="8.0.3" />                     <!-- [good-faith, Serilog.AspNetCore versions independently of the TFM - likely fine as-is, but verify] -->
+    <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />                     <!-- [good-faith, Serilog.AspNetCore versions independently of the TFM - likely fine as-is, but verify] -->
     <PackageVersion Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />         <!-- [good-faith, HIGHER RISK - this is a community package (Xabaril) with its own versioning cadence, not tied to Microsoft's release train; most likely candidate to still be wrong] -->
     <PackageVersion Include="AspNetCore.HealthChecks.Redis" Version="9.0.0" />          <!-- [good-faith, HIGHER RISK - same caveat] -->
     <PackageVersion Include="AspNetCore.HealthChecks.Rabbitmq" Version="9.0.0" />       <!-- [good-faith, HIGHER RISK - same caveat] -->
