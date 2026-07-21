@@ -11,6 +11,7 @@ public class DiscoveryFeedItem
 {
     public Guid Id { get; set; } // same as DogProfileId
     public Guid OwnerId { get; set; }
+    public string Name { get; set; } = default!;
     public string Breed { get; set; } = default!;
     public double Latitude { get; set; }
     public double Longitude { get; set; }

@@ -65,6 +65,7 @@ public static class PublishDogProfileHandler
             OccurredAt: DateTimeOffset.UtcNow,
             DogProfileId: dogProfile.Id,
             OwnerId: dogProfile.OwnerId,
+            Name: dogProfile.Name,
             Breed: dogProfile.Breed,
             Latitude: dogProfile.Location.Latitude,
             Longitude: dogProfile.Location.Longitude);

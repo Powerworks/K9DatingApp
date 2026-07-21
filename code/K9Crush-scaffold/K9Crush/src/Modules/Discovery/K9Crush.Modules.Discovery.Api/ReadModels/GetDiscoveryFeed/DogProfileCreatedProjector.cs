@@ -36,6 +36,7 @@ public static class DogProfileCreatedProjectorHandler
         {
             Id = integrationEvent.DogProfileId,
             OwnerId = integrationEvent.OwnerId,
+            Name = integrationEvent.Name,
             Breed = integrationEvent.Breed,
             Latitude = integrationEvent.Latitude,
             Longitude = integrationEvent.Longitude,

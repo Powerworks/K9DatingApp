@@ -53,6 +53,12 @@ public sealed class DiscoveryModule : IModule
             options.Schema.For<DiscoveryFeedItem>()
                 .DatabaseSchemaName(SchemaName)
                 .Index(x => x.OwnerId);
+
+            // TheWindowShopper's Flag Dog Of Interest / Claim Saved Match -
+            // a plain document, same reasoning as DiscoveryFeedItem above.
+            options.Schema.For<DogOfInterest>()
+                .DatabaseSchemaName(SchemaName)
+                .Index(x => x.OwnerId);
         }
     }
 }

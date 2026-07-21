@@ -125,6 +125,7 @@ public class PublishDogProfileHandlerTests
         integrationEvent.Should().NotBeNull();
         integrationEvent!.DogProfileId.Should().Be(dogProfile.Id);
         integrationEvent.OwnerId.Should().Be(OwnerId);
+        integrationEvent.Name.Should().Be("Biscuit");
         integrationEvent.Breed.Should().Be("Labrador");
         integrationEvent.Latitude.Should().Be(45.5);
         integrationEvent.Longitude.Should().Be(-122.6);

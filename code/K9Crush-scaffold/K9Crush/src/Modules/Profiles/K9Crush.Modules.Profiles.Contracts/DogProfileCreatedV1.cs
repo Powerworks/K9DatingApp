@@ -16,6 +16,7 @@ public sealed record DogProfileCreatedV1(
     DateTimeOffset OccurredAt,
     Guid DogProfileId,
     Guid OwnerId,
+    string Name,
     string Breed,
     double Latitude,
     double Longitude) : IIntegrationEvent;
