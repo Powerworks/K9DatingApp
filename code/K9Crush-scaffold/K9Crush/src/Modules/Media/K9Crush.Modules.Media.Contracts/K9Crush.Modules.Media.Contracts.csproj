@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <!-- A Contracts project may ONLY reference BuildingBlocks.Domain
+         (for IIntegrationEvent). This is the one project other modules
+         are allowed to reference. -->
+    <ProjectReference Include="..\..\..\BuildingBlocks\K9Crush.BuildingBlocks.Domain\K9Crush.BuildingBlocks.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
