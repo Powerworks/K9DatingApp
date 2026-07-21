@@ -56,11 +56,11 @@ public class DogListing : Entity
 
     /// <summary>
     /// The emlang yaml's "Edit Dog Listing" -> "Dog Listing Edited". The
-    /// yaml's `significantChange` prop (which would drive
-    /// ApplicantNotifiedOfListingChange) is deliberately not tracked here -
-    /// that automation needs a Notifications module that doesn't exist
-    /// yet, so there's no consumer for the flag. Add it back when that
-    /// automation is actually built, not speculatively now.
+    /// yaml's `significantChange` prop isn't stored on this document -
+    /// it's caller-supplied per edit (see EditDogListingRequest), not a
+    /// property of the listing itself, and only matters as the guard on
+    /// whether EditDogListingHandler cascades DogListingSignificantlyEditedV1
+    /// (ADR-028) - nothing reads it back later.
     /// </summary>
     public void Edit(string name, string breed, int ageInMonths, string bio)
     {

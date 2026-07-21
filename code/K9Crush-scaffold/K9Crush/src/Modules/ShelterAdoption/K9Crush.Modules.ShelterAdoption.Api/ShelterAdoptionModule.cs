@@ -18,6 +18,20 @@ public sealed class ShelterAdoptionModule : IModule
 
     public IMartenModuleConfiguration MartenConfiguration { get; } = new ShelterAdoptionMartenConfiguration();
 
+    // First set on this module (ADR-028) - CancelApplicationsForRemovedListingHandler
+    // and NotifyApplicantsOfListingChangeHandler react to this module's OWN
+    // published events (DogListingRemovedV1/DogListingSignificantlyEditedV1),
+    // which still route through the shared k9crush.events exchange same as
+    // any cross-module event - there's no separate "local-only" pub/sub in
+    // this codebase, so a same-module cascade needs a queue too, same as
+    // Discovery/Identity/Notifications. Confirmed safe against Wolverine's
+    // actual RabbitMQ transport source: the shared exchange is fanout (every
+    // bound queue gets every message), and a message type with no local
+    // handler is a graceful no-op (NoHandlerContinuation just acks it), not
+    // an error - so this queue also quietly absorbing every other module's
+    // events it doesn't handle is expected, not a problem.
+    public string? IntegrationEventQueueName => "shelteradoption.integration-events";
+
     public void RegisterServices(IServiceCollection services, IConfiguration configuration)
     {
         // Nothing beyond Wolverine's auto-discovered handlers for this

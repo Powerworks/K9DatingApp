@@ -178,6 +178,18 @@ public class Application : Entity
     public void CloseDraftDogNoLongerAvailable() => Status = ApplicationStatus.ClosedDogNoLongerAvailable;
 
     /// <summary>
+    /// The emlang yaml's ShelterManagingListings chapter's "Cancel
+    /// Applications For Removed Listing" -> "Applications Cancelled For
+    /// Removed Listing" - the open-application counterpart to
+    /// CloseDraftDogNoLongerAvailable() above. Reuses the same
+    /// ClosedDogNoLongerAvailable status (identical real-world meaning:
+    /// the dog listing is gone), just reached from an open application
+    /// (Pending/UnderReview/ReturnedForAlteration) instead of a Draft.
+    /// State-guard (only valid while IsOpen) lives in the handler.
+    /// </summary>
+    public void CancelDogNoLongerAvailable() => Status = ApplicationStatus.ClosedDogNoLongerAvailable;
+
+    /// <summary>
     /// The emlang yaml's "Mark Application Stale" -> "Application Marked
     /// Stale" (ADR-026). State-guard (only valid from
     /// ReturnedForAlteration - i.e. the applicant never responded to
