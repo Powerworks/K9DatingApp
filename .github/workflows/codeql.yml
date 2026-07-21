@@ -1,0 +1,45 @@
+name: CodeQL
+
+# Security scanning (SAST). Runs on PRs/pushes to dev/main plus a weekly
+# schedule so newly-disclosed vulnerability patterns get caught even on
+# code nobody's touched recently - this is GitHub's own recommended
+# default cadence for CodeQL.
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+  schedule:
+    - cron: "0 6 * * 1"
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: code/K9Crush-scaffold/K9Crush/global.json
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: csharp
+
+      # Autobuild finds K9Crush.sln and builds it the same way `dotnet
+      # build` would - CodeQL needs an actual build to observe, not just
+      # the source tree, since C# analysis works off compiled output.
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:csharp"

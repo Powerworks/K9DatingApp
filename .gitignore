@@ -35,3 +35,7 @@ build-kit-dotnet/config.json
 ## OS
 .DS_Store
 Thumbs.db
+
+## Local coverage report output (CI's own run produces this fresh every
+## time via .github/workflows/ci.yml - never something to commit)
+code/K9Crush-scaffold/K9Crush/coverage/

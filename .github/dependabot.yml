@@ -1,0 +1,18 @@
+version: 2
+updates:
+  # NuGet packages - Directory.Packages.props (Central Package Management)
+  # lives at code/K9Crush-scaffold/K9Crush, so that's the directory
+  # Dependabot needs, not the repo root. It recurses to find every
+  # .csproj under this directory itself.
+  - package-ecosystem: "nuget"
+    directory: "/code/K9Crush-scaffold/K9Crush"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+
+  # Keep the actions used in .github/workflows/*.yml themselves updated
+  # (actions/checkout, actions/setup-dotnet, github/codeql-action, etc.).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
