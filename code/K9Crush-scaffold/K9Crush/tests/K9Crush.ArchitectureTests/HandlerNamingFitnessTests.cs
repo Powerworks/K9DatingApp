@@ -2,6 +2,7 @@ using System.Reflection;
 using FluentAssertions;
 using K9Crush.Modules.Discovery.Api.Automations.DetectMutualMatch;
 using K9Crush.Modules.Identity.Api.Automations.ProvisionOwnerOnSupabaseSignup;
+using K9Crush.Modules.Notifications.Api.Automations.NotifyOnMatch;
 using K9Crush.Modules.Profiles.Api.ReadModels.GetDogProfile;
 using K9Crush.Modules.ShelterAdoption.Api.Commands.SubmitApplication;
 using Xunit;
@@ -24,7 +25,8 @@ public class HandlerNamingFitnessTests
         typeof(ProvisionOwnerOnSupabaseSignupHandler).Assembly,
         typeof(GetDogProfileHandler).Assembly,
         typeof(DetectMutualMatchHandler).Assembly,
-        typeof(SubmitApplicationHandler).Assembly
+        typeof(SubmitApplicationHandler).Assembly,
+        typeof(NotifyOnMatchHandler).Assembly
     ];
 
     private static IEnumerable<Type> TypesWithPublicStaticHandleMethod() =>

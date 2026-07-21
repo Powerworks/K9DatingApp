@@ -69,6 +69,7 @@
     <ProjectReference Include="..\..\Modules\Profiles\K9Crush.Modules.Profiles.Api\K9Crush.Modules.Profiles.Api.csproj" />
     <ProjectReference Include="..\..\Modules\Discovery\K9Crush.Modules.Discovery.Api\K9Crush.Modules.Discovery.Api.csproj" />
     <ProjectReference Include="..\..\Modules\ShelterAdoption\K9Crush.Modules.ShelterAdoption.Api\K9Crush.Modules.ShelterAdoption.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Notifications\K9Crush.Modules.Notifications.Api\K9Crush.Modules.Notifications.Api.csproj" />
   </ItemGroup>
 
 </Project>

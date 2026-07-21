@@ -3,6 +3,7 @@ using FluentAssertions;
 using NetArchTest.Rules;
 using K9Crush.Modules.Discovery.Domain;
 using K9Crush.Modules.Identity.Domain;
+using K9Crush.Modules.Notifications.Domain;
 using K9Crush.Modules.Profiles.Domain;
 using K9Crush.Modules.ShelterAdoption.Domain;
 using Xunit;
@@ -23,7 +24,8 @@ public class ModuleBoundaryTests
         ("Identity", typeof(OwnerAccount).Assembly),
         ("Profiles", typeof(DogProfile).Assembly),
         ("Discovery", typeof(DiscoveryFeedItem).Assembly),
-        ("ShelterAdoption", typeof(Application).Assembly)
+        ("ShelterAdoption", typeof(Application).Assembly),
+        ("Notifications", typeof(NotificationPreference).Assembly)
     ];
 
     public static IEnumerable<object[]> ModuleCases() =>

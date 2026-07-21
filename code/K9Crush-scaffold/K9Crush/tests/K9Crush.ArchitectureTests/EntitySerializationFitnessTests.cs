@@ -4,6 +4,7 @@ using FluentAssertions;
 using K9Crush.BuildingBlocks.Domain;
 using K9Crush.Modules.Discovery.Domain;
 using K9Crush.Modules.Identity.Domain;
+using K9Crush.Modules.Notifications.Domain;
 using K9Crush.Modules.Profiles.Domain;
 using K9Crush.Modules.ShelterAdoption.Domain;
 using Xunit;
@@ -28,7 +29,8 @@ public class EntitySerializationFitnessTests
         typeof(OwnerAccount).Assembly,
         typeof(DogProfile).Assembly,
         typeof(DiscoveryFeedItem).Assembly,
-        typeof(K9Crush.Modules.ShelterAdoption.Domain.Application).Assembly
+        typeof(K9Crush.Modules.ShelterAdoption.Domain.Application).Assembly,
+        typeof(NotificationPreference).Assembly
     ];
 
     private static IEnumerable<Type> EntityTypes() =>

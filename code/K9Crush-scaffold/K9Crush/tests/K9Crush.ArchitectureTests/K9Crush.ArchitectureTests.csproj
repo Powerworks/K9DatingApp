@@ -34,6 +34,9 @@
 
     <ProjectReference Include="..\..\src\Modules\ShelterAdoption\K9Crush.Modules.ShelterAdoption.Domain\K9Crush.Modules.ShelterAdoption.Domain.csproj" />
     <ProjectReference Include="..\..\src\Modules\ShelterAdoption\K9Crush.Modules.ShelterAdoption.Api\K9Crush.Modules.ShelterAdoption.Api.csproj" />
+
+    <ProjectReference Include="..\..\src\Modules\Notifications\K9Crush.Modules.Notifications.Domain\K9Crush.Modules.Notifications.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Notifications\K9Crush.Modules.Notifications.Api\K9Crush.Modules.Notifications.Api.csproj" />
   </ItemGroup>
 
 </Project>

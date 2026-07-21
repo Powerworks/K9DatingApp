@@ -78,6 +78,13 @@
     <!-- Object storage (MinIO, S3-compatible - ADR-009) -->
     <PackageVersion Include="AWSSDK.S3" Version="3.7.400" />                            <!-- [good-faith] -->
 
+    <!-- Notifications: dev/staging SMTP send (smtp4dev capture, ADR-027)
+         - see docker-compose.yml's smtp4dev service. Production email
+         provider (SendGrid/Postmark/SES) is still an open decision - see
+         docs/02-inventory-list.md - MailKit is just the SMTP client, not
+         a provider commitment. -->
+    <PackageVersion Include="MailKit" Version="4.17.0" />                               <!-- [verified against nuget.org's flat-container API directly] -->
+
     <!-- Testing -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />               <!-- [good-faith] -->
     <PackageVersion Include="xunit" Version="2.9.2" />                                  <!-- [good-faith] -->

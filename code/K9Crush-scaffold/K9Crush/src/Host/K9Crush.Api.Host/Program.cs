@@ -7,6 +7,7 @@ using K9Crush.BuildingBlocks.Persistence;
 using K9Crush.BuildingBlocks.Web;
 using K9Crush.Modules.Discovery.Api;
 using K9Crush.Modules.Identity.Api;
+using K9Crush.Modules.Notifications.Api;
 using K9Crush.Modules.Profiles.Api;
 using K9Crush.Modules.ShelterAdoption.Api;
 using Serilog;
@@ -31,7 +32,8 @@ var modules = new IModule[]
     new IdentityModule(),
     new ProfilesModule(),
     new DiscoveryModule(),
-    new ShelterAdoptionModule()
+    new ShelterAdoptionModule(),
+    new NotificationsModule()
 };
 
 foreach (var module in modules)

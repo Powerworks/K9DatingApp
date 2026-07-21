@@ -49,15 +49,34 @@ public static class DetectMutualMatchHandler
         if (!isNewMutualMatch)
             return null; // nothing to do - no cascaded message published
 
-        var now = DateTimeOffset.UtcNow;
-        session.Events.Append(streamId, new MatchFormed(state!.DogAId, state.DogBId, now));
+        // Resolve both dogs' owners before appending - MatchCreatedV1
+        // needs them (Notifications alerts both owners) and this stays a
+        // same-module read (DiscoveryFeedItem), not a boundary violation.
+        var dogA = await session.LoadAsync<DiscoveryFeedItem>(state!.DogAId, cancellationToken);
+        var dogB = await session.LoadAsync<DiscoveryFeedItem>(state.DogBId, cancellationToken);
+        if (dogA is null || dogB is null)
+        {
+            // Shouldn't happen - a dog can only be swiped on if it was
+            // already indexed into DiscoveryFeedItem. If it does (e.g. a
+            // data inconsistency), still record the match itself but skip
+            // the notification rather than losing the match or throwing.
+            var now = DateTimeOffset.UtcNow;
+            session.Events.Append(streamId, new MatchFormed(state.DogAId, state.DogBId, now));
+            await session.SaveChangesAsync(cancellationToken);
+            return null;
+        }
+
+        var occurredAt = DateTimeOffset.UtcNow;
+        session.Events.Append(streamId, new MatchFormed(state.DogAId, state.DogBId, occurredAt));
         await session.SaveChangesAsync(cancellationToken);
 
         return new MatchCreatedV1(
             EventId: Guid.NewGuid(),
-            OccurredAt: now,
+            OccurredAt: occurredAt,
             MatchId: streamId,
             DogAId: state.DogAId,
-            DogBId: state.DogBId);
+            DogBId: state.DogBId,
+            OwnerAId: dogA.OwnerId,
+            OwnerBId: dogB.OwnerId);
     }
 }
