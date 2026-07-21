@@ -58,7 +58,7 @@
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.9" /> <!-- [good-faith, inferred same release train] -->
 
     <!-- API / OpenAPI -->
-    <PackageVersion Include="Swashbuckle.AspNetCore" Version="6.9.0" />                 <!-- [good-faith] -->
+    <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.2.3" />                 <!-- [good-faith] -->
 
     <!-- Gateway -->
     <PackageVersion Include="Yarp.ReverseProxy" Version="2.3.0" />                      <!-- [verified] -->
