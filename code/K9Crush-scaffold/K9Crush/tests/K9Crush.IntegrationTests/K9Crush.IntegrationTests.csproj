@@ -26,6 +26,9 @@
 
     <ProjectReference Include="..\..\src\Modules\Profiles\K9Crush.Modules.Profiles.Domain\K9Crush.Modules.Profiles.Domain.csproj" />
     <ProjectReference Include="..\..\src\Modules\Profiles\K9Crush.Modules.Profiles.Api\K9Crush.Modules.Profiles.Api.csproj" />
+
+    <ProjectReference Include="..\..\src\Modules\Identity\K9Crush.Modules.Identity.Domain\K9Crush.Modules.Identity.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Identity\K9Crush.Modules.Identity.Api\K9Crush.Modules.Identity.Api.csproj" />
   </ItemGroup>
 
 </Project>

@@ -139,19 +139,11 @@ No external services needed beyond Docker (Testcontainers spins up its own dispo
 ## 6. What's deliberately not done yet (don't be surprised)
 
 - **No UI beyond a single read-only discovery feed page.** `Home.razor` in `K9Crush.Blazor.App` calls the discovery feed API and lists results — nothing else exists: no signup/login page, no profile-creation wizard, no swipe UI, no shelter dashboard, no application-review UI. Everything is exercised via `curl`/Swagger for now.
-- **No API path to create the first Admin.** `VerifyShelterHandler`/`ApproveShelterAccountHandler` (the shelter-onboarding review steps) require the `Admin` role, and the only role transition exposed anywhere is `Owner → Shelter` (automatic, triggered by `ShelterAccountCreatedV1`). To exercise the shelter-review half of the adoption flow, manually promote a test owner to Admin directly in Postgres once you have a real `OwnerAccount` document for them (sign up normally first, so the row exists):
-  ```sql
-  -- Check the actual field casing in your data first (Marten's JSON
-  -- serializer settings weren't re-verified against a live document this
-  -- session) - this assumes PascalCase field names matching the C# type:
-  select data from identity.mt_doc_owneraccount where data->>'Email' = '<test admin email>';
-
-  -- OwnerRole enum: Owner=0, Vendor=1, Shelter=2, Admin=3 (BuildingBlocks.Domain/OwnerRole.cs)
-  update identity.mt_doc_owneraccount
-  set data = jsonb_set(data, '{Role}', '3')
-  where data->>'Email' = '<test admin email>';
+- **First Admin: bootstrap via API, not a manual Postgres edit.** `VerifyShelterHandler`/`ApproveShelterAccountHandler` (the shelter-onboarding review steps) require the `Admin` role. Sign up and confirm a test owner normally (Step 2), then:
+  ```bash
+  curl -X POST "$API/api/v1/identity/me/bootstrap-admin" -H "Authorization: Bearer $TOKEN"
   ```
-  This is a deliberate gap, not an oversight — see `OwnerAccount.PromoteToShelter()`'s doc comment ("the first Admin is a manual Postgres seed, same as most real systems' first-admin problem").
+  Self-promotes the caller to Admin - but only while zero Admins exist anywhere in the system (`BootstrapAdminHandler`). Once any Admin exists, this permanently 409s for everyone, including the one who just bootstrapped - it's a one-time setup step, not a general role-grant endpoint (there's still no way to create a `Vendor`, or a second `Admin`, via the API).
 - **No local/mock Supabase Auth.** Every authenticated endpoint needs a real Supabase Cloud project (Section 2), and Identity only learns about new users via Database Webhooks Supabase sends — which means Supabase must be able to reach wherever `Api.Host` is running (a tunnel like ngrok if running locally, not just `localhost`).
 - **Supabase JWT validation uses a shared HS256 secret, not JWKS/OIDC discovery.** This is Supabase's default (simpler, but means the secret lives in `appsettings.Development.json` - fine for local dev, not for anything beyond it). Supabase's newer asymmetric (ES256/JWKS) signing mode is the better long-term fit and avoids that shared-secret exposure entirely, but requires explicitly enabling it in the Supabase project dashboard first - not done here.
 - **No Media module.** `AddDogProfilePhotoHandler` only stores a `MediaAssetId` reference (any `Guid` will do for testing, per the smoke test above) — there's no actual upload endpoint or Supabase Storage integration yet.

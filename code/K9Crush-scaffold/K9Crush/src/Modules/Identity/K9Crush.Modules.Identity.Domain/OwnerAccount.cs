@@ -47,14 +47,19 @@ public class OwnerAccount : Entity
     public void MarkVerified() => IsVerified = true;
 
     /// <summary>
-    /// The only role transition currently built - triggered by
-    /// ShelterAdoption's ShelterAccountCreatedV1 (see
+    /// Triggered by ShelterAdoption's ShelterAccountCreatedV1 (see
     /// Automations/PromoteOwnerToShelterOnAccountCreated), not exposed as
-    /// its own command/API. No general-purpose AssignRole endpoint exists
-    /// - deliberately not built, since nothing currently needs to grant
-    /// Vendor or Admin via the API; the first Admin is a manual Postgres
-    /// seed (see GETTING_STARTED.md-style bootstrap note), same as most
-    /// real systems' first-admin problem.
+    /// its own command/API.
     /// </summary>
     public void PromoteToShelter() => Role = OwnerRole.Shelter;
+
+    /// <summary>
+    /// The first-admin bootstrap (see Commands/BootstrapAdmin) - the
+    /// "zero admins exist yet" guard lives in the handler, not here, same
+    /// as every other state-guard in this codebase. No general-purpose
+    /// AssignRole endpoint exists beyond this and PromoteToShelter -
+    /// deliberately not built, since nothing currently needs to grant
+    /// Vendor via the API.
+    /// </summary>
+    public void PromoteToAdmin() => Role = OwnerRole.Admin;
 }
