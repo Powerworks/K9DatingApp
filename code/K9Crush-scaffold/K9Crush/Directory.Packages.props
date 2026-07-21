@@ -86,7 +86,7 @@
     <PackageVersion Include="MailKit" Version="4.17.0" />                               <!-- [verified against nuget.org's flat-container API directly] -->
 
     <!-- Testing -->
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />               <!-- [good-faith] -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />               <!-- [good-faith] -->
     <PackageVersion Include="xunit" Version="2.9.2" />                                  <!-- [good-faith] -->
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />              <!-- [good-faith] -->
     <PackageVersion Include="FluentAssertions" Version="6.12.1" />                      <!-- [good-faith] -->
