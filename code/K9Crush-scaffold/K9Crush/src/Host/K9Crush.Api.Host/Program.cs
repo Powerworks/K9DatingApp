@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.SignalR;
 using K9Crush.BuildingBlocks.Domain;
 using K9Crush.BuildingBlocks.Persistence;
 using K9Crush.BuildingBlocks.Web;
+using K9Crush.Modules.Chat.Api;
 using K9Crush.Modules.Discovery.Api;
 using K9Crush.Modules.Identity.Api;
 using K9Crush.Modules.Notifications.Api;
@@ -33,7 +34,8 @@ var modules = new IModule[]
     new ProfilesModule(),
     new DiscoveryModule(),
     new ShelterAdoptionModule(),
-    new NotificationsModule()
+    new NotificationsModule(),
+    new ChatModule()
 };
 
 foreach (var module in modules)
@@ -88,6 +90,11 @@ builder.Services.AddMarten(options =>
     // API have both existed at different points; pick one per the
     // library's current guidance and don't mix both in the same app.
     m.SubscribeToEvent<K9Crush.Modules.Discovery.Domain.Events.DogLiked>();
+
+    // Chat's own read-model projectors (ReadModels/Projectors) - same
+    // forwarding mechanism, see ChatModule.cs.
+    m.SubscribeToEvent<K9Crush.Modules.Chat.Domain.Events.ConversationCreated>();
+    m.SubscribeToEvent<K9Crush.Modules.Chat.Domain.Events.MessageSent>();
 });
 
 // --- Wolverine (mediator + RabbitMQ transport + Http endpoints) ---------

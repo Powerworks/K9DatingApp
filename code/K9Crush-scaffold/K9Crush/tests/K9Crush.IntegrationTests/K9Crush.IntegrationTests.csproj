@@ -33,6 +33,11 @@
 
     <ProjectReference Include="..\..\src\Modules\Notifications\K9Crush.Modules.Notifications.Domain\K9Crush.Modules.Notifications.Domain.csproj" />
     <ProjectReference Include="..\..\src\Modules\Notifications\K9Crush.Modules.Notifications.Api\K9Crush.Modules.Notifications.Api.csproj" />
+
+    <ProjectReference Include="..\..\src\Modules\Chat\K9Crush.Modules.Chat.Domain\K9Crush.Modules.Chat.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Chat\K9Crush.Modules.Chat.Api\K9Crush.Modules.Chat.Api.csproj" />
+
+    <ProjectReference Include="..\..\src\Modules\Discovery\K9Crush.Modules.Discovery.Contracts\K9Crush.Modules.Discovery.Contracts.csproj" />
   </ItemGroup>
 
 </Project>
