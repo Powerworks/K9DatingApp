@@ -24,36 +24,18 @@ namespace K9Crush.Modules.Notifications.Api.Automations.NotifyOnMatch;
 /// </summary>
 public static class NotifyOnMatchHandler
 {
+    private const string Subject = "You've got a new match on K9Crush!";
+    private const string Body = "One of your dogs just matched with another dog!";
+
     public static async Task Handle(
         MatchCreatedV1 integrationEvent,
         IDocumentSession session,
         ISmtpNotificationSender sender,
         CancellationToken cancellationToken)
     {
-        await NotifyOwnerAsync(integrationEvent.OwnerAId, session, sender, cancellationToken);
-        await NotifyOwnerAsync(integrationEvent.OwnerBId, session, sender, cancellationToken);
-    }
-
-    private static async Task NotifyOwnerAsync(
-        Guid ownerId, IDocumentSession session, ISmtpNotificationSender sender, CancellationToken cancellationToken)
-    {
-        const string subject = "You've got a new match on K9Crush!";
-
-        var preference = await session.LoadAsync<NotificationPreference>(ownerId, cancellationToken);
-        var contact = await session.LoadAsync<OwnerContact>(ownerId, cancellationToken);
-
-        var shouldSend = (preference?.IsEnabled(NotificationType.Matches) ?? true) && contact is not null;
-
-        if (shouldSend)
-        {
-            await sender.SendAsync(contact!.Email, subject, "One of your dogs just matched with another dog!", cancellationToken);
-            session.Store(NotificationLog.Record(ownerId, NotificationType.Matches, NotificationChannel.Email, subject));
-        }
-        else
-        {
-            session.Store(NotificationLog.Record(ownerId, NotificationType.Matches, NotificationChannel.Suppressed, subject));
-        }
-
-        await session.SaveChangesAsync(cancellationToken);
+        await NotificationDispatcher.DispatchAsync(
+            session, sender, integrationEvent.OwnerAId, NotificationType.Matches, Subject, Body, cancellationToken);
+        await NotificationDispatcher.DispatchAsync(
+            session, sender, integrationEvent.OwnerBId, NotificationType.Matches, Subject, Body, cancellationToken);
     }
 }

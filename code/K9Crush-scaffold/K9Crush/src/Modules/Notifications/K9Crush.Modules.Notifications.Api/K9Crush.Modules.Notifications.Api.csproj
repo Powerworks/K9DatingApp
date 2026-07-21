@@ -27,6 +27,8 @@
     <!-- OwnerRegisteredV1 carries the email address NotifyOnMatchHandler
          needs to actually send to - see OwnerContact.cs. -->
     <ProjectReference Include="..\..\Identity\K9Crush.Modules.Identity.Contracts\K9Crush.Modules.Identity.Contracts.csproj" />
+    <!-- ApplicationRejectedV1/ApplicationApprovedV1 - NotifyOnApplicationRejectedHandler/NotifyOnApplicationApprovedHandler's triggers. -->
+    <ProjectReference Include="..\..\ShelterAdoption\K9Crush.Modules.ShelterAdoption.Contracts\K9Crush.Modules.ShelterAdoption.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

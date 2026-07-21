@@ -49,9 +49,12 @@ public class DetectMutualMatchIntegrationTests(DiscoveryPostgresFixture fixture)
         await using var session = fixture.Store.LightweightSession();
         var result = await DetectMutualMatchHandler.Handle(secondLike, session, CancellationToken.None);
 
+        // DetectMutualMatchState assigns DogAId/DogBId (and so OwnerAId/
+        // OwnerBId) by sorting the pair, not by which side of this test's
+        // seeding called something "dogA" - order-independent comparison
+        // is the correct assertion here, not an incidental test flake.
         result.Should().NotBeNull();
-        result!.DogAId.Should().Be(dogAId);
-        result.DogBId.Should().Be(dogBId);
+        new[] { result!.DogAId, result.DogBId }.Should().BeEquivalentTo([dogAId, dogBId]);
         new[] { result.OwnerAId, result.OwnerBId }.Should().BeEquivalentTo([ownerAId, ownerBId]);
     }
 
