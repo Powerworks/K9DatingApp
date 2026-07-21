@@ -6,7 +6,9 @@ using K9Crush.Modules.Chat.Domain;
 using K9Crush.Modules.Discovery.Domain;
 using K9Crush.Modules.Identity.Domain;
 using K9Crush.Modules.Media.Domain;
+using K9Crush.Modules.Moderation.Domain;
 using K9Crush.Modules.Notifications.Domain;
+using K9Crush.Modules.Places.Domain;
 using K9Crush.Modules.Profiles.Domain;
 using K9Crush.Modules.ShelterAdoption.Domain;
 using Xunit;
@@ -31,7 +33,9 @@ public class ModuleBoundaryTests
         ("Notifications", typeof(NotificationPreference).Assembly),
         ("Chat", typeof(ConversationSummary).Assembly),
         ("Admin", typeof(FeedbackInboxItem).Assembly),
-        ("Media", typeof(MediaAsset).Assembly)
+        ("Media", typeof(MediaAsset).Assembly),
+        ("Moderation", typeof(FlaggedContent).Assembly),
+        ("Places", typeof(Place).Assembly)
     ];
 
     public static IEnumerable<object[]> ModuleCases() =>

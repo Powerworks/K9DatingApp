@@ -14,16 +14,22 @@ namespace K9Crush.Modules.Media.Api;
 ///
 /// First increment covers the emlang yaml's UploadShareRemovePhotosAndVideos
 /// chapter: Upload/Share/Remove Media, plus Report Media -> Content
-/// Flagged (see MediaContentFlaggedV1's own doc comment for why nothing
-/// consumes that yet). No IntegrationEventQueueName - this module only
-/// ever publishes, it doesn't consume any other module's events yet,
-/// same as Profiles.
+/// Flagged. Now also consumes Moderation's cross-module
+/// ContentRemovalRequestedV1 (Automations/RemoveMediaOnContentRemovalRequested) -
+/// the other half of the Moderation module's "Remove Content" command,
+/// added once Moderation actually needed a module to react to it.
 /// </summary>
 public sealed class MediaModule : IModule
 {
     public string Name => "Media";
 
     public IMartenModuleConfiguration MartenConfiguration { get; } = new MediaMartenConfiguration();
+
+    // RemoveMediaOnContentRemovalRequestedHandler.Handle(ContentRemovalRequestedV1, ...)
+    // needs this module's own durable queue bound to k9crush.events, same
+    // mechanism every other module consuming a cross-module event uses -
+    // see IModule.cs's doc comment.
+    public string? IntegrationEventQueueName => "media.integration-events";
 
     public void RegisterServices(IServiceCollection services, IConfiguration configuration)
     {

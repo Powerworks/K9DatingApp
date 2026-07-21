@@ -37,6 +37,7 @@ public static class ReportMediaHandler
             EventId: Guid.NewGuid(),
             OccurredAt: DateTimeOffset.UtcNow,
             MediaAssetId: mediaAsset.Id,
+            ContentOwnerId: mediaAsset.OwnerId,
             ReporterOwnerId: reporterOwnerId);
 
         return (TypedResults.Ok(new ReportMediaResponse(mediaAsset.Id)), integrationEvent);

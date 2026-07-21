@@ -24,8 +24,8 @@
     -->
 
     <!-- Persistence -->
-    <PackageVersion Include="Marten" Version="9.15.0" />                                <!-- [confirmed real - from your restore log, net9.0/net10.0 only] -->
-    <PackageVersion Include="Marten.AspNetCore" Version="9.15.0" />                     <!-- [confirmed real - from your restore log] -->
+    <PackageVersion Include="Marten" Version="9.17.1" />                                <!-- [confirmed real - from your restore log, net9.0/net10.0 only] -->
+    <PackageVersion Include="Marten.AspNetCore" Version="9.17.1" />                     <!-- [confirmed real - from your restore log] -->
 
     <!-- Messaging / Mediator - Wolverine packages release in lockstep,
          same version number across WolverineFx/.RabbitMQ/.Marten/.Http -
@@ -54,23 +54,23 @@
 
     <!-- Caching / Real-time -->
     <PackageVersion Include="StackExchange.Redis" Version="2.8.24" />                   <!-- [good-faith] -->
-    <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.9" /> <!-- [good-faith, inferred same release train as JwtBearer below] -->
-    <PackageVersion Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.10" /> <!-- [good-faith, inferred same release train] -->
+    <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.10" /> <!-- [good-faith, inferred same release train as JwtBearer below] -->
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.9" /> <!-- [good-faith, inferred same release train] -->
 
     <!-- API / OpenAPI -->
-    <PackageVersion Include="Swashbuckle.AspNetCore" Version="6.9.0" />                 <!-- [good-faith] -->
+    <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.2.3" />                 <!-- [good-faith] -->
 
     <!-- Gateway -->
     <PackageVersion Include="Yarp.ReverseProxy" Version="2.3.0" />                      <!-- [verified] -->
 
     <!-- Auth -->
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />      <!-- [verified] -->
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />      <!-- [verified] -->
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.9" />  <!-- [good-faith, ships in lockstep with JwtBearer from the same dotnet/aspnetcore repo] -->
 
     <!-- Observability -->
     <!-- No OpenTelemetry.* SDK packages - zero-code auto-instrumentation
          only (ADR-010). See Inventory doc Section 7. -->
-    <PackageVersion Include="Serilog.AspNetCore" Version="8.0.3" />                     <!-- [good-faith, Serilog.AspNetCore versions independently of the TFM - likely fine as-is, but verify] -->
+    <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />                     <!-- [good-faith, Serilog.AspNetCore versions independently of the TFM - likely fine as-is, but verify] -->
     <PackageVersion Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />         <!-- [good-faith, HIGHER RISK - this is a community package (Xabaril) with its own versioning cadence, not tied to Microsoft's release train; most likely candidate to still be wrong] -->
     <PackageVersion Include="AspNetCore.HealthChecks.Redis" Version="9.0.0" />          <!-- [good-faith, HIGHER RISK - same caveat] -->
     <PackageVersion Include="AspNetCore.HealthChecks.Rabbitmq" Version="9.0.0" />       <!-- [good-faith, HIGHER RISK - same caveat] -->
@@ -86,13 +86,13 @@
     <PackageVersion Include="MailKit" Version="4.17.0" />                               <!-- [verified against nuget.org's flat-container API directly] -->
 
     <!-- Testing -->
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />               <!-- [good-faith] -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />               <!-- [good-faith] -->
     <PackageVersion Include="xunit" Version="2.9.2" />                                  <!-- [good-faith] -->
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />              <!-- [good-faith] -->
     <PackageVersion Include="FluentAssertions" Version="6.12.1" />                      <!-- [good-faith] -->
-    <PackageVersion Include="NSubstitute" Version="5.3.0" />                            <!-- [verified] mocking library - none was pinned yet; NSubstitute chosen over Moq for its no-Expression-tree call syntax, pairs well with async Marten interfaces (IDocumentSession/IQuerySession) -->
+    <PackageVersion Include="NSubstitute" Version="6.0.0" />                            <!-- [verified] mocking library - none was pinned yet; NSubstitute chosen over Moq for its no-Expression-tree call syntax, pairs well with async Marten interfaces (IDocumentSession/IQuerySession) -->
     <PackageVersion Include="NetArchTest.Rules" Version="1.3.2" />                      <!-- [good-faith] -->
-    <PackageVersion Include="Testcontainers.PostgreSql" Version="3.10.0" />             <!-- [good-faith] -->
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.13.0" />             <!-- [good-faith] -->
     <PackageVersion Include="Testcontainers.RabbitMq" Version="3.10.0" />               <!-- [good-faith] -->
     <PackageVersion Include="Testcontainers.Redis" Version="3.10.0" />                  <!-- [good-faith] -->
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />                    <!-- [verified against nuget.org's flat-container API directly] - CI code coverage collection, see tests/Directory.Build.props -->

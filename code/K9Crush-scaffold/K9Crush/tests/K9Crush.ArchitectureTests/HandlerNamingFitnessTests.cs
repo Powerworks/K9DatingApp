@@ -5,7 +5,9 @@ using K9Crush.Modules.Chat.Api.Commands.SendMessage;
 using K9Crush.Modules.Discovery.Api.Automations.DetectMutualMatch;
 using K9Crush.Modules.Identity.Api.Automations.ProvisionOwnerOnSupabaseSignup;
 using K9Crush.Modules.Media.Api.Commands.UploadMedia;
+using K9Crush.Modules.Moderation.Api.Commands.DismissFlag;
 using K9Crush.Modules.Notifications.Api.Automations.NotifyOnMatch;
+using K9Crush.Modules.Places.Api.Commands.WriteReview;
 using K9Crush.Modules.Profiles.Api.ReadModels.GetDogProfile;
 using K9Crush.Modules.ShelterAdoption.Api.Commands.SubmitApplication;
 using Xunit;
@@ -32,7 +34,9 @@ public class HandlerNamingFitnessTests
         typeof(NotifyOnMatchHandler).Assembly,
         typeof(SendMessageHandler).Assembly,
         typeof(RespondToFeedbackHandler).Assembly,
-        typeof(UploadMediaHandler).Assembly
+        typeof(UploadMediaHandler).Assembly,
+        typeof(DismissFlagHandler).Assembly,
+        typeof(WriteReviewHandler).Assembly
     ];
 
     private static IEnumerable<Type> TypesWithPublicStaticHandleMethod() =>

@@ -46,6 +46,12 @@
 
     <ProjectReference Include="..\..\src\Modules\Media\K9Crush.Modules.Media.Domain\K9Crush.Modules.Media.Domain.csproj" />
     <ProjectReference Include="..\..\src\Modules\Media\K9Crush.Modules.Media.Api\K9Crush.Modules.Media.Api.csproj" />
+
+    <ProjectReference Include="..\..\src\Modules\Moderation\K9Crush.Modules.Moderation.Domain\K9Crush.Modules.Moderation.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Moderation\K9Crush.Modules.Moderation.Api\K9Crush.Modules.Moderation.Api.csproj" />
+
+    <ProjectReference Include="..\..\src\Modules\Places\K9Crush.Modules.Places.Domain\K9Crush.Modules.Places.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Places\K9Crush.Modules.Places.Api\K9Crush.Modules.Places.Api.csproj" />
   </ItemGroup>
 
 </Project>

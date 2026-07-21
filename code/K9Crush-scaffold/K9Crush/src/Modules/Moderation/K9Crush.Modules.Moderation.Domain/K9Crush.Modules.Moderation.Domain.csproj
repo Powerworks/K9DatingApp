@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <!-- A Domain project may ONLY reference BuildingBlocks.Domain. Never
+         another module's Domain/Infrastructure/Api project. Enforced by
+         K9Crush.ArchitectureTests. -->
+    <ProjectReference Include="..\..\..\BuildingBlocks\K9Crush.BuildingBlocks.Domain\K9Crush.BuildingBlocks.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

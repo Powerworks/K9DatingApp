@@ -1,0 +1,75 @@
+using System.Security.Claims;
+using FluentAssertions;
+using Microsoft.AspNetCore.Http.HttpResults;
+using K9Crush.Modules.ShelterAdoption.Api.ReadModels.GetShelterDogListings;
+using K9Crush.Modules.ShelterAdoption.Domain;
+using Xunit;
+
+namespace K9Crush.IntegrationTests.ShelterAdoption;
+
+/// <summary>
+/// Layer 3 (TestingApproach.md) - GetShelterDogListingsHandler calls
+/// session.Query&lt;DogListing&gt;().Where(...).ToListAsync(), the LINQ path
+/// Layer 2's IQuerySession mocks can't reach. Scoped to a per-test random
+/// shelterAccountId, so safe to share ShelterAdoptionPostgresFixture via
+/// [Collection(...)] - not the global "every row" class of check that
+/// forced GetAdoptionListingsIntegrationTests onto its own dedicated
+/// container instead.
+/// </summary>
+[Collection(ShelterAdoptionPostgresCollection.Name)]
+public class GetShelterDogListingsIntegrationTests(ShelterAdoptionPostgresFixture fixture)
+{
+    private static ClaimsPrincipal BuildUser(Guid ownerId) =>
+        new(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, ownerId.ToString())]));
+
+    [Fact]
+    public async Task Handle_WhenShelterAccountDoesNotExist_ReturnsNotFound()
+    {
+        var shelterAccountId = Guid.NewGuid();
+        await using var session = fixture.Store.LightweightSession();
+
+        var result = await GetShelterDogListingsHandler.Handle(shelterAccountId, BuildUser(Guid.NewGuid()), session, CancellationToken.None);
+
+        result.Result.Should().BeOfType<NotFound>();
+    }
+
+    [Fact]
+    public async Task Handle_WhenCallerDoesNotOwnTheShelterAccount_ReturnsForbid()
+    {
+        var ownerId = Guid.NewGuid();
+        var shelterAccount = ShelterAccount.Create(ownerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
+        await using (var seedSession = fixture.Store.LightweightSession())
+        {
+            seedSession.Store(shelterAccount);
+            await seedSession.SaveChangesAsync();
+        }
+
+        await using var session = fixture.Store.LightweightSession();
+        var result = await GetShelterDogListingsHandler.Handle(shelterAccount.Id, BuildUser(Guid.NewGuid()), session, CancellationToken.None);
+
+        result.Result.Should().BeOfType<ForbidHttpResult>();
+    }
+
+    [Fact]
+    public async Task Handle_ReturnsOnlyListingsForThatShelter()
+    {
+        var ownerId = Guid.NewGuid();
+        var shelterAccount = ShelterAccount.Create(ownerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
+        var ownListing = DogListing.Create(shelterAccount.Id, "Biscuit", "Labrador", 36, "Friendly");
+        var otherShelterListing = DogListing.Create(Guid.NewGuid(), "Max", "Beagle", 24, "Playful");
+
+        await using (var seedSession = fixture.Store.LightweightSession())
+        {
+            seedSession.Store(shelterAccount);
+            seedSession.Store(ownListing, otherShelterListing);
+            await seedSession.SaveChangesAsync();
+        }
+
+        await using var session = fixture.Store.LightweightSession();
+        var result = await GetShelterDogListingsHandler.Handle(shelterAccount.Id, BuildUser(ownerId), session, CancellationToken.None);
+
+        result.Result.Should().BeOfType<Ok<ShelterDogListingsResponse>>();
+        var response = ((Ok<ShelterDogListingsResponse>)result.Result).Value!;
+        response.Items.Should().ContainSingle().Which.DogListingId.Should().Be(ownListing.Id);
+    }
+}
