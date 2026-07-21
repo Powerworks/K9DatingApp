@@ -40,6 +40,9 @@
 
     <ProjectReference Include="..\..\src\Modules\Chat\K9Crush.Modules.Chat.Domain\K9Crush.Modules.Chat.Domain.csproj" />
     <ProjectReference Include="..\..\src\Modules\Chat\K9Crush.Modules.Chat.Api\K9Crush.Modules.Chat.Api.csproj" />
+
+    <ProjectReference Include="..\..\src\Modules\Admin\K9Crush.Modules.Admin.Domain\K9Crush.Modules.Admin.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Admin\K9Crush.Modules.Admin.Api\K9Crush.Modules.Admin.Api.csproj" />
   </ItemGroup>
 
 </Project>

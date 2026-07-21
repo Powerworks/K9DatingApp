@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json.Serialization;
 using FluentAssertions;
 using K9Crush.BuildingBlocks.Domain;
+using K9Crush.Modules.Admin.Domain;
 using K9Crush.Modules.Chat.Domain;
 using K9Crush.Modules.Discovery.Domain;
 using K9Crush.Modules.Identity.Domain;
@@ -32,7 +33,8 @@ public class EntitySerializationFitnessTests
         typeof(DiscoveryFeedItem).Assembly,
         typeof(K9Crush.Modules.ShelterAdoption.Domain.Application).Assembly,
         typeof(NotificationPreference).Assembly,
-        typeof(ConversationSummary).Assembly
+        typeof(ConversationSummary).Assembly,
+        typeof(FeedbackInboxItem).Assembly
     ];
 
     private static IEnumerable<Type> EntityTypes() =>

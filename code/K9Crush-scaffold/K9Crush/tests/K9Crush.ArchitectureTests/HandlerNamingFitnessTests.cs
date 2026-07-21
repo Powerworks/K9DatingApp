@@ -1,5 +1,6 @@
 using System.Reflection;
 using FluentAssertions;
+using K9Crush.Modules.Admin.Api.Commands.RespondToFeedback;
 using K9Crush.Modules.Chat.Api.Commands.SendMessage;
 using K9Crush.Modules.Discovery.Api.Automations.DetectMutualMatch;
 using K9Crush.Modules.Identity.Api.Automations.ProvisionOwnerOnSupabaseSignup;
@@ -28,7 +29,8 @@ public class HandlerNamingFitnessTests
         typeof(DetectMutualMatchHandler).Assembly,
         typeof(SubmitApplicationHandler).Assembly,
         typeof(NotifyOnMatchHandler).Assembly,
-        typeof(SendMessageHandler).Assembly
+        typeof(SendMessageHandler).Assembly,
+        typeof(RespondToFeedbackHandler).Assembly
     ];
 
     private static IEnumerable<Type> TypesWithPublicStaticHandleMethod() =>

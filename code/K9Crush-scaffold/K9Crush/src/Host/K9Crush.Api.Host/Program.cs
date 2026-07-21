@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.SignalR;
 using K9Crush.BuildingBlocks.Domain;
 using K9Crush.BuildingBlocks.Persistence;
 using K9Crush.BuildingBlocks.Web;
+using K9Crush.Modules.Admin.Api;
 using K9Crush.Modules.Chat.Api;
 using K9Crush.Modules.Discovery.Api;
 using K9Crush.Modules.Identity.Api;
@@ -35,7 +36,8 @@ var modules = new IModule[]
     new DiscoveryModule(),
     new ShelterAdoptionModule(),
     new NotificationsModule(),
-    new ChatModule()
+    new ChatModule(),
+    new AdminModule()
 };
 
 foreach (var module in modules)
