@@ -30,6 +30,9 @@
 
     <ProjectReference Include="..\..\src\Modules\Identity\K9Crush.Modules.Identity.Domain\K9Crush.Modules.Identity.Domain.csproj" />
     <ProjectReference Include="..\..\src\Modules\Identity\K9Crush.Modules.Identity.Api\K9Crush.Modules.Identity.Api.csproj" />
+
+    <ProjectReference Include="..\..\src\Modules\Notifications\K9Crush.Modules.Notifications.Domain\K9Crush.Modules.Notifications.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Notifications\K9Crush.Modules.Notifications.Api\K9Crush.Modules.Notifications.Api.csproj" />
   </ItemGroup>
 
 </Project>

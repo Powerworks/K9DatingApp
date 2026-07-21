@@ -49,6 +49,10 @@ public sealed class NotificationsModule : IModule
 
             options.Schema.For<OwnerContact>()
                 .DatabaseSchemaName(SchemaName);
+
+            options.Schema.For<NotificationTemplate>()
+                .DatabaseSchemaName(SchemaName)
+                .Identity(x => x.Id);
         }
     }
 }
