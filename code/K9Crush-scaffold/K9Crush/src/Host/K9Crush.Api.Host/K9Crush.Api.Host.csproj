@@ -73,6 +73,7 @@
     <ProjectReference Include="..\..\Modules\Chat\K9Crush.Modules.Chat.Api\K9Crush.Modules.Chat.Api.csproj" />
     <ProjectReference Include="..\..\Modules\Admin\K9Crush.Modules.Admin.Api\K9Crush.Modules.Admin.Api.csproj" />
     <ProjectReference Include="..\..\Modules\Media\K9Crush.Modules.Media.Api\K9Crush.Modules.Media.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Moderation\K9Crush.Modules.Moderation.Api\K9Crush.Modules.Moderation.Api.csproj" />
   </ItemGroup>
 
 </Project>

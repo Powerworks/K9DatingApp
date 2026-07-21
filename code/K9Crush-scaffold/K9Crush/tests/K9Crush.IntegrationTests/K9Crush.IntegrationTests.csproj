@@ -41,6 +41,9 @@
 
     <ProjectReference Include="..\..\src\Modules\Admin\K9Crush.Modules.Admin.Domain\K9Crush.Modules.Admin.Domain.csproj" />
     <ProjectReference Include="..\..\src\Modules\Admin\K9Crush.Modules.Admin.Api\K9Crush.Modules.Admin.Api.csproj" />
+
+    <ProjectReference Include="..\..\src\Modules\Moderation\K9Crush.Modules.Moderation.Domain\K9Crush.Modules.Moderation.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Moderation\K9Crush.Modules.Moderation.Api\K9Crush.Modules.Moderation.Api.csproj" />
   </ItemGroup>
 
 </Project>

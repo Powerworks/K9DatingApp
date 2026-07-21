@@ -17,12 +17,12 @@
     <!-- A module's Api project may reference: its own Domain, its own
          Contracts, BuildingBlocks (any), and OTHER MODULES' Contracts
          ONLY (never another module's Domain/Api/Infrastructure).
-         Moderation.Contracts is needed for ContentRemovalRequestedV1 -
-         RemoveMediaOnContentRemovalRequestedHandler's trigger. -->
-    <ProjectReference Include="..\K9Crush.Modules.Media.Domain\K9Crush.Modules.Media.Domain.csproj" />
-    <ProjectReference Include="..\K9Crush.Modules.Media.Contracts\K9Crush.Modules.Media.Contracts.csproj" />
+         Media.Contracts is needed for MediaContentFlaggedV1 -
+         MediaContentFlaggedProjectorHandler's trigger. -->
+    <ProjectReference Include="..\K9Crush.Modules.Moderation.Domain\K9Crush.Modules.Moderation.Domain.csproj" />
+    <ProjectReference Include="..\K9Crush.Modules.Moderation.Contracts\K9Crush.Modules.Moderation.Contracts.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\K9Crush.BuildingBlocks.Web\K9Crush.BuildingBlocks.Web.csproj" />
-    <ProjectReference Include="..\..\Moderation\K9Crush.Modules.Moderation.Contracts\K9Crush.Modules.Moderation.Contracts.csproj" />
+    <ProjectReference Include="..\..\Media\K9Crush.Modules.Media.Contracts\K9Crush.Modules.Media.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

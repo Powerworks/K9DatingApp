@@ -10,6 +10,7 @@ using K9Crush.Modules.Chat.Api;
 using K9Crush.Modules.Discovery.Api;
 using K9Crush.Modules.Identity.Api;
 using K9Crush.Modules.Media.Api;
+using K9Crush.Modules.Moderation.Api;
 using K9Crush.Modules.Notifications.Api;
 using K9Crush.Modules.Profiles.Api;
 using K9Crush.Modules.ShelterAdoption.Api;
@@ -39,7 +40,8 @@ var modules = new IModule[]
     new NotificationsModule(),
     new ChatModule(),
     new AdminModule(),
-    new MediaModule()
+    new MediaModule(),
+    new ModerationModule()
 };
 
 foreach (var module in modules)

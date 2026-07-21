@@ -36,7 +36,8 @@ public class ReportMediaHandlerTests
     public async Task Handle_WhenAssetExists_CascadesContentFlaggedForAnyReporterRegardlessOfOwnership()
     {
         var reporterId = Guid.NewGuid();
-        var asset = MediaAsset.Upload(Guid.NewGuid(), MediaType.Photo, "https://storage.example/photo.jpg"); // reporter is NOT the owner
+        var contentOwnerId = Guid.NewGuid();
+        var asset = MediaAsset.Upload(contentOwnerId, MediaType.Photo, "https://storage.example/photo.jpg"); // reporter is NOT the owner
 
         var session = Substitute.For<IDocumentSession>();
         session.LoadAsync<MediaAsset>(asset.Id, Arg.Any<CancellationToken>()).Returns(asset);
@@ -46,6 +47,7 @@ public class ReportMediaHandlerTests
         result.Result.Should().BeOfType<Ok<ReportMediaResponse>>();
         integrationEvent.Should().NotBeNull();
         integrationEvent!.MediaAssetId.Should().Be(asset.Id);
+        integrationEvent.ContentOwnerId.Should().Be(contentOwnerId);
         integrationEvent.ReporterOwnerId.Should().Be(reporterId);
     }
 }
