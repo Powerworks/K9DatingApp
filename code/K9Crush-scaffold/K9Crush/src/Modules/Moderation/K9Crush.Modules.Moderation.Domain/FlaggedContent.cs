@@ -10,15 +10,21 @@ namespace K9Crush.Modules.Moderation.Domain;
 /// fired (see Api/ReadModels/Projectors). "Content Flagged" is shared
 /// across five yaml chapters (Media's Report Media, Chat's Report
 /// Message, ActivityFeed's Report Post, LeaveAReviewRestaurantOrDogPark's
-/// Report Review) but only Media actually publishes one today - the
-/// other four producer chapters don't exist as real slices yet, so
-/// ContentType only has a Media member for now. Add members here (and a
-/// matching projector) as each producer module actually gets built,
-/// rather than speculatively now.
+/// Report Review) - Media and Places (reviews) are the two real
+/// producers so far; Chat/ActivityFeed's two remaining chapters don't
+/// exist as real slices yet. Add members here (and a matching projector)
+/// as each producer module actually gets built, rather than
+/// speculatively now.
+///
+/// Marten/System.Text.Json serializes this enum as its integer ordinal
+/// (confirmed via OwnerRole in the Identity module) - new members are
+/// always appended at the end, never inserted, so an already-persisted
+/// FlaggedContent's meaning never silently changes.
 /// </summary>
 public enum ContentType
 {
-    Media
+    Media,
+    Review
 }
 
 public enum FlaggedContentStatus

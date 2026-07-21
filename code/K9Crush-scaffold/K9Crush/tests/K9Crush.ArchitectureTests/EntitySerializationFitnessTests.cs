@@ -9,6 +9,7 @@ using K9Crush.Modules.Identity.Domain;
 using K9Crush.Modules.Media.Domain;
 using K9Crush.Modules.Moderation.Domain;
 using K9Crush.Modules.Notifications.Domain;
+using K9Crush.Modules.Places.Domain;
 using K9Crush.Modules.Profiles.Domain;
 using K9Crush.Modules.ShelterAdoption.Domain;
 using Xunit;
@@ -38,7 +39,8 @@ public class EntitySerializationFitnessTests
         typeof(ConversationSummary).Assembly,
         typeof(FeedbackInboxItem).Assembly,
         typeof(MediaAsset).Assembly,
-        typeof(FlaggedContent).Assembly
+        typeof(FlaggedContent).Assembly,
+        typeof(Place).Assembly
     ];
 
     private static IEnumerable<Type> EntityTypes() =>

@@ -12,6 +12,7 @@ using K9Crush.Modules.Identity.Api;
 using K9Crush.Modules.Media.Api;
 using K9Crush.Modules.Moderation.Api;
 using K9Crush.Modules.Notifications.Api;
+using K9Crush.Modules.Places.Api;
 using K9Crush.Modules.Profiles.Api;
 using K9Crush.Modules.ShelterAdoption.Api;
 using Serilog;
@@ -41,7 +42,8 @@ var modules = new IModule[]
     new ChatModule(),
     new AdminModule(),
     new MediaModule(),
-    new ModerationModule()
+    new ModerationModule(),
+    new PlacesModule()
 };
 
 foreach (var module in modules)

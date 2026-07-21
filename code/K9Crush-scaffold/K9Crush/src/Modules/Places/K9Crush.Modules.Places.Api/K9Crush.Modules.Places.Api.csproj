@@ -16,16 +16,12 @@
   <ItemGroup>
     <!-- A module's Api project may reference: its own Domain, its own
          Contracts, BuildingBlocks (any), and OTHER MODULES' Contracts
-         ONLY (never another module's Domain/Api/Infrastructure).
-         Media.Contracts is needed for MediaContentFlaggedV1 -
-         MediaContentFlaggedProjectorHandler's trigger. Places.Contracts
-         is needed for ReviewContentFlaggedV1 -
-         ReviewContentFlaggedProjectorHandler's trigger. -->
-    <ProjectReference Include="..\K9Crush.Modules.Moderation.Domain\K9Crush.Modules.Moderation.Domain.csproj" />
-    <ProjectReference Include="..\K9Crush.Modules.Moderation.Contracts\K9Crush.Modules.Moderation.Contracts.csproj" />
+         ONLY (never another module's Domain/Api/Infrastructure). This
+         module doesn't consume any other module's Contracts yet - it
+         only publishes ReviewContentFlaggedV1. -->
+    <ProjectReference Include="..\K9Crush.Modules.Places.Domain\K9Crush.Modules.Places.Domain.csproj" />
+    <ProjectReference Include="..\K9Crush.Modules.Places.Contracts\K9Crush.Modules.Places.Contracts.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\K9Crush.BuildingBlocks.Web\K9Crush.BuildingBlocks.Web.csproj" />
-    <ProjectReference Include="..\..\Media\K9Crush.Modules.Media.Contracts\K9Crush.Modules.Media.Contracts.csproj" />
-    <ProjectReference Include="..\..\Places\K9Crush.Modules.Places.Contracts\K9Crush.Modules.Places.Contracts.csproj" />
   </ItemGroup>
 
 </Project>
