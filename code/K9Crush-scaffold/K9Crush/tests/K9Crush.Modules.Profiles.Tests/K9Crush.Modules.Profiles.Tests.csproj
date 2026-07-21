@@ -13,17 +13,10 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="FluentAssertions" />
-    <PackageReference Include="Marten" />
-    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="NSubstitute" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Modules\ShelterAdoption\K9Crush.Modules.ShelterAdoption.Domain\K9Crush.Modules.ShelterAdoption.Domain.csproj" />
-    <ProjectReference Include="..\..\src\Modules\ShelterAdoption\K9Crush.Modules.ShelterAdoption.Api\K9Crush.Modules.ShelterAdoption.Api.csproj" />
-
-    <ProjectReference Include="..\..\src\Modules\Discovery\K9Crush.Modules.Discovery.Domain\K9Crush.Modules.Discovery.Domain.csproj" />
-    <ProjectReference Include="..\..\src\Modules\Discovery\K9Crush.Modules.Discovery.Api\K9Crush.Modules.Discovery.Api.csproj" />
-
     <ProjectReference Include="..\..\src\Modules\Profiles\K9Crush.Modules.Profiles.Domain\K9Crush.Modules.Profiles.Domain.csproj" />
     <ProjectReference Include="..\..\src\Modules\Profiles\K9Crush.Modules.Profiles.Api\K9Crush.Modules.Profiles.Api.csproj" />
   </ItemGroup>

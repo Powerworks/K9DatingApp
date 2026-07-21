@@ -31,14 +31,29 @@ namespace K9Crush.Modules.Profiles.Domain;
 /// serializer gets the exception, via these specific attributes, not a
 /// blanket "make everything public" concession.
 /// </summary>
+/// <summary>
+/// Draft, still going through the AddDogProfile wizard (not visible
+/// anywhere) vs. Published (Discovery-visible - see PublishDogProfileHandler,
+/// which is what actually fires DogProfileCreatedV1 now). Only two values
+/// exist in the emlang yaml for this chapter; append here, never reorder,
+/// same ordinal-serialization reasoning as ShelterAdoption's
+/// ApplicationStatus.
+/// </summary>
+public enum DogProfileStatus
+{
+    Draft,
+    Published
+}
+
 public class DogProfile : Entity
 {
     [JsonInclude] public Guid OwnerId { get; private set; }
-    [JsonInclude] public string Name { get; private set; } = default!;
-    [JsonInclude] public string Breed { get; private set; } = default!;
+    [JsonInclude] public DogProfileStatus Status { get; private set; }
+    [JsonInclude] public string Name { get; private set; } = string.Empty;
+    [JsonInclude] public string Breed { get; private set; } = string.Empty;
     [JsonInclude] public int AgeInMonths { get; private set; }
     [JsonInclude] public string Bio { get; private set; } = string.Empty;
-    [JsonInclude] public GeoCoordinate Location { get; private set; } = default!;
+    [JsonInclude] public GeoCoordinate? Location { get; private set; }
     [JsonInclude] public List<Guid> PhotoIds { get; private set; } = new();
     [JsonInclude] public DateTimeOffset CreatedAt { get; private set; } = DateTimeOffset.UtcNow;
 
@@ -48,13 +63,32 @@ public class DogProfile : Entity
     [JsonConstructor]
     private DogProfile() { }
 
-    public static DogProfile Create(
-        Guid ownerId,
-        string name,
-        string breed,
-        int ageInMonths,
-        string bio,
-        GeoCoordinate location)
+    /// <summary>
+    /// The emlang yaml's AddDogProfile chapter's "Start Dog Profile" ->
+    /// "Dog Profile Started" (maxDogProfiles: 10) - a bare Draft shell,
+    /// deliberately holding none of the later steps' fields yet.
+    /// State-guard (the per-owner 10-profile cap, which needs
+    /// session.Query&lt;T&gt;()) lives in StartDogProfileHandler, same
+    /// "guard in the handler" pattern as every other slice in this
+    /// codebase.
+    /// </summary>
+    public static DogProfile Start(Guid ownerId) => new()
+    {
+        OwnerId = ownerId,
+        Status = DogProfileStatus.Draft
+    };
+
+    /// <summary>
+    /// The emlang yaml's "Add Dog Profile Details" -> "Dog Profile Details
+    /// Added" (name/breed/age props). Also carries Location - not one of
+    /// this chapter's own named props, but Location was already a required
+    /// DogProfile field before this chapter existed (DogProfileCreatedV1
+    /// needs it for Discovery's proximity search) and this is the closest
+    /// existing step to gather it, rather than inventing a separate one
+    /// the yaml never names. State-guard (only valid from Draft) lives in
+    /// the handler.
+    /// </summary>
+    public void AddDetails(string name, string breed, int ageInMonths, string bio, GeoCoordinate location)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Dog name is required.", nameof(name));
@@ -62,22 +96,33 @@ public class DogProfile : Entity
         if (ageInMonths is < 0 or > 300)
             throw new ArgumentOutOfRangeException(nameof(ageInMonths), "Age must be a realistic value.");
 
-        return new DogProfile
-        {
-            OwnerId = ownerId,
-            Name = name.Trim(),
-            Breed = breed.Trim(),
-            AgeInMonths = ageInMonths,
-            Bio = bio.Trim(),
-            Location = location
-        };
+        Name = name.Trim();
+        Breed = breed.Trim();
+        AgeInMonths = ageInMonths;
+        Bio = bio.Trim();
+        Location = location;
     }
 
+    /// <summary>The emlang yaml's "Add Dog Profile Photo" -> "Dog Profile
+    /// Photo Added". State-guard (only valid from Draft) lives in the
+    /// handler.</summary>
     public void AttachPhoto(Guid mediaAssetId)
     {
         if (!PhotoIds.Contains(mediaAssetId))
             PhotoIds.Add(mediaAssetId);
     }
+
+    /// <summary>
+    /// The emlang yaml's "Publish Dog Profile" -> "Dog Profile Published".
+    /// State-guards (only valid from Draft; the "Reject Publish (No
+    /// Photo)" -> "Publish Blocked: Photo Required" branch, since
+    /// PhotoIds can't be empty) live in PublishDogProfileHandler, which is
+    /// also where DogProfileCreatedV1 now fires (moved from the old
+    /// single-shot CreateDogProfileHandler this wizard replaces) - a dog
+    /// is only Discovery-visible once actually published, not merely
+    /// started.
+    /// </summary>
+    public void Publish() => Status = DogProfileStatus.Published;
 
     public void UpdateBio(string bio) => Bio = bio.Trim();
 }

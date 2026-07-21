@@ -21,6 +21,7 @@ public static class GetDogProfileHandler
 
         return TypedResults.Ok(new DogProfileResponse(
             dog.Id,
+            dog.Status.ToString(),
             dog.Name,
             dog.Breed,
             dog.AgeInMonths,
