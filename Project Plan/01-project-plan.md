@@ -1,4 +1,4 @@
-# Project Plan — "PawMatch" Dog Dating Platform
+# Project Plan — "K9Crush" Dog Dating Platform
 
 ## 1. Document Purpose
 This plan defines scope, phasing, timeline, team structure, and risks for building a .NET modular monolith backend (vertical slice architecture, Marten/PostgreSQL, RabbitMQ, Redis) with a Blazor frontend, deployed to a containerized platform via GitHub Actions.

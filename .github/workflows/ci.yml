@@ -1,0 +1,73 @@
+name: CI
+
+# Runs on PRs targeting dev/main (the pre-merge gate) and on direct
+# pushes to dev/main (this repo's actual workflow so far has been
+# committing straight to dev - this re-runs the same checks as a
+# post-merge confirmation so nothing slips through either path).
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  SOLUTION_DIR: code/K9Crush-scaffold/K9Crush
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # global.json pins the exact SDK version this repo builds with.
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: ${{ env.SOLUTION_DIR }}/global.json
+
+      - name: Restore
+        working-directory: ${{ env.SOLUTION_DIR }}
+        run: dotnet restore K9Crush.sln
+
+      - name: Build
+        working-directory: ${{ env.SOLUTION_DIR }}
+        run: dotnet build K9Crush.sln --configuration Release --no-restore
+
+      # K9Crush.IntegrationTests spins up its own disposable Postgres
+      # containers via Testcontainers - no GitHub Actions "services:"
+      # container needed, just Docker itself, which ubuntu-latest
+      # runners already have available.
+      - name: Test with coverage
+        working-directory: ${{ env.SOLUTION_DIR }}
+        run: >
+          dotnet test K9Crush.sln
+          --configuration Release
+          --no-build
+          --collect:"XPlat Code Coverage"
+          --results-directory ./coverage
+
+      - name: Install ReportGenerator
+        run: dotnet tool install --global dotnet-reportgenerator-globaltool
+
+      - name: Generate coverage report
+        working-directory: ${{ env.SOLUTION_DIR }}
+        run: >
+          reportgenerator
+          "-reports:coverage/**/coverage.cobertura.xml"
+          "-targetdir:coverage/report"
+          "-reporttypes:Html;MarkdownSummaryGithub"
+
+      - name: Publish coverage summary
+        if: always()
+        run: cat "${{ env.SOLUTION_DIR }}/coverage/report/SummaryGithub.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: ${{ env.SOLUTION_DIR }}/coverage/report
+          retention-days: 30

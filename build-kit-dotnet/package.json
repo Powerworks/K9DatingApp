@@ -1,0 +1,11 @@
+{
+  "name": "build-kit-dotnet",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node ralph-claude.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.0.0"
+  }
+}

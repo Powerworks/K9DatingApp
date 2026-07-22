@@ -1,4 +1,4 @@
-# High-Level Design (HLD) — PawMatch Platform
+# High-Level Design (HLD) — K9Crush Platform
 
 ## 1. Module-by-Module Design
 

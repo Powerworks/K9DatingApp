@@ -1,4 +1,4 @@
-# Event Modeling Blueprint — PawMatch Platform
+# Event Modeling Blueprint — K9Crush Platform
 
 ## 1. What's Changing
 Every feature slice in the codebase is now exactly one of three types. A slice never mixes types — if a feature needs both a command and a read model, that's two slices.
@@ -114,7 +114,7 @@ Triggered by Marten forwarding the domain event to Wolverine (`AddMarten().Integ
 
 ## 5. Folder Convention (now enforced in the scaffold)
 ```
-PawMatch.Modules.<Module>.Api/
+K9Crush.Modules.<Module>.Api/
 ├── Commands/
 │   └── <CommandName>/
 │       ├── <CommandName>.cs         (request + response records)
@@ -130,10 +130,10 @@ PawMatch.Modules.<Module>.Api/
 │       └── <AutomationName>Handler.cs
 └── <Module>Module.cs
 ```
-This replaced the flatter `Features/` folder from the first pass of the scaffold. `PawMatch.Modules.Profiles.Api` and `PawMatch.Modules.Discovery.Api` have already been reorganized this way.
+This replaced the flatter `Features/` folder from the first pass of the scaffold. `K9Crush.Modules.Profiles.Api` and `K9Crush.Modules.Discovery.Api` have already been reorganized this way.
 
 ## 6. Architecture Fitness Test Additions
-Once `PawMatch.ArchitectureTests` is built out (still pending), add rules enforcing this discipline mechanically rather than relying on code review alone:
+Once `K9Crush.ArchitectureTests` is built out (still pending), add rules enforcing this discipline mechanically rather than relying on code review alone:
 - No type under `Commands/**` may reference another module's `Contracts` event type as something it *branches on* — commands may only produce/cascade events, never consume them.
 - No type under `Commands/**` may call `session.Events.Append` more than once for *different* stream concerns in one handler (a rough proxy for "one decision").
 - Every folder under `Automations/**` must contain a handler whose only public method takes a domain or integration event as its first parameter (never an HTTP request DTO) — this is what would have caught the original `SwipeOnDog` violation automatically.

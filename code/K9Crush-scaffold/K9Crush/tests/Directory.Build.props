@@ -1,0 +1,24 @@
+<Project>
+  <!--
+    The .NET SDK's automatic Directory.Build.props discovery stops at the
+    FIRST one found walking up from the project directory - it does NOT
+    keep merging every Directory.Build.props up the tree. So this file
+    existing here means the root one (TargetFramework/Nullable/etc.) would
+    silently stop applying to everything under tests/ unless explicitly
+    re-imported below (confirmed live: omitting this Import broke restore
+    with "Invalid framework identifier ''" - TargetFramework came back empty).
+
+    Adds coverlet.collector to every test project under tests/ in one
+    place, rather than repeating the same PackageReference in all nine
+    *.Tests.csproj files. Only used by CI's test-with-coverage step (see
+    .github/workflows/ci.yml) - has no effect on a normal local
+    "dotnet test" run.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)../Directory.Build.props" />
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+</Project>

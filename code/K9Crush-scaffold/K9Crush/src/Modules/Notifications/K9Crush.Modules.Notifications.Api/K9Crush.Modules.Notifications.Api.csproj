@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Class library (Wolverine.Http handlers, no Program.cs of its own -
+       Api.Host is what actually runs) - needs FrameworkReference for
+       ASP.NET Core types, not Sdk.Web which implies an entry point. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WolverineFx" />
+    <PackageReference Include="WolverineFx.Http" />
+    <PackageReference Include="Marten" />
+    <PackageReference Include="MailKit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A module's Api project may reference: its own Domain, its own
+         Contracts (this module doesn't have one yet - it publishes
+         nothing cross-module so far), BuildingBlocks (any), and OTHER
+         MODULES' Contracts ONLY (never another module's Domain/Api/
+         Infrastructure). Discovery.Contracts is needed for MatchCreatedV1
+         - NotifyOnMatchHandler's trigger. -->
+    <ProjectReference Include="..\K9Crush.Modules.Notifications.Domain\K9Crush.Modules.Notifications.Domain.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\K9Crush.BuildingBlocks.Web\K9Crush.BuildingBlocks.Web.csproj" />
+    <ProjectReference Include="..\..\Discovery\K9Crush.Modules.Discovery.Contracts\K9Crush.Modules.Discovery.Contracts.csproj" />
+    <!-- OwnerRegisteredV1 carries the email address NotifyOnMatchHandler
+         needs to actually send to - see OwnerContact.cs. -->
+    <ProjectReference Include="..\..\Identity\K9Crush.Modules.Identity.Contracts\K9Crush.Modules.Identity.Contracts.csproj" />
+    <!-- ApplicationRejectedV1/ApplicationApprovedV1 - NotifyOnApplicationRejectedHandler/NotifyOnApplicationApprovedHandler's triggers. -->
+    <ProjectReference Include="..\..\ShelterAdoption\K9Crush.Modules.ShelterAdoption.Contracts\K9Crush.Modules.ShelterAdoption.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>
