@@ -40,7 +40,7 @@ public class NotifyOnMatchHandlerTests
 
         await sender.Received(1).SendAsync("a@example.com", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await sender.Received(1).SendAsync("b@example.com", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
-        session.Received(2).Store(Arg.Is<NotificationLog[]>(arr => arr.Length == 1 && arr[0].Channel == NotificationChannel.Email));
+        session.Received(2).Store(Arg.Is<NotificationLog[]>(arr => arr != null && arr.Length == 1 && arr[0].Channel == NotificationChannel.Email));
     }
 
     [Fact]
@@ -64,9 +64,9 @@ public class NotifyOnMatchHandlerTests
         await sender.Received(1).SendAsync("b@example.com", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
 
         session.Received(1).Store(Arg.Is<NotificationLog[]>(arr =>
-            arr.Length == 1 && arr[0].OwnerId == ownerAId && arr[0].Channel == NotificationChannel.Suppressed));
+arr != null &&             arr.Length == 1 && arr[0].OwnerId == ownerAId && arr[0].Channel == NotificationChannel.Suppressed));
         session.Received(1).Store(Arg.Is<NotificationLog[]>(arr =>
-            arr.Length == 1 && arr[0].OwnerId == ownerBId && arr[0].Channel == NotificationChannel.Email));
+arr != null &&             arr.Length == 1 && arr[0].OwnerId == ownerBId && arr[0].Channel == NotificationChannel.Email));
     }
 
     [Fact]
@@ -85,6 +85,6 @@ public class NotifyOnMatchHandlerTests
         await sender.DidNotReceive().SendAsync("a@example.com", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await sender.Received(1).SendAsync("b@example.com", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         session.Received(1).Store(Arg.Is<NotificationLog[]>(arr =>
-            arr.Length == 1 && arr[0].OwnerId == ownerAId && arr[0].Channel == NotificationChannel.Suppressed));
+arr != null &&             arr.Length == 1 && arr[0].OwnerId == ownerAId && arr[0].Channel == NotificationChannel.Suppressed));
     }
 }

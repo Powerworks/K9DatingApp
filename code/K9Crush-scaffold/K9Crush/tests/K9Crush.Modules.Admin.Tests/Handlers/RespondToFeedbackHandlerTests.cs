@@ -41,7 +41,7 @@ public class RespondToFeedbackHandlerTests
         var response = ((Ok<RespondToFeedbackResponse>)result.Result).Value!;
         response.Status.Should().Be(nameof(FeedbackStatus.Responded));
         item.ResponseMessage.Should().Be("Thanks for the kind words!");
-        session.Received(1).Store(Arg.Is<FeedbackInboxItem[]>(arr => arr.Length == 1 && arr[0] == item));
+        session.Received(1).Store(Arg.Is<FeedbackInboxItem[]>(arr => arr != null && arr.Length == 1 && arr[0] == item));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

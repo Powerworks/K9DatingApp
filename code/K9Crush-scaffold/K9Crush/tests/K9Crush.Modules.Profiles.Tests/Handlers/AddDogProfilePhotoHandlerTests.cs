@@ -78,7 +78,7 @@ public class AddDogProfilePhotoHandlerTests
         result.Result.Should().BeOfType<Ok<AddDogProfilePhotoResponse>>();
         dogProfile.PhotoIds.Should().ContainSingle().Which.Should().Be(mediaAssetId);
 
-        session.Received(1).Store(Arg.Is<DogProfile[]>(arr => arr.Length == 1 && arr[0] == dogProfile));
+        session.Received(1).Store(Arg.Is<DogProfile[]>(arr => arr != null && arr.Length == 1 && arr[0] == dogProfile));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

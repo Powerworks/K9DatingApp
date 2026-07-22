@@ -28,7 +28,7 @@ public class FeedbackSubmittedProjectorHandlerTests
         await FeedbackSubmittedProjectorHandler.Handle(integrationEvent, session, CancellationToken.None);
 
         session.Received(1).Store(Arg.Is<FeedbackInboxItem[]>(arr =>
-            arr.Length == 1 &&
+arr != null &&             arr.Length == 1 &&
             arr[0].Id == feedbackId &&
             arr[0].OwnerId == ownerId &&
             arr[0].Message == "Great app!" &&

@@ -47,7 +47,7 @@ public class WriteReviewHandlerTests
         response.Status.Should().Be(nameof(ReviewStatus.Draft));
 
         session.Received(1).Store(Arg.Is<Review[]>(arr =>
-            arr.Length == 1 && arr[0].PlaceId == place.Id && arr[0].ReviewerOwnerId == reviewerOwnerId && arr[0].Rating == 5));
+arr != null &&             arr.Length == 1 && arr[0].PlaceId == place.Id && arr[0].ReviewerOwnerId == reviewerOwnerId && arr[0].Rating == 5));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

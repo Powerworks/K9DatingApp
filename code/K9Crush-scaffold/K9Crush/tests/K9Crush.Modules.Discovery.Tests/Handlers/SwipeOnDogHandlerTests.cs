@@ -71,7 +71,7 @@ public class SwipeOnDogHandlerTests
         ((Ok<SwipeOnDogResponse>)result.Result).Value!.Acknowledged.Should().BeTrue();
 
         var expectedStreamId = MatchStream.IdFor(SwiperDogId, TargetDogId);
-        eventStore.Received(1).Append(expectedStreamId, Arg.Is<object[]>(events => IsSingleDogLiked(events, SwiperDogId, TargetDogId)));
+        eventStore.Received(1).Append(expectedStreamId, Arg.Is<object[]>(events => IsSingleDogLiked(events!, SwiperDogId, TargetDogId)));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
@@ -90,7 +90,7 @@ public class SwipeOnDogHandlerTests
         result.Result.Should().BeOfType<Ok<SwipeOnDogResponse>>();
 
         var expectedStreamId = MatchStream.IdFor(SwiperDogId, TargetDogId);
-        eventStore.Received(1).Append(expectedStreamId, Arg.Is<object[]>(events => events.Length == 1 && events[0].GetType() == typeof(DogPassed)));
+        eventStore.Received(1).Append(expectedStreamId, Arg.Is<object[]>(events => events != null && events.Length == 1 && events[0].GetType() == typeof(DogPassed)));
     }
 
     private static bool IsSingleDogLiked(object[] events, Guid swiperDogId, Guid targetDogId) =>

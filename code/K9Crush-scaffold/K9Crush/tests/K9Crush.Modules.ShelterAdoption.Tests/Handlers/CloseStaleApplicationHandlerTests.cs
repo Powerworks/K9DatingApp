@@ -64,7 +64,7 @@ public class CloseStaleApplicationHandlerTests
         await CloseStaleApplicationHandler.Handle(new CheckApplicationClosed(application.Id), session, CancellationToken.None);
 
         application.Status.Should().Be(ApplicationStatus.Closed);
-        session.Received(1).Store(Arg.Is<Application[]>(arr => arr.Length == 1 && arr[0] == application));
+        session.Received(1).Store(Arg.Is<Application[]>(arr => arr != null && arr.Length == 1 && arr[0] == application));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 

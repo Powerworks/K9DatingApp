@@ -89,7 +89,7 @@ public class PermanentlyDeleteAccountAfterGracePeriodHandlerTests
             new CheckAccountGracePeriodExpired(owner.Id), session, CancellationToken.None);
 
         owner.IsPermanentlyDeleted.Should().BeTrue();
-        session.Received(1).Store(Arg.Is<OwnerAccount[]>(arr => arr.Length == 1 && arr[0] == owner));
+        session.Received(1).Store(Arg.Is<OwnerAccount[]>(arr => arr != null && arr.Length == 1 && arr[0] == owner));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

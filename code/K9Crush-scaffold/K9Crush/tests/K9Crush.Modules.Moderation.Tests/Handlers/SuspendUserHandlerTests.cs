@@ -55,7 +55,7 @@ public class SuspendUserHandlerTests
 
         result.Result.Should().BeOfType<Ok<SuspendUserResponse>>();
         record.IsSuspended.Should().BeTrue();
-        session.Received(1).Store(Arg.Is<UserModerationRecord[]>(arr => arr.Length == 1 && arr[0] == record));
+        session.Received(1).Store(Arg.Is<UserModerationRecord[]>(arr => arr != null && arr.Length == 1 && arr[0] == record));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

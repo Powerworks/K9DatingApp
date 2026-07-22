@@ -56,7 +56,7 @@ public class ApproveShelterAccountHandlerTests
         integrationEvent.Should().NotBeNull();
         integrationEvent!.ShelterAccountId.Should().Be(shelterAccount.Id);
         integrationEvent.OwnerId.Should().Be(ownerId);
-        session.Received(1).Store(Arg.Is<ShelterAccount[]>(arr => arr.Length == 1 && arr[0] == shelterAccount));
+        session.Received(1).Store(Arg.Is<ShelterAccount[]>(arr => arr != null && arr.Length == 1 && arr[0] == shelterAccount));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

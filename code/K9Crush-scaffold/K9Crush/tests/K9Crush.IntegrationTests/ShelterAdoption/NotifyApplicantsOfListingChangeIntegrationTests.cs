@@ -45,10 +45,10 @@ public class NotifyApplicantsOfListingChangeIntegrationTests(ShelterAdoptionPost
             BuildEvent(dogListingId, shelterAccountId), session, bus, CancellationToken.None);
 
         await bus.Received(1).PublishAsync(
-            Arg.Is<ApplicationListingChangedV1>(e => e.ApplicationId == openApplication.Id && e.ApplicantOwnerId == applicantA),
+            Arg.Is<ApplicationListingChangedV1>(e => e != null && e.ApplicationId == openApplication.Id && e.ApplicantOwnerId == applicantA),
             Arg.Any<DeliveryOptions?>());
         await bus.DidNotReceive().PublishAsync(
-            Arg.Is<ApplicationListingChangedV1>(e => e.ApplicationId == withdrawnApplication.Id),
+            Arg.Is<ApplicationListingChangedV1>(e => e != null && e.ApplicationId == withdrawnApplication.Id),
             Arg.Any<DeliveryOptions?>());
 
         await using var verifySession = fixture.Store.LightweightSession();

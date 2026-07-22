@@ -37,7 +37,7 @@ public class DismissFlagHandlerTests
 
         result.Result.Should().BeOfType<Ok<DismissFlagResponse>>();
         flag.Status.Should().Be(FlaggedContentStatus.Dismissed);
-        session.Received(1).Store(Arg.Is<FlaggedContent[]>(arr => arr.Length == 1 && arr[0] == flag));
+        session.Received(1).Store(Arg.Is<FlaggedContent[]>(arr => arr != null && arr.Length == 1 && arr[0] == flag));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

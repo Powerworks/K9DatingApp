@@ -130,7 +130,7 @@ public class PublishDogProfileHandlerTests
         integrationEvent.Latitude.Should().Be(45.5);
         integrationEvent.Longitude.Should().Be(-122.6);
 
-        session.Received(1).Store(Arg.Is<DogProfile[]>(arr => arr.Length == 1 && arr[0] == dogProfile));
+        session.Received(1).Store(Arg.Is<DogProfile[]>(arr => arr != null && arr.Length == 1 && arr[0] == dogProfile));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

@@ -94,7 +94,7 @@ public class EditApplicationDetailsHandlerTests
         ok.Value.LastEditedAt.Should().Be(application.LastEditedAt);
 
         application.Details.Should().Be("we have a fenced yard");
-        session.Received(1).Store(Arg.Is<Application[]>(arr => arr.Length == 1 && arr[0] == application));
+        session.Received(1).Store(Arg.Is<Application[]>(arr => arr != null && arr.Length == 1 && arr[0] == application));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

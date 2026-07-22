@@ -72,7 +72,7 @@ public class WithdrawApplicationHandlerTests
 
         result.Result.Should().BeOfType<Ok<WithdrawApplicationResponse>>();
         application.Status.Should().Be(ApplicationStatus.Withdrawn);
-        session.Received(1).Store(Arg.Is<Application[]>(arr => arr.Length == 1 && arr[0] == application));
+        session.Received(1).Store(Arg.Is<Application[]>(arr => arr != null && arr.Length == 1 && arr[0] == application));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

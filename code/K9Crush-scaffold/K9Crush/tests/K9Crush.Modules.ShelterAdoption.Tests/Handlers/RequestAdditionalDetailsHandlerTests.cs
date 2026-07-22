@@ -92,7 +92,7 @@ public class RequestAdditionalDetailsHandlerTests
         application.Status.Should().Be(ApplicationStatus.ReturnedForAlteration);
 
         await bus.Received(1).PublishAsync(
-            Arg.Is<CheckApplicationStale>(m => m.ApplicationId == application.Id),
+            Arg.Is<CheckApplicationStale>(m => m != null && m.ApplicationId == application.Id),
             Arg.Is<DeliveryOptions?>(o => o != null && o.ScheduleDelay == TimeSpan.FromDays(15)));
     }
 

@@ -69,11 +69,11 @@ public class MarkApplicationStaleHandlerTests
         await MarkApplicationStaleHandler.Handle(new CheckApplicationStale(application.Id), session, bus, CancellationToken.None);
 
         application.Status.Should().Be(ApplicationStatus.Stale);
-        session.Received(1).Store(Arg.Is<Application[]>(arr => arr.Length == 1 && arr[0] == application));
+        session.Received(1).Store(Arg.Is<Application[]>(arr => arr != null && arr.Length == 1 && arr[0] == application));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
 
         await bus.Received(1).PublishAsync(
-            Arg.Is<CheckApplicationClosed>(m => m.ApplicationId == application.Id),
+            Arg.Is<CheckApplicationClosed>(m => m != null && m.ApplicationId == application.Id),
             Arg.Is<DeliveryOptions?>(o => o != null && o.ScheduleDelay == TimeSpan.FromDays(30)));
     }
 

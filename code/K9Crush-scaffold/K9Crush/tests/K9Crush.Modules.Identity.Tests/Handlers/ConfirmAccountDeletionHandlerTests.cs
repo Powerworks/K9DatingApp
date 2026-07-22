@@ -81,7 +81,7 @@ public class ConfirmAccountDeletionHandlerTests
         owner.GracePeriodEndsAt.Should().NotBeNull();
 
         await bus.Received(1).PublishAsync(
-            Arg.Is<CheckAccountGracePeriodExpired>(m => m.OwnerId == owner.Id),
+            Arg.Is<CheckAccountGracePeriodExpired>(m => m != null && m.OwnerId == owner.Id),
             Arg.Is<DeliveryOptions?>(o => o != null && o.ScheduleDelay == TimeSpan.FromDays(30)));
     }
 }

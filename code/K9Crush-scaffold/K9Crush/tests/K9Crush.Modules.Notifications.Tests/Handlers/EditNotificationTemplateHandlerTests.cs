@@ -48,7 +48,7 @@ public class EditNotificationTemplateHandlerTests
         template.Body.Should().Be("New body");
         template.Locked.Should().BeTrue();
         template.LockedByOwnerId.Should().Be(callerOwnerId);
-        session.Received(1).Store(Arg.Is<NotificationTemplate[]>(arr => arr.Length == 1 && arr[0] == template));
+        session.Received(1).Store(Arg.Is<NotificationTemplate[]>(arr => arr != null && arr.Length == 1 && arr[0] == template));
     }
 
     [Fact]

@@ -54,7 +54,7 @@ public class RejectShelterApplicationHandlerTests
         result.Result.Should().BeOfType<Ok<RejectShelterApplicationResponse>>();
         shelterAccount.Status.Should().Be(ShelterAccountStatus.Rejected);
         shelterAccount.RejectionReason.Should().Be("Cannot verify legitimacy");
-        session.Received(1).Store(Arg.Is<ShelterAccount[]>(arr => arr.Length == 1 && arr[0] == shelterAccount));
+        session.Received(1).Store(Arg.Is<ShelterAccount[]>(arr => arr != null && arr.Length == 1 && arr[0] == shelterAccount));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

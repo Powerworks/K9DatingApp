@@ -33,7 +33,7 @@ public class UpdateNotificationPreferencesHandlerTests
         response.Enabled.Should().BeFalse();
 
         session.Received(1).Store(Arg.Is<NotificationPreference[]>(arr =>
-            arr.Length == 1 &&
+arr != null &&             arr.Length == 1 &&
             arr[0].OwnerId == ownerId &&
             !arr[0].IsEnabled(NotificationType.Messages) &&
             arr[0].IsEnabled(NotificationType.ActivityFeed))); // other types remain enabled by default
@@ -53,6 +53,6 @@ public class UpdateNotificationPreferencesHandlerTests
             BuildUser(ownerId), session, CancellationToken.None);
 
         preference.IsEnabled(NotificationType.ActivityFeed).Should().BeFalse();
-        session.Received(1).Store(Arg.Is<NotificationPreference[]>(arr => arr.Length == 1 && arr[0] == preference));
+        session.Received(1).Store(Arg.Is<NotificationPreference[]>(arr => arr != null && arr.Length == 1 && arr[0] == preference));
     }
 }

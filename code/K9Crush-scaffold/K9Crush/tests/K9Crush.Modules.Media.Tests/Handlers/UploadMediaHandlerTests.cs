@@ -34,7 +34,7 @@ public class UploadMediaHandlerTests
         result.Value.MediaType.Should().Be(nameof(MediaType.Photo));
 
         session.Received(1).Store(Arg.Is<MediaAsset[]>(arr =>
-            arr.Length == 1 && arr[0].OwnerId == ownerId && arr[0].StorageUrl == "https://storage.example/photo.jpg"));
+arr != null &&             arr.Length == 1 && arr[0].OwnerId == ownerId && arr[0].StorageUrl == "https://storage.example/photo.jpg"));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

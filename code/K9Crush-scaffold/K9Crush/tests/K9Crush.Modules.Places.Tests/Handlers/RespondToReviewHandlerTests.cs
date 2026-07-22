@@ -82,7 +82,7 @@ public class RespondToReviewHandlerTests
         result.Result.Should().BeOfType<Ok<RespondToReviewResponse>>();
         review.ResponseText.Should().Be("Thanks for visiting!");
         review.ResponderRole.Should().Be(ResponderRole.ParkOwner);
-        session.Received(1).Store(Arg.Is<Review[]>(arr => arr.Length == 1 && arr[0] == review));
+        session.Received(1).Store(Arg.Is<Review[]>(arr => arr != null && arr.Length == 1 && arr[0] == review));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }
