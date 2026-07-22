@@ -75,7 +75,8 @@ public class AddDogListingHandlerTests
         ((Ok<AddDogListingResponse>)result.Result).Value!.DogListingId.Should().NotBeEmpty();
 
         session.Received(1).Store(Arg.Is<DogListing[]>(arr =>
-arr != null &&             arr.Length == 1 && arr[0].ShelterAccountId == shelterAccount.Id && arr[0].Name == "Biscuit"));
+            arr != null && arr.Length == 1 && arr[0].ShelterAccountId == shelterAccount.Id && arr[0].Name == "Biscuit" &&
+            arr[0].Status == DogListingStatus.NotReadyYet));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

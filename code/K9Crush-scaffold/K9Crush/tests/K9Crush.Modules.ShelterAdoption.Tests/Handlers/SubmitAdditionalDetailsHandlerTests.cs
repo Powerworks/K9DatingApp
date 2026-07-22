@@ -37,7 +37,7 @@ public class SubmitAdditionalDetailsHandlerTests
     [Fact]
     public async Task Handle_WhenCallerIsNotTheApplicant_ReturnsForbid()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default);
         application.Review();
         application.RequestAdditionalDetails("Please provide vet references");
         var session = Substitute.For<IDocumentSession>();
@@ -51,7 +51,7 @@ public class SubmitAdditionalDetailsHandlerTests
     [Fact]
     public async Task Handle_WhenApplicationIsNotReturnedForAlteration_ReturnsConflict()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId); // Pending, not ReturnedForAlteration
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default); // Pending, not ReturnedForAlteration
         var session = Substitute.For<IDocumentSession>();
         session.LoadAsync<Application>(application.Id, Arg.Any<CancellationToken>()).Returns(application);
 
@@ -63,7 +63,7 @@ public class SubmitAdditionalDetailsHandlerTests
     [Fact]
     public async Task Handle_WhenReturnedForAlterationAndCallerIsApplicant_SubmitsAndPersists()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default);
         application.Review();
         application.RequestAdditionalDetails("Please provide vet references");
         var session = Substitute.For<IDocumentSession>();

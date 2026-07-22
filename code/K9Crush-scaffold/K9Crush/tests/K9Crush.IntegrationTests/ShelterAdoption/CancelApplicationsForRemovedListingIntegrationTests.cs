@@ -32,12 +32,12 @@ public class CancelApplicationsForRemovedListingIntegrationTests(ShelterAdoption
         var applicantB = Guid.NewGuid();
         var otherListingId = Guid.NewGuid();
 
-        var openApplicationA = Application.Submit(applicantA, dogListingId, shelterAccountId);
+        var openApplicationA = Application.Submit(applicantA, dogListingId, shelterAccountId, TestIntake.Default);
         openApplicationA.Review(); // UnderReview - open
-        var openApplicationB = Application.Submit(applicantB, dogListingId, shelterAccountId); // Pending - open
-        var withdrawnApplication = Application.Submit(Guid.NewGuid(), dogListingId, shelterAccountId);
+        var openApplicationB = Application.Submit(applicantB, dogListingId, shelterAccountId, TestIntake.Default); // Pending - open
+        var withdrawnApplication = Application.Submit(Guid.NewGuid(), dogListingId, shelterAccountId, TestIntake.Default);
         withdrawnApplication.Withdraw(); // not open - must be left alone
-        var unrelatedApplication = Application.Submit(Guid.NewGuid(), otherListingId, shelterAccountId);
+        var unrelatedApplication = Application.Submit(Guid.NewGuid(), otherListingId, shelterAccountId, TestIntake.Default);
         unrelatedApplication.Review(); // open, but a different listing - must be left alone
 
         await using (var seedSession = fixture.Store.LightweightSession())

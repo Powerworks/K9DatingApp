@@ -33,6 +33,7 @@ public static class GetDogListingDetailsHandler
             dogListing.Breed,
             dogListing.AgeInMonths,
             dogListing.Bio,
-            dogListing.ShelterAccountId));
+            dogListing.ShelterAccountId,
+            dogListing.Status));
     }
 }

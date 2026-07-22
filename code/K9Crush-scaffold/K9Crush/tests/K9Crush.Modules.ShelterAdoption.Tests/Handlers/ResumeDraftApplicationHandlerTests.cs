@@ -55,7 +55,7 @@ public class ResumeDraftApplicationHandlerTests
     [Fact]
     public async Task Handle_WhenApplicationIsNotADraft_ReturnsConflict()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId); // Status = Pending
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default); // Status = Pending
         var session = Substitute.For<IDocumentSession>();
         session.LoadAsync<Application>(application.Id, Arg.Any<CancellationToken>()).Returns(application);
 

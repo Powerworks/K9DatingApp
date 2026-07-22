@@ -50,7 +50,7 @@ public class RequestAdditionalDetailsHandlerTests
     public async Task Handle_WhenCallerDoesNotOwnTheShelter_ReturnsForbid()
     {
         var shelterAccount = ShelterAccount.Create(ShelterOwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, shelterAccount.Id);
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, shelterAccount.Id, TestIntake.Default);
 
         var session = Substitute.For<IDocumentSession>();
         var bus = Substitute.For<IMessageBus>();
@@ -72,7 +72,7 @@ public class RequestAdditionalDetailsHandlerTests
     public async Task Handle_WhenApplicationSchedulesTheStaleCheck15DaysOut()
     {
         var shelterAccount = ShelterAccount.Create(ShelterOwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, shelterAccount.Id);
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, shelterAccount.Id, TestIntake.Default);
         application.Review(); // UnderReview - the only status RequestAdditionalDetails is valid from
 
         var session = Substitute.For<IDocumentSession>();
@@ -100,7 +100,7 @@ public class RequestAdditionalDetailsHandlerTests
     public async Task Handle_WhenApplicationIsNotUnderReview_ReturnsConflictAndDoesNotSchedule()
     {
         var shelterAccount = ShelterAccount.Create(ShelterOwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, shelterAccount.Id); // Status = Pending, not UnderReview
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, shelterAccount.Id, TestIntake.Default); // Status = Pending, not UnderReview
 
         var session = Substitute.For<IDocumentSession>();
         var bus = Substitute.For<IMessageBus>();

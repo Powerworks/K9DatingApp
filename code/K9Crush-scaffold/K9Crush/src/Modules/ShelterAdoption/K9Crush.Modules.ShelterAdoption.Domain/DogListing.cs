@@ -4,20 +4,27 @@ using K9Crush.BuildingBlocks.Domain;
 namespace K9Crush.Modules.ShelterAdoption.Domain;
 
 /// <summary>
+/// v3 ENRICHMENT (Spec/K9CRUSH.emlang.v3.yaml's ShelterManagingListings
+/// chapter). Available is deliberately first (ordinal 0) - see
+/// DogListing.Create's comment for why that matters for pre-existing
+/// documents. Order otherwise matches the yaml's own listed order.
+/// </summary>
+public enum DogListingStatus
+{
+    Available,
+    NotReadyYet,
+    InFoster,
+    PendingAdoption,
+    Adopted
+}
+
+/// <summary>
 /// Current-state Marten document. A dog a shelter has listed for
 /// adoption - deliberately a separate type from
 /// K9Crush.Modules.Profiles.Domain.DogProfile, which is a member's own
 /// dog used for the dating/swipe feature. Same real-world "a dog with a
 /// name and breed" shape, genuinely different concept and lifecycle -
 /// not worth collapsing into one type across two unrelated modules.
-///
-/// Still no Status field (listed/pending_applications/adopted, per the
-/// ShelterManagingListings chapter's read model) - "pending_applications"/
-/// "adopted" need an Application entity that doesn't exist yet
-/// (TheWouldBeAdopter/ShelterReviewsApplication chapters), and RemoveDogListing
-/// turned out not to need one either (see that handler - it's a genuine
-/// document delete, "removed" isn't even one of this enum's own listed
-/// values). Added if and when a slice actually needs to distinguish them.
 ///
 /// ShelterAccountId is the FK to the listing shelter, same
 /// FK-by-convention pattern as ShelterAccount.RequestedByOwnerId.
@@ -34,10 +41,19 @@ public class DogListing : Entity
     [JsonInclude] public int AgeInMonths { get; private set; }
     [JsonInclude] public string Bio { get; private set; } = string.Empty;
     [JsonInclude] public DateTimeOffset AddedAt { get; private set; }
+    [JsonInclude] public DogListingStatus Status { get; private set; }
 
     [JsonConstructor]
     private DogListing() { }
 
+    /// <summary>
+    /// v3 ENRICHMENT (Spec/K9CRUSH.emlang.v3.yaml's ShelterManagingListings
+    /// chapter) - new listings start NotReadyYet, not Available (the
+    /// yaml's "Add Dog Listing" event props). Available is deliberately
+    /// enum value 0 (see DogListingStatus below), so listings created
+    /// before this field existed deserialize as Available - matching
+    /// their previous implicit "adoptable" meaning, no migration needed.
+    /// </summary>
     public static DogListing Create(Guid shelterAccountId, string name, string breed, int ageInMonths, string bio)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -50,9 +66,18 @@ public class DogListing : Entity
             Breed = breed.Trim(),
             AgeInMonths = ageInMonths,
             Bio = bio.Trim(),
-            AddedAt = DateTimeOffset.UtcNow
+            AddedAt = DateTimeOffset.UtcNow,
+            Status = DogListingStatus.NotReadyYet
         };
     }
+
+    /// <summary>
+    /// The emlang yaml's "Update Listing Status" -> "Listing Status
+    /// Updated". State-guard (none - any status can move to any other,
+    /// per the yaml) lives here since there isn't one; this method exists
+    /// mainly so callers never set Status directly.
+    /// </summary>
+    public void UpdateStatus(DogListingStatus status) => Status = status;
 
     /// <summary>
     /// The emlang yaml's "Edit Dog Listing" -> "Dog Listing Edited". The

@@ -22,6 +22,12 @@ public sealed record ApproveApplicationResponse(Guid ApplicationId, string Statu
 /// Approval Notification" -> "Approval Notification Sent", consumed by
 /// Notifications' NotifyOnApplicationApprovedHandler. Previously deferred
 /// pending a Notifications module to exist at all.
+///
+/// v3 ENRICHMENT (Spec/K9CRUSH.emlang.v3.yaml's ShelterManagingListings
+/// chapter comment): also cascades the DogListing's Status to Adopted -
+/// a same-module state change, not a cross-module integration event, so
+/// it's stored in the same session/SaveChangesAsync as the Application
+/// itself rather than routed through the message bus.
 /// </summary>
 public static class ApproveApplicationHandler
 {
@@ -48,9 +54,15 @@ public static class ApproveApplicationHandler
 
         application.Approve();
         session.Store(application);
-        await session.SaveChangesAsync(cancellationToken);
 
         var dogListing = await session.LoadAsync<DogListing>(application.DogListingId, cancellationToken);
+        if (dogListing is not null)
+        {
+            dogListing.UpdateStatus(DogListingStatus.Adopted);
+            session.Store(dogListing);
+        }
+
+        await session.SaveChangesAsync(cancellationToken);
 
         var integrationEvent = new ApplicationApprovedV1(
             EventId: Guid.NewGuid(),

@@ -60,7 +60,7 @@ public class EditApplicationDetailsHandlerTests
     [Fact]
     public async Task Handle_WhenApplicationIsNotADraft_ReturnsConflict()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId); // Status = Pending, not Draft
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default); // Status = Pending, not Draft
         var session = Substitute.For<IDocumentSession>();
         session.LoadAsync<Application>(application.Id, Arg.Any<CancellationToken>()).Returns(application);
 

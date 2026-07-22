@@ -41,7 +41,7 @@ public class RejectApplicationHandlerTests
     public async Task Handle_WhenUnderReview_RejectsAndCascadesApplicationRejectedWithDogName()
     {
         var shelterAccount = ShelterAccount.Create(ShelterOwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, shelterAccount.Id);
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, shelterAccount.Id, TestIntake.Default);
         application.Review();
         var dogListing = DogListing.Create(shelterAccount.Id, "Biscuit", "Beagle mix", 24, "Friendly");
 

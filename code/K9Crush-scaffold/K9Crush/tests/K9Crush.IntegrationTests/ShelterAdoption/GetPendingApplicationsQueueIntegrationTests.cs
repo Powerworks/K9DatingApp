@@ -54,10 +54,10 @@ public class GetPendingApplicationsQueueIntegrationTests(ShelterAdoptionPostgres
         var shelterAccount = ShelterAccount.Create(ownerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
         var dogListingId = Guid.NewGuid();
 
-        var pendingApplication = Application.Submit(Guid.NewGuid(), dogListingId, shelterAccount.Id);
-        var withdrawnApplication = Application.Submit(Guid.NewGuid(), dogListingId, shelterAccount.Id);
+        var pendingApplication = Application.Submit(Guid.NewGuid(), dogListingId, shelterAccount.Id, TestIntake.Default);
+        var withdrawnApplication = Application.Submit(Guid.NewGuid(), dogListingId, shelterAccount.Id, TestIntake.Default);
         withdrawnApplication.Withdraw(); // not open - must be excluded
-        var otherShelterApplication = Application.Submit(Guid.NewGuid(), dogListingId, Guid.NewGuid()); // different shelter - must be excluded
+        var otherShelterApplication = Application.Submit(Guid.NewGuid(), dogListingId, Guid.NewGuid(), TestIntake.Default); // different shelter - must be excluded
 
         await using (var seedSession = fixture.Store.LightweightSession())
         {

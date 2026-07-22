@@ -37,7 +37,7 @@ public class GetDraftApplicationsIntegrationTests(ShelterAdoptionPostgresFixture
         var shelterAccountId = Guid.NewGuid();
         var dogListing = DogListing.Create(shelterAccountId, "Biscuit", "Labrador", 36, "Friendly");
         var ownDraft = Application.StartDraft(applicantOwnerId, dogListing.Id, shelterAccountId);
-        var submittedApplication = Application.Submit(applicantOwnerId, dogListing.Id, shelterAccountId); // not a Draft - must be excluded
+        var submittedApplication = Application.Submit(applicantOwnerId, dogListing.Id, shelterAccountId, TestIntake.Default); // not a Draft - must be excluded
         var otherOwnersDraft = Application.StartDraft(Guid.NewGuid(), dogListing.Id, shelterAccountId); // different owner - must be excluded
 
         await using (var seedSession = fixture.Store.LightweightSession())

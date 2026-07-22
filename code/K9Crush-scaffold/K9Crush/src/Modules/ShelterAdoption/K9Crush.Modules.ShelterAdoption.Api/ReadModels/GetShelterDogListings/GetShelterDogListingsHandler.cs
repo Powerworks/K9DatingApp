@@ -49,7 +49,7 @@ public static class GetShelterDogListingsHandler
             .ToListAsync(cancellationToken);
 
         var items = listings
-            .Select(x => new DogListingSummary(x.Id, x.Name, x.Breed, x.AgeInMonths))
+            .Select(x => new DogListingSummary(x.Id, x.Name, x.Breed, x.AgeInMonths, x.Status))
             .ToList();
 
         return TypedResults.Ok(new ShelterDogListingsResponse(items));

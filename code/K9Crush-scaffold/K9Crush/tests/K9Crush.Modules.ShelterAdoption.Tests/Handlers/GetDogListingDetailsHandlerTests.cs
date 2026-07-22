@@ -43,5 +43,6 @@ public class GetDogListingDetailsHandlerTests
         response.AgeInMonths.Should().Be(36);
         response.Bio.Should().Be("Friendly");
         response.ShelterAccountId.Should().Be(dogListing.ShelterAccountId);
+        response.Status.Should().Be(DogListingStatus.NotReadyYet);
     }
 }

@@ -70,6 +70,8 @@ public class GetShelterDogListingsIntegrationTests(ShelterAdoptionPostgresFixtur
 
         result.Result.Should().BeOfType<Ok<ShelterDogListingsResponse>>();
         var response = ((Ok<ShelterDogListingsResponse>)result.Result).Value!;
-        response.Items.Should().ContainSingle().Which.DogListingId.Should().Be(ownListing.Id);
+        var item = response.Items.Should().ContainSingle().Which;
+        item.DogListingId.Should().Be(ownListing.Id);
+        item.Status.Should().Be(DogListingStatus.NotReadyYet);
     }
 }

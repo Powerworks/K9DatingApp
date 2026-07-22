@@ -34,7 +34,7 @@ public class CloseStaleApplicationHandlerTests
     public async Task Handle_WhenApplicantRespondedBeforeTheCloseCheckFired_DoesNothing()
     {
         // Marked stale, then the applicant responded and the shelter approved it before the 30-day close check fired.
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default);
         application.Review();
         application.RequestAdditionalDetails("please provide vet references");
         application.MarkStale();
@@ -53,7 +53,7 @@ public class CloseStaleApplicationHandlerTests
     [Fact]
     public async Task Handle_WhenStillStale_ClosesTheApplication()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default);
         application.Review();
         application.RequestAdditionalDetails("please provide vet references");
         application.MarkStale();
@@ -71,7 +71,7 @@ public class CloseStaleApplicationHandlerTests
     [Fact]
     public async Task Handle_WhenRedeliveredAfterAlreadyClosed_IsIdempotent()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default);
         application.Review();
         application.RequestAdditionalDetails("please provide vet references");
         application.MarkStale();

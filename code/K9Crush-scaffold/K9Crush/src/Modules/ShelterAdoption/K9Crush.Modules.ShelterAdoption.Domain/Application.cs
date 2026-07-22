@@ -47,6 +47,41 @@ public enum ApplicationStatus
     Closed
 }
 
+public enum HomeOwnership { Own, Rent }
+public enum HomeType { House, Apartment, Other }
+public enum GardenSize { Small, Medium, Large }
+public enum EnergyLevelPreference { Low, Medium, High, NoPreference }
+
+/// <summary>
+/// v3 ENRICHMENT (Spec/K9CRUSH.emlang.v3.yaml's TheWouldBeAdopter chapter) -
+/// the household/lifestyle questionnaire answered once, at the point of
+/// submission (not the Draft precursor - see Application.Intake's own
+/// comment). Plain record value object, same convention as
+/// Profiles.Domain.GeoCoordinate. GardenSize/GardenEnclosed/
+/// ChildrenAgeRange/OtherPetsDetails are only meaningful (and required by
+/// SubmitApplicationRequest's validation) when HasGarden/HasChildren/
+/// HasOtherPets is true respectively.
+/// </summary>
+public sealed record ApplicationIntake(
+    int HouseholdSize,
+    HomeOwnership HomeOwnership,
+    HomeType HomeType,
+    bool HasGarden,
+    GardenSize? GardenSize,
+    bool? GardenEnclosed,
+    bool HasChildren,
+    string? ChildrenAgeRange,
+    bool HasOtherPets,
+    string? OtherPetsDetails,
+    int DailyAloneHours,
+    bool HasUpcomingExtendedAbsence,
+    EnergyLevelPreference PreferredEnergyLevel,
+    string DailyExerciseCommitment,
+    bool PastDogOwnershipExperience,
+    bool WillingToCareForMedicalNeedsDog,
+    bool WillingToCareForNervousDog,
+    bool DataProcessingConsent);
+
 public class Application : Entity
 {
     [JsonInclude] public Guid ApplicantOwnerId { get; private set; }
@@ -60,10 +95,17 @@ public class Application : Entity
     [JsonInclude] public DateTimeOffset? SubmittedAt { get; private set; }
     [JsonInclude] public DateTimeOffset? LastEditedAt { get; private set; }
 
+    /// <summary>
+    /// Null until the application is actually submitted (Submit()/
+    /// SubmitDraft()) - a Draft in progress hasn't answered the
+    /// questionnaire yet, only the free-text Details field (EditDetails()).
+    /// </summary>
+    [JsonInclude] public ApplicationIntake? Intake { get; private set; }
+
     [JsonConstructor]
     private Application() { }
 
-    public static Application Submit(Guid applicantOwnerId, Guid dogListingId, Guid shelterAccountId)
+    public static Application Submit(Guid applicantOwnerId, Guid dogListingId, Guid shelterAccountId, ApplicationIntake intake)
     {
         var now = DateTimeOffset.UtcNow;
         return new Application
@@ -73,7 +115,8 @@ public class Application : Entity
             ShelterAccountId = shelterAccountId,
             Status = ApplicationStatus.Pending,
             StartedAt = now,
-            SubmittedAt = now
+            SubmittedAt = now,
+            Intake = intake
         };
     }
 
@@ -161,10 +204,11 @@ public class Application : Entity
     /// dog" branch - see that handler's comment. State-guard (only valid
     /// from Draft) lives in the handler.
     /// </summary>
-    public void SubmitDraft()
+    public void SubmitDraft(ApplicationIntake intake)
     {
         Status = ApplicationStatus.Pending;
         SubmittedAt = DateTimeOffset.UtcNow;
+        Intake = intake;
     }
 
     /// <summary>

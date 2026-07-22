@@ -38,7 +38,7 @@ public class ReviewApplicationHandlerTests
     public async Task Handle_WhenCallerDoesNotOwnTheShelter_ReturnsForbid()
     {
         var shelterAccount = ShelterAccount.Create(ShelterOwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, shelterAccount.Id);
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, shelterAccount.Id, TestIntake.Default);
         var session = Substitute.For<IDocumentSession>();
         session.LoadAsync<Application>(application.Id, Arg.Any<CancellationToken>()).Returns(application);
         session.LoadAsync<ShelterAccount>(shelterAccount.Id, Arg.Any<CancellationToken>()).Returns(shelterAccount);
@@ -52,7 +52,7 @@ public class ReviewApplicationHandlerTests
     public async Task Handle_WhenApplicationIsNotPending_ReturnsConflict()
     {
         var shelterAccount = ShelterAccount.Create(ShelterOwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, shelterAccount.Id);
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, shelterAccount.Id, TestIntake.Default);
         application.Review(); // already UnderReview, not Pending
         var session = Substitute.For<IDocumentSession>();
         session.LoadAsync<Application>(application.Id, Arg.Any<CancellationToken>()).Returns(application);
@@ -67,7 +67,7 @@ public class ReviewApplicationHandlerTests
     public async Task Handle_WhenPendingAndCallerOwnsShelter_ReviewsAndPersists()
     {
         var shelterAccount = ShelterAccount.Create(ShelterOwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, shelterAccount.Id);
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, shelterAccount.Id, TestIntake.Default);
         var session = Substitute.For<IDocumentSession>();
         session.LoadAsync<Application>(application.Id, Arg.Any<CancellationToken>()).Returns(application);
         session.LoadAsync<ShelterAccount>(shelterAccount.Id, Arg.Any<CancellationToken>()).Returns(shelterAccount);

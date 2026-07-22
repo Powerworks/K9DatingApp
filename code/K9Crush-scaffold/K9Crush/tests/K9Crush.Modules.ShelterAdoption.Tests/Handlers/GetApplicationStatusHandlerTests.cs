@@ -37,7 +37,7 @@ public class GetApplicationStatusHandlerTests
     [Fact]
     public async Task Handle_WhenCallerIsNotTheApplicant_ReturnsForbid()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default);
         var session = Substitute.For<IQuerySession>();
         session.LoadAsync<Application>(application.Id, Arg.Any<CancellationToken>()).Returns(application);
 
@@ -49,7 +49,7 @@ public class GetApplicationStatusHandlerTests
     [Fact]
     public async Task Handle_WhenCallerIsTheApplicant_ReturnsStatusDetails()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default);
         application.Review();
         application.RequestAdditionalDetails("Please provide vet references");
         var session = Substitute.For<IQuerySession>();

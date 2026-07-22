@@ -39,7 +39,7 @@ public class MarkApplicationStaleHandlerTests
     public async Task Handle_WhenApplicantAlreadyRespondedInTheMeantime_DoesNothing()
     {
         // Status moved back to UnderReview via SubmitAdditionalDetailsHandler before this scheduled check fired.
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default);
         application.Review();
         application.RequestAdditionalDetails("please provide vet references");
         application.SubmitAdditionalDetails(); // back to UnderReview
@@ -58,7 +58,7 @@ public class MarkApplicationStaleHandlerTests
     [Fact]
     public async Task Handle_WhenStillAwaitingDetails_MarksStaleAndSchedulesTheCloseCheck30DaysOut()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default);
         application.Review();
         application.RequestAdditionalDetails("please provide vet references"); // ReturnedForAlteration, never responded to
 
@@ -80,7 +80,7 @@ public class MarkApplicationStaleHandlerTests
     [Fact]
     public async Task Handle_WhenRedeliveredAfterAlreadyMarkedStale_IsIdempotentAndDoesNotReschedule()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default);
         application.Review();
         application.RequestAdditionalDetails("please provide vet references");
         application.MarkStale(); // already acted on once

@@ -37,7 +37,7 @@ public class WithdrawApplicationHandlerTests
     [Fact]
     public async Task Handle_WhenCallerIsNotTheApplicant_ReturnsForbid()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default);
         var session = Substitute.For<IDocumentSession>();
         session.LoadAsync<Application>(application.Id, Arg.Any<CancellationToken>()).Returns(application);
 
@@ -49,7 +49,7 @@ public class WithdrawApplicationHandlerTests
     [Fact]
     public async Task Handle_WhenAlreadyApproved_ReturnsConflictAndDoesNotWithdraw()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default);
         application.Review();
         application.Approve();
         var session = Substitute.For<IDocumentSession>();
@@ -64,7 +64,7 @@ public class WithdrawApplicationHandlerTests
     [Fact]
     public async Task Handle_WhenOwnedByCallerAndNotApproved_WithdrawsAndPersists()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default);
         var session = Substitute.For<IDocumentSession>();
         session.LoadAsync<Application>(application.Id, Arg.Any<CancellationToken>()).Returns(application);
 

@@ -28,9 +28,9 @@ public class NotifyApplicantsOfListingChangeIntegrationTests(ShelterAdoptionPost
         var applicantA = Guid.NewGuid();
         var withdrawnApplicant = Guid.NewGuid();
 
-        var openApplication = Application.Submit(applicantA, dogListingId, shelterAccountId);
+        var openApplication = Application.Submit(applicantA, dogListingId, shelterAccountId, TestIntake.Default);
         openApplication.Review();
-        var withdrawnApplication = Application.Submit(withdrawnApplicant, dogListingId, shelterAccountId);
+        var withdrawnApplication = Application.Submit(withdrawnApplicant, dogListingId, shelterAccountId, TestIntake.Default);
         withdrawnApplication.Withdraw();
 
         await using (var seedSession = fixture.Store.LightweightSession())

@@ -23,10 +23,11 @@ namespace K9Crush.Modules.ShelterAdoption.Api.Commands.SubmitApplication;
 ///   duplicate, but the applicant already has maxOpenApplications (3, per
 ///   the yaml) open applications across all dogs - 409.
 ///
-/// No caller/member content beyond the dog reference - the yaml doesn't
-/// specify application form fields (cover letter, home situation, etc.)
-/// beyond the counters above; add a request body if a real form
-/// requirement shows up.
+/// v3 ENRICHMENT (Spec/K9CRUSH.emlang.v3.yaml's TheWouldBeAdopter chapter):
+/// the request now carries a household/lifestyle intake questionnaire,
+/// captured on the Application itself (Application.Intake) - see
+/// SubmitApplicationRequest's own comment for why this lives here rather
+/// than on the Draft precursor.
 ///
 /// Updated (drafts feature): also covers the emlang yaml's "Submit
 /// Application" -> "Application Submitted" when it carries a
@@ -48,6 +49,7 @@ public static class SubmitApplicationHandler
     [Authorize(Policy = "VerifiedOwner")]
     public static async Task<Results<Ok<SubmitApplicationResponse>, NotFound, Conflict<string>>> Handle(
         Guid dogListingId,
+        SubmitApplicationRequest request,
         ClaimsPrincipal user,
         IDocumentSession session,
         CancellationToken cancellationToken)
@@ -70,7 +72,7 @@ public static class SubmitApplicationHandler
             x => x.DogListingId == dogListingId && x.Status == ApplicationStatus.Draft);
         if (draftForThisDog is not null)
         {
-            draftForThisDog.SubmitDraft();
+            draftForThisDog.SubmitDraft(request.ToIntake());
             session.Store(draftForThisDog);
             await session.SaveChangesAsync(cancellationToken);
 
@@ -81,7 +83,7 @@ public static class SubmitApplicationHandler
         if (openCount >= MaxOpenApplications)
             return TypedResults.Conflict($"Application limit reached - at most {MaxOpenApplications} open applications allowed.");
 
-        var application = Application.Submit(applicantOwnerId, dogListingId, dogListing.ShelterAccountId);
+        var application = Application.Submit(applicantOwnerId, dogListingId, dogListing.ShelterAccountId, request.ToIntake());
         session.Store(application);
         await session.SaveChangesAsync(cancellationToken);
 

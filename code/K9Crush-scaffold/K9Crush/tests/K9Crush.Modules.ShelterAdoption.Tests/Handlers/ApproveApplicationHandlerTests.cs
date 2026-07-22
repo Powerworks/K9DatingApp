@@ -27,7 +27,7 @@ public class ApproveApplicationHandlerTests
     public async Task Handle_WhenCallerDoesNotOwnTheShelter_ReturnsForbidAndNoIntegrationEvent()
     {
         var shelterAccount = ShelterAccount.Create(ShelterOwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, shelterAccount.Id);
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, shelterAccount.Id, TestIntake.Default);
         application.Review();
 
         var session = Substitute.For<IDocumentSession>();
@@ -45,7 +45,7 @@ public class ApproveApplicationHandlerTests
     public async Task Handle_WhenUnderReview_ApprovesAndCascadesApplicationApprovedWithDogName()
     {
         var shelterAccount = ShelterAccount.Create(ShelterOwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, shelterAccount.Id);
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, shelterAccount.Id, TestIntake.Default);
         application.Review();
         var dogListing = DogListing.Create(shelterAccount.Id, "Biscuit", "Beagle mix", 24, "Friendly");
 
@@ -59,10 +59,30 @@ public class ApproveApplicationHandlerTests
 
         result.Result.Should().BeOfType<Ok<ApproveApplicationResponse>>();
         application.Status.Should().Be(ApplicationStatus.Approved);
+        dogListing.Status.Should().Be(DogListingStatus.Adopted, "v3 ENRICHMENT: approval cascades the listing's status");
 
         integrationEvent.Should().NotBeNull();
         integrationEvent!.ApplicationId.Should().Be(application.Id);
         integrationEvent.ApplicantOwnerId.Should().Be(ApplicantOwnerId);
         integrationEvent.DogName.Should().Be("Biscuit");
+    }
+
+    [Fact]
+    public async Task Handle_WhenTheDogListingNoLongerExists_StillApprovesAndCascadesWithBlankDogName()
+    {
+        var shelterAccount = ShelterAccount.Create(ShelterOwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
+        var application = Application.Submit(ApplicantOwnerId, DogListingId, shelterAccount.Id, TestIntake.Default);
+        application.Review();
+
+        var session = Substitute.For<IDocumentSession>();
+        session.LoadAsync<Application>(application.Id, Arg.Any<CancellationToken>()).Returns(application);
+        session.LoadAsync<ShelterAccount>(shelterAccount.Id, Arg.Any<CancellationToken>()).Returns(shelterAccount);
+        session.LoadAsync<DogListing>(DogListingId, Arg.Any<CancellationToken>()).Returns((DogListing?)null);
+
+        var (result, integrationEvent) = await ApproveApplicationHandler.Handle(
+            application.Id, BuildUser(ShelterOwnerId), session, CancellationToken.None);
+
+        result.Result.Should().BeOfType<Ok<ApproveApplicationResponse>>();
+        integrationEvent!.DogName.Should().BeEmpty();
     }
 }

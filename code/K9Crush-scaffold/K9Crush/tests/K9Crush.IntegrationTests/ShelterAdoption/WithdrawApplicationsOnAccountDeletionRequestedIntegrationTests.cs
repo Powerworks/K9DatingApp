@@ -30,12 +30,12 @@ public class WithdrawApplicationsOnAccountDeletionRequestedIntegrationTests(Shel
         var shelterAccountId = Guid.NewGuid();
         var dogListingId = Guid.NewGuid();
 
-        var openApplicationA = Application.Submit(deletedOwnerId, dogListingId, shelterAccountId);
+        var openApplicationA = Application.Submit(deletedOwnerId, dogListingId, shelterAccountId, TestIntake.Default);
         openApplicationA.Review(); // UnderReview - open
-        var openApplicationB = Application.Submit(deletedOwnerId, Guid.NewGuid(), shelterAccountId); // Pending - open
-        var alreadyWithdrawnApplication = Application.Submit(deletedOwnerId, Guid.NewGuid(), shelterAccountId);
+        var openApplicationB = Application.Submit(deletedOwnerId, Guid.NewGuid(), shelterAccountId, TestIntake.Default); // Pending - open
+        var alreadyWithdrawnApplication = Application.Submit(deletedOwnerId, Guid.NewGuid(), shelterAccountId, TestIntake.Default);
         alreadyWithdrawnApplication.Withdraw(); // not open - must be left alone
-        var otherOwnersApplication = Application.Submit(otherOwnerId, dogListingId, shelterAccountId);
+        var otherOwnersApplication = Application.Submit(otherOwnerId, dogListingId, shelterAccountId, TestIntake.Default);
         otherOwnersApplication.Review(); // open, but a different owner - must be left alone
 
         await using (var seedSession = fixture.Store.LightweightSession())
