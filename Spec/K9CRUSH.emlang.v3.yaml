@@ -1,0 +1,3325 @@
+# K9Crush Event Model — v3, extends v2 with a wider adoption-lifecycle scope
+#
+# Source: NOT a board export. v1 (K9CRUSH.emlang.yaml) was the original
+# board export; v2 (K9CRUSH.emlang.v2.yaml) reverse-engineered the model
+# from the real implementation as it stood at the time. v3 (this file) =
+# v2 verbatim, PLUS a scope extension: four chapters modeling the fuller
+# adoption-organization lifecycle that surrounds a shelter's own listings -
+# an owner surrendering a dog into care, a dog spending time in foster
+# care before being listed as available, and volunteers (including a
+# dedicated home-check role feeding into application review). Two existing
+# v2 chapters (TheWouldBeAdopter, ShelterManagingListings) are also
+# enriched in place to connect to this wider scope (a fuller adoption
+# intake questionnaire, and an explicit listing status that now has
+# somewhere to come from other than "just added"). None of this new
+# material is built yet - it is a scope proposal, not a record of what
+# runs today. Donation/sponsorship-style flows are deliberately excluded
+# from this pass.
+#
+# Purpose: re-import onto an eventmodelers board to plan the next phase of
+# work.
+#
+# What changed vs v2, chapter by chapter:
+#   - 15 chapters below are REWRITTEN to match the real implementation
+#     (unchanged from v2 - see that file's own header for the v1->v2 diff).
+#   - 20 chapters are byte-identical to v1/v2, in their original positions -
+#     nothing has been built for them yet, so there is nothing to correct.
+#   - 3 chapters are NEW as of v2 (no v1 equivalent) - real, built slices
+#     that never had a home on the original board.
+#   - 3 chapters are NEW as of v3 (no v1 or v2 equivalent) - a scope
+#     extension, not yet built, appended in their own marked section at
+#     the very end: SurrenderingYourDog, FosteringADog, and
+#     VolunteeringAndHomeChecks (the last of which cross-references
+#     ShelterReviewsApplication - a completed home check can gate
+#     approval - via a `# v3 ENRICHMENT:` note on that existing chapter,
+#     rather than duplicating its steps).
+#   - 2 v2 chapters (TheWouldBeAdopter, ShelterManagingListings) are
+#     ENRICHED in place - marked with their own `# v3 ENRICHMENT:` comment
+#     at the point of change, distinct from v2's own `# DEVIATION:` comments
+#     (which describe reality vs v1, not new v3 scope).
+#
+# Every deliberate deviation from v1's original narrative is called out
+# with a `# DEVIATION:` comment at the point it occurs, so a board reviewer
+# can see at a glance where and why reality diverged from the original
+# design, rather than having to diff two large files. v3-only scope
+# additions use `# v3 ENRICHMENT:` or `# v3 NEW:` instead, to keep "what's
+# real" and "what's newly proposed" visually distinct at a glance.
+#
+# Chapter status key (each chapter is marked in its own leading comment,
+# immediately above the slice key):
+#   [BUILT]      - fully implemented and covered by automated tests
+#   [PARTIAL]    - some of the chapter's steps are implemented, the rest
+#                  deliberately deferred (reasons given inline)
+#   [PLANNED]    - v3 scope extension, not built at all yet
+#
+# Element type mapping, ordering rules, and swimlane-prefix conventions are
+# unchanged from v1 - see that file's header for the full explanation.
+
+slices:
+  TheCuriousNewDogOwner:
+    steps:
+    - t: Guest/Homepage
+    - c: Guest/View Homepage
+    - e: Guest/Homepage Viewed
+    - t: Guest/Content Hub
+    - c: Guest/View Content Hub
+    - e: Guest/Content Hub Viewed
+    - t: Guest/Reviews
+    - c: Guest/View Reviews
+    - e: Guest/Reviews Viewed
+    - t: Guest/Full Benefits
+    - c: Guest/View Full Benefits
+    - e: Guest/Full Benefits Viewed
+    - t: Guest/Sign-Up Incentive
+    - c: Guest/Show Sign-Up Incentive
+    - e: Guest/Sign-Up Incentive Shown
+      props:
+        incentiveMessage: Save your favorite spots and get alerts
+    - t: Member/Sign Up
+    - c: Member/Initiate Sign-Up
+    - e: Member/Sign-Up Initiated
+    - c: Member/Send Confirmation Email
+    - e: Member/Confirmation Email Sent
+    - t: Member/Confirm Profile
+    - c: Member/Confirm Profile
+    - e: Member/Profile Confirmed
+    tests:
+      HomepageViewed:
+        when:
+        - c: Guest/View Homepage
+        then:
+        - e: Guest/Homepage Viewed
+      ContentHubViewed:
+        given:
+        - e: Guest/Homepage Viewed
+        when:
+        - c: Guest/View Content Hub
+        then:
+        - e: Guest/Content Hub Viewed
+      ReviewsViewed:
+        given:
+        - e: Guest/Content Hub Viewed
+        when:
+        - c: Guest/View Reviews
+        then:
+        - e: Guest/Reviews Viewed
+      FullBenefitsViewed:
+        given:
+        - e: Guest/Reviews Viewed
+        when:
+        - c: Guest/View Full Benefits
+        then:
+        - e: Guest/Full Benefits Viewed
+      SignUpIncentiveShown:
+        given:
+        - e: Guest/Full Benefits Viewed
+        when:
+        - c: Guest/Show Sign-Up Incentive
+        then:
+        - e: Guest/Sign-Up Incentive Shown
+      SignUpInitiated:
+        given:
+        - e: Guest/Sign-Up Incentive Shown
+        when:
+        - c: Member/Initiate Sign-Up
+        then:
+        - e: Member/Sign-Up Initiated
+      ConfirmationEmailSent:
+        given:
+        - e: Member/Sign-Up Initiated
+        when:
+        - c: Member/Send Confirmation Email
+        then:
+        - e: Member/Confirmation Email Sent
+      ProfileConfirmed:
+        given:
+        - e: Member/Confirmation Email Sent
+        when:
+        - c: Member/Confirm Profile
+        then:
+        - e: Member/Profile Confirmed
+  # [PARTIAL] Discovery module. "Preview Nearby Dogs" is a direct state-view
+  # query (GetDiscoveryFeedHandler, no [Authorize] - Guests browse too),
+  # not a separate command+event pair - same "page-load command+event
+  # collapses into the view itself" consolidation applied to every
+  # read-model in this codebase.
+  # DEVIATION: matchType is hardcoded "dog_to_dog" in the real response -
+  # the "shelter_dog" variant (surfacing ShelterAdoption's DogListings in
+  # this same feed) is an acknowledged, disclosed gap, not built.
+  # DEVIATION: the Guest sign-up bridge (Initiate Sign-Up -> Confirmation
+  # Email Sent -> Confirm Profile, plus v1's own "Prompt Sign-Up" screen)
+  # is NOT implemented as commands in this codebase at all - Supabase
+  # Auth owns the entire signup/login/confirmation lifecycle directly
+  # (ADR-005); Identity only reacts after the fact via
+  # ProvisionOwnerOnSupabaseSignup/VerifyOwnerOnSupabaseConfirmation
+  # webhook automations (see the new BootstrappingTheFirstAdmin chapter).
+  # Kept here as steps with no working command behind them, matching v1's
+  # intent, since the screens are still real - only the commands are
+  # external. "Reject Claim (Match No Longer Available)" is not a
+  # separate command either - it's the Conflict branch of
+  # ClaimSavedMatchHandler/FlagDogOfInterestHandler when the dog is no
+  # longer in the feed, both calling the exact same DogOfInterest.Flag(...)
+  # under the hood regardless of which of these two narrative entry
+  # points triggered it.
+  TheWindowShopper:
+    steps:
+    - v: Guest/Nearby Dogs Preview
+      props:
+        dogProfileId: dog_204
+        name: Luna
+        breed: Labrador
+        distanceMiles: '1.2'
+        matchType: dog_to_dog
+    - t: Guest/Nearby Dogs
+    - c: Guest/Block Match Attempt
+      props:
+        dogId: dog_482
+    - e: Guest/Match Attempt Blocked
+      props:
+        dogId: dog_482
+        reason: sign_up_required
+    - t: Guest/Sign Up to Match
+    - c: Member/Initiate Sign-Up
+    - e: Member/Sign-Up Initiated
+    - c: Member/Send Confirmation Email
+    - e: Member/Confirmation Email Sent
+    - t: Member/Confirm Profile
+    - c: Member/Confirm Profile
+    - e: Member/Profile Confirmed
+    - t: Member/Saved Match
+    - c: Member/Claim Saved Match
+    - e: Member/Saved Match Claimed
+      props:
+        dogId: dog_482
+    - c: Member/Flag Dog Of Interest
+    - e: Member/Dog Of Interest Flagged
+    - t: Member/Match No Longer Available
+    - e: 'Member/Saved Match No Longer Available'
+      props:
+        reason: 'Saved Match No Longer Available.'
+    tests:
+      NearbyDogsPreview:
+        then:
+        - v: Guest/Nearby Dogs Preview
+      MatchAttemptBlocked:
+        when:
+        - c: Guest/Block Match Attempt
+        then:
+        - e: Guest/Match Attempt Blocked
+      SignUpInitiated:
+        given:
+        - e: Guest/Match Attempt Blocked
+        when:
+        - c: Member/Initiate Sign-Up
+        then:
+        - e: Member/Sign-Up Initiated
+      ConfirmationEmailSent:
+        given:
+        - e: Member/Sign-Up Initiated
+        when:
+        - c: Member/Send Confirmation Email
+        then:
+        - e: Member/Confirmation Email Sent
+      ProfileConfirmed:
+        given:
+        - e: Member/Confirmation Email Sent
+        when:
+        - c: Member/Confirm Profile
+        then:
+        - e: Member/Profile Confirmed
+      SavedMatchClaimed:
+        given:
+        - e: Member/Profile Confirmed
+        when:
+        - c: Member/Claim Saved Match
+        then:
+        - e: Member/Saved Match Claimed
+      DogOfInterestFlagged:
+        given:
+        - e: Member/Profile Confirmed
+        when:
+        - c: Member/Flag Dog Of Interest
+        then:
+        - e: Member/Dog Of Interest Flagged
+      SavedMatchNoLongerAvailable:
+        given:
+        - e: Member/Profile Confirmed
+        when:
+        - c: Member/Claim Saved Match
+        then:
+        - e: 'Member/Saved Match No Longer Available'
+  # [PARTIAL] ShelterAdoption module. Browse/Detail are direct state-view
+  # queries (GetAdoptionListingsHandler/GetDogListingDetailsHandler, no
+  # per-shelter filter - every DogListing across every active shelter),
+  # not separate command+event pairs, same consolidation as everywhere
+  # else. shelterName is deliberately NOT in the real response -
+  # ShelterAccount.BusinessDetails is one free-text field
+  # ("Sunny Paws Rescue, EIN 12-3456789"), not a clean display name;
+  # fabricating one would be worse than just returning ShelterAccountId.
+  # DEVIATION: v1's "Gate Application Start" (with a draftApplicationId
+  # bridging prop) does not exist anywhere, real or external - dropped.
+  # The real draft flow (see ResumingADraftApplication) is unconditional:
+  # StartDraftApplicationHandler just creates a Draft, no gate.
+  # DEVIATION: the sign-up bridge is external (Supabase, ADR-005) - see
+  # TheWindowShopper's identical note, not repeated in full here.
+  # DEVIATION: "Auto-Reject Application"/"Notify Applicant Of
+  # Auto-Rejection" don't exist under those names - the real mechanism is
+  # ShelterManagingListings' CancelApplicationsForRemovedListing automation
+  # (DogListingRemovedV1 -> ApplicationCancelledV1 -> Notifications),
+  # triggered by the SHELTER removing a listing, not by a "no longer
+  # available" check at submission time. Dropped from here; see that
+  # chapter instead.
+  # v3 ENRICHMENT: "Submit Application" grows a full household/lifestyle
+  # intake questionnaire (props below) - Application.Details today is one
+  # free-text field, real enough to submit *something* but too thin to
+  # actually screen an applicant on. The questionnaire below is answered
+  # once and carried on the Application itself, not the Draft precursor -
+  # ResumingADraftApplication's EditApplicationDetails is still where a
+  # Draft's free-text Details field gets refined before submission; these
+  # structured fields are asked at the point of submission. Feeds
+  # ShelterReviewsApplication's review screen and, per
+  # VolunteeringAndHomeChecks, can trigger a home-check request.
+  TheWouldBeAdopter:
+    steps:
+    - v: Member/Adoption Listings
+      props:
+        dogListingId: dog_71
+        name: Biscuit
+        breed: Beagle mix
+        shelterAccountId: shelter_9f2a
+    - t: Member/Browse Listings
+    - v: Member/Dog Profile
+      props:
+        dogListingId: dog_71
+        name: Biscuit
+        ageInMonths: '24'
+        bio: Friendly, good with kids
+    - t: Member/Dog Details
+    - t: Member/Sign Up
+    - c: Member/Initiate Sign-Up
+    - e: Member/Sign-Up Initiated
+    - c: Member/Send Confirmation Email
+    - e: Member/Confirmation Email Sent
+    - t: Member/Confirm Profile
+    - c: Member/Confirm Profile
+    - e: Member/Profile Confirmed
+    - t: Member/Submit Application
+    - c: Member/Submit Application
+      props:
+        maxOpenApplications: '3'
+        householdSize: '3'
+        homeOwnership: Own | Rent
+        homeType: House | Apartment | Other
+        hasGarden: 'true'
+        gardenSize: Small | Medium | Large
+        gardenEnclosed: 'true'
+        hasChildren: 'false'
+        childrenAgeRange: n/a
+        hasOtherPets: 'false'
+        otherPetsDetails: n/a
+        dailyAloneHours: '4'
+        hasUpcomingExtendedAbsence: 'false'
+        preferredEnergyLevel: Low | Medium | High | NoPreference
+        dailyExerciseCommitment: Two 30-minute walks
+        pastDogOwnershipExperience: 'true'
+        willingToCareForMedicalNeedsDog: 'false'
+        willingToCareForNervousDog: 'true'
+        dataProcessingConsent: 'true'
+    - e: Member/Application Submitted
+      props:
+        wasDuplicate: 'false'
+    - t: Member/Application Limit Reached
+    - e: 'Member/Application Limit Reached'
+      props:
+        maxOpenApplications: '3'
+    - c: Member/Resubmit Same Application
+    - e: Member/Duplicate Submission Ignored
+      props:
+        wasDuplicate: 'true'
+    tests:
+      AdoptionListings:
+        then:
+        - v: Member/Adoption Listings
+      DogProfile:
+        then:
+        - v: Member/Dog Profile
+      SignUpInitiated:
+        when:
+        - c: Member/Initiate Sign-Up
+        then:
+        - e: Member/Sign-Up Initiated
+      ConfirmationEmailSent:
+        given:
+        - e: Member/Sign-Up Initiated
+        when:
+        - c: Member/Send Confirmation Email
+        then:
+        - e: Member/Confirmation Email Sent
+      ProfileConfirmed:
+        given:
+        - e: Member/Confirmation Email Sent
+        when:
+        - c: Member/Confirm Profile
+        then:
+        - e: Member/Profile Confirmed
+      ApplicationSubmitted:
+        given:
+        - e: Member/Profile Confirmed
+        when:
+        - c: Member/Submit Application
+        then:
+        - e: Member/Application Submitted
+      ApplicationLimitReached:
+        given:
+        - e: Member/Profile Confirmed
+        when:
+        - c: Member/Submit Application
+        then:
+        - e: 'Member/Application Limit Reached'
+      DuplicateSubmissionIgnored:
+        given:
+        - e: Member/Application Submitted
+        when:
+        - c: Member/Resubmit Same Application
+        then:
+        - e: Member/Duplicate Submission Ignored
+  # [BUILT] ShelterAdoption module. "Open Application Status Page" is a
+  # direct state-view query (GetApplicationStatusHandler), not a separate
+  # command+event, same consolidation as elsewhere. Ownership-gated
+  # (Forbid if caller isn't the applicant) - not shown in v1 but a real
+  # guard in the handler.
+  # DEVIATION: WithdrawApplicationHandler's guard only blocks
+  # Status==Approved specifically - every OTHER status (including
+  # Pending/UnderReview/ReturnedForAlteration/Rejected/Stale/Closed/
+  # Withdrawn itself) is allowed through, not just "not yet decided"
+  # statuses as v1's status list might imply.
+  CheckingApplicationStatus:
+    steps:
+    - v: Member/Application Status
+      props:
+        status: Pending | UnderReview | ReturnedForAlteration | Approved | Rejected | Withdrawn | Stale | Closed
+    - t: Member/Application Status
+    - t: Member/Withdraw Application
+    - c: Member/Withdraw Application
+    - e: Member/Application Withdrawn
+    - t: Member/Can't Withdraw
+    - e: 'Member/Withdrawal Blocked: Already Approved'
+    tests:
+      ApplicationStatus:
+        then:
+        - v: Member/Application Status
+      ApplicationWithdrawn:
+        when:
+        - c: Member/Withdraw Application
+        then:
+        - e: Member/Application Withdrawn
+      WithdrawalBlockedAlreadyApproved:
+        given:
+        - e: Shelter Staff/Application Approved
+        when:
+        - c: Member/Withdraw Application
+        then:
+        - e: 'Member/Withdrawal Blocked: Already Approved'
+  # [BUILT] ShelterAdoption module (staleness automations use ADR-026
+  # Wolverine scheduled messages, not a real-time scheduler service).
+  # DEVIATION: "Submit Additional Details" is the APPLICANT's action, not
+  # Shelter Staff's, despite the yaml's own swimlane label - it's the
+  # applicant responding to the shelter's request, gated to
+  # ApplicantOwnerId (VerifiedOwner policy), not the Shelter policy. Same
+  # kind of narrative-vs-actual-actor departure already made once for
+  # Identity's sign-up fragment.
+  # DEVIATION: "Send Rejection Reason"/"Send Approval Notification" are
+  # NOT separate commands - RejectApplication/ApproveApplication cascade
+  # ApplicationRejectedV1/ApplicationApprovedV1 directly (an integration
+  # event, not a further in-chapter command), consumed by the
+  # Notifications module's own automations. Dropped from here.
+  # v3 ENRICHMENT: see VolunteeringAndHomeChecks - a home check can be
+  # requested against an UnderReview application (typically once it's
+  # past the initial Review step) and its report becomes something a
+  # reviewer weighs before Approve/Reject, the same way
+  # RequestAdditionalDetails already gates progress on the applicant's
+  # own response. Not modeled as a hard precondition here (unlike, say,
+  # Approve requiring UnderReview) - a shelter can still decide either
+  # way regardless of whether a check was requested; this is left as a
+  # human judgment call, not a system-enforced gate.
+  ShelterReviewsApplication:
+    steps:
+    - v: Shelter Staff/Pending Applications Queue
+      props:
+        applicationId: app_309
+        dogListingId: dog_71
+        applicantOwnerId: owner_44
+        status: Pending
+    - t: Shelter Staff/Applications Queue
+    - t: Shelter Staff/Review Application
+    - c: Shelter Staff/Review Application
+    - e: Shelter Staff/Application Reviewed
+    - t: Shelter Staff/Request Additional Details
+    - c: Shelter Staff/Request Additional Details
+      props:
+        reason: Please provide vet references
+    - e: Shelter Staff/Additional Details Requested
+      props:
+        staleAfterDays: '15'
+    - c: Shelter Staff/Mark Application Stale
+    - e: Shelter Staff/Application Marked Stale
+      props:
+        closesAfterDays: '30'
+    - c: Shelter Staff/Close Stale Application
+    - e: Shelter Staff/Application Closed
+    - t: Member/Submit Additional Details
+    - c: Member/Submit Additional Details
+    - e: Member/Additional Details Submitted
+    - t: Shelter Staff/Reject Application
+    - c: Shelter Staff/Reject Application
+      props:
+        reason: Yard too small for this breed
+    - e: Shelter Staff/Application Rejected
+      props:
+        rejectionReason: Yard too small for this breed
+    - t: Shelter Staff/Approve Application
+    - c: Shelter Staff/Approve Application
+    - e: Shelter Staff/Application Approved
+    tests:
+      PendingApplicationsQueue:
+        then:
+        - v: Shelter Staff/Pending Applications Queue
+      ApplicationReviewed:
+        when:
+        - c: Shelter Staff/Review Application
+        then:
+        - e: Shelter Staff/Application Reviewed
+      AdditionalDetailsRequested:
+        given:
+        - e: Shelter Staff/Application Reviewed
+        when:
+        - c: Shelter Staff/Request Additional Details
+        then:
+        - e: Shelter Staff/Additional Details Requested
+      ApplicationMarkedStale:
+        given:
+        - e: Shelter Staff/Additional Details Requested
+        when:
+        - c: Shelter Staff/Mark Application Stale
+        then:
+        - e: Shelter Staff/Application Marked Stale
+      ApplicationClosed:
+        given:
+        - e: Shelter Staff/Application Marked Stale
+        when:
+        - c: Shelter Staff/Close Stale Application
+        then:
+        - e: Shelter Staff/Application Closed
+      AdditionalDetailsSubmitted:
+        given:
+        - e: Shelter Staff/Additional Details Requested
+        when:
+        - c: Member/Submit Additional Details
+        then:
+        - e: Member/Additional Details Submitted
+      ApplicationRejected:
+        given:
+        - e: Member/Additional Details Submitted
+        when:
+        - c: Shelter Staff/Reject Application
+        then:
+        - e: Shelter Staff/Application Rejected
+      ApplicationApproved:
+        given:
+        - e: Member/Additional Details Submitted
+        when:
+        - c: Shelter Staff/Approve Application
+        then:
+        - e: Shelter Staff/Application Approved
+  # [BUILT] ShelterAdoption module. "View Draft Applications" is a direct
+  # state-view query (GetDraftApplicationsHandler, own-drafts-only, no
+  # separate command+event), same consolidation as elsewhere - it
+  # resolves each draft's dogName via a per-draft DogListing lookup
+  # (N+1, deliberately not optimized - bounded by the 3-draft cap).
+  # DEVIATION: v1 has no "start a draft" step at all, assuming drafts
+  # just exist - the real entry point is StartDraftApplicationHandler
+  # (added here as "Start Draft Application"), called from a dog listing's
+  # detail page, distinct from Resume (reopening an existing one).
+  # DEVIATION: "Check Dog Availability On Resume" is not a separate
+  # command - ResumeDraftApplicationHandler itself checks the DogListing
+  # still exists and either leaves the draft as Draft or transitions it
+  # to ClosedDogNoLongerAvailable, both in the same 200 response.
+  ResumingADraftApplication:
+    steps:
+    - v: Member/Draft Applications
+      props:
+        maxDraftApplications: '3'
+        applicationId: app_412
+        dogName: Nova
+        lastEditedAt: '2026-07-12'
+    - t: Member/Draft Applications
+    - t: Member/Start Draft Application
+    - c: Member/Start Draft Application
+    - e: Member/Draft Application Started
+      props:
+        wasExisting: 'false'
+    - c: Member/Resume Draft Application
+    - e: Member/Draft Application Resumed
+      props:
+        status: Draft
+    - t: Member/Dog No Longer Available
+    - e: 'Member/Draft Application Closed: Dog No Longer Available'
+      props:
+        status: ClosedDogNoLongerAvailable
+    - c: Member/Edit Application Details
+    - e: Member/Application Details Edited
+    - c: Member/Submit Application
+    - e: Member/Application Submitted
+      props:
+        wasDuplicate: 'false'
+    tests:
+      DraftApplications:
+        then:
+        - v: Member/Draft Applications
+      DraftApplicationStarted:
+        when:
+        - c: Member/Start Draft Application
+        then:
+        - e: Member/Draft Application Started
+      DraftApplicationResumed:
+        given:
+        - e: Member/Draft Application Started
+        when:
+        - c: Member/Resume Draft Application
+        then:
+        - e: Member/Draft Application Resumed
+      DraftApplicationClosedDogNoLongerAvailable:
+        given:
+        - e: Member/Draft Application Started
+        when:
+        - c: Member/Resume Draft Application
+        then:
+        - e: 'Member/Draft Application Closed: Dog No Longer Available'
+      ApplicationDetailsEdited:
+        given:
+        - e: Member/Draft Application Started
+        when:
+        - c: Member/Edit Application Details
+        then:
+        - e: Member/Application Details Edited
+      ApplicationSubmitted:
+        given:
+        - e: Member/Application Details Edited
+        when:
+        - c: Member/Submit Application
+        then:
+        - e: Member/Application Submitted
+  ClaimABusinessListing:
+    steps:
+    - t: Business Owner/Select Listing & Enter Contact Info
+    - c: Business Owner/Request Listing Claim
+    - e: Business Owner/Listing Claim Requested
+    - t: Business Owner/Verification Pending
+    - c: Business Owner/Send Claim Verification
+    - e: Business Owner/Claim Verification Sent
+    - c: Business Owner/Verify Claim
+    - e: Business Owner/Claim Verified
+    - t: Business Owner/Verification Issues
+    - c: Business Owner/Flag Claim Verification Issues
+    - e: Business Owner/Claim Verification Issues Found
+    - c: Business Owner/Manually Approve Claim
+    - e: Business Owner/Claim Manually Approved
+    - c: Business Owner/Reject Claim
+    - e: Business Owner/Claim Rejected
+    - t: Business Owner/Claim Approved — Ownership Transferred
+    - c: Business Owner/Transfer Listing Ownership
+    - e: Business Owner/Listing Ownership Transferred
+    tests:
+      ClaimantSubmitsContactInfoForAnExistingListing:
+        when:
+        - c: Business Owner/Request Listing Claim
+        then:
+        - e: Business Owner/Listing Claim Requested
+      VerificationCodeSentAfterClaimRequest:
+        given:
+        - e: Business Owner/Listing Claim Requested
+        when:
+        - c: Business Owner/Send Claim Verification
+        then:
+        - e: Business Owner/Claim Verification Sent
+      ContactInfoMatchesClaimAutoVerified:
+        given:
+        - e: Business Owner/Listing Claim Requested
+        - e: Business Owner/Claim Verification Sent
+        when:
+        - c: Business Owner/Verify Claim
+        then:
+        - e: Business Owner/Claim Verified
+      ContactInfoDoesnTMatchFlaggedForManualReview:
+        given:
+        - e: Business Owner/Listing Claim Requested
+        - e: Business Owner/Claim Verification Sent
+        when:
+        - c: Business Owner/Flag Claim Verification Issues
+        then:
+        - e: Business Owner/Claim Verification Issues Found
+      AdminManuallyApprovesAFlaggedClaim:
+        given:
+        - e: Business Owner/Listing Claim Requested
+        - e: Business Owner/Claim Verification Sent
+        - e: Business Owner/Claim Verification Issues Found
+        when:
+        - c: Business Owner/Manually Approve Claim
+        then:
+        - e: Business Owner/Claim Manually Approved
+      AdminRejectsAFlaggedClaimWithAReason:
+        given:
+        - e: Business Owner/Listing Claim Requested
+        - e: Business Owner/Claim Verification Sent
+        - e: Business Owner/Claim Verification Issues Found
+        when:
+        - c: Business Owner/Reject Claim
+        then:
+        - e: Business Owner/Claim Rejected
+      OwnershipTransferredAfterAutoVerification:
+        given:
+        - e: Business Owner/Listing Claim Requested
+        - e: Business Owner/Claim Verified
+        when:
+        - c: Business Owner/Transfer Listing Ownership
+        then:
+        - e: Business Owner/Listing Ownership Transferred
+  ShopVendorApplication:
+    steps:
+    - t: Vendor/Sell in the Merch Store
+    - c: Vendor/Start Vendor Application
+    - e: Vendor/Vendor Application Started
+    - t: Vendor/Business & Product Details
+    - c: Vendor/Submit Application Details
+    - e: Vendor/Application Details Submitted
+    - t: Vendor/Upload Business Documents
+    - c: Vendor/Submit Vendor Documents
+    - e: Vendor/Vendor Documents Submitted
+    - t: Vendor/Vendor Application Approved
+    - c: Vendor/Approve Vendor Application
+    - e: Vendor/Vendor Approved
+    - t: Vendor/Vendor Application Rejected
+    - c: Vendor/Reject Vendor Application
+    - e: Vendor/Vendor Application Rejected
+    tests:
+      VendorStartsANewApplication:
+        when:
+        - c: Vendor/Start Vendor Application
+        then:
+        - e: Vendor/Vendor Application Started
+      BusinessAndProductDetailsSubmitted:
+        given:
+        - e: Vendor/Vendor Application Started
+        when:
+        - c: Vendor/Submit Application Details
+        then:
+        - e: Vendor/Application Details Submitted
+      BusinessDocumentsUploadedForReview:
+        given:
+        - e: Vendor/Vendor Application Started
+        - e: Vendor/Application Details Submitted
+        when:
+        - c: Vendor/Submit Vendor Documents
+        then:
+        - e: Vendor/Vendor Documents Submitted
+      VendorApplicationApproved:
+        given:
+        - e: Vendor/Vendor Application Started
+        - e: Vendor/Application Details Submitted
+        - e: Vendor/Vendor Documents Submitted
+        when:
+        - c: Vendor/Approve Vendor Application
+        then:
+        - e: Vendor/Vendor Approved
+      VendorApplicationRejectedUnreadableDocuments:
+        given:
+        - e: Vendor/Vendor Application Started
+        - e: Vendor/Application Details Submitted
+        - e: Vendor/Vendor Documents Submitted
+        when:
+        - c: Vendor/Reject Vendor Application
+        then:
+        - e: Vendor/Vendor Application Rejected
+  # [BUILT] ShelterAdoption module (+Identity's PromoteOwnerToShelterOnAccountCreated
+  # automation, triggered by ShelterAccountCreatedV1 - the only mechanism
+  # by which OwnerRole.Shelter is ever reached).
+  # DEVIATION: Verify/FlagVerificationIssues/Reject/ApproveShelterAccount
+  # are gated by the Admin policy, not the "Shelter Staff" swimlane the
+  # yaml itself uses - these are platform-reviewer actions on someone
+  # else's request, not the requesting shelter's own actions.
+  # ResubmitShelterAccount stays on VerifiedOwner + an explicit ownership
+  # check instead (the requester fixing their own flagged application,
+  # and they aren't Shelter-role yet at this point in the lifecycle
+  # either - that only happens once the account actually activates).
+  # DEVIATION: "Add First Dog Listing" and ShelterManagingListings'
+  # "Add Dog Listing" are the exact same command (AddDogListingHandler) -
+  # the "first vs additional" distinction is narrative framing depending
+  # on whether other listings already exist for that shelter, not
+  # something the command itself branches on.
+  TheShelterRescueOrgSigningUp:
+    steps:
+    - t: Shelter Staff/Request Shelter Account
+    - c: Shelter Staff/Request Shelter Account
+      props:
+        businessDetails: Sunny Paws Rescue, EIN 12-3456789
+        utilityBillDocumentId: doc_9f2a
+    - e: Shelter Staff/Shelter Account Requested
+    - t: Admin/Verification Review
+    - c: Admin/Flag Verification Issues
+      props:
+        reason: Missing 501(c)(3) documentation
+    - e: Admin/Verification Issues Found
+    - t: Shelter Staff/Resubmit Shelter Request
+    - c: Shelter Staff/Resubmit Shelter Account Request
+    - e: Shelter Staff/Shelter Account Request Resubmitted
+    - c: Admin/Verify Shelter
+    - e: Admin/Shelter Reverified
+    - c: Admin/Verify Shelter
+    - e: Admin/Shelter Verified
+    - c: Shelter Staff/Create Shelter Account
+    - e: Shelter Staff/Shelter Account Created
+    - t: Shelter Staff/Add First Dog Listing
+    - c: Shelter Staff/Add Dog Listing
+    - e: Shelter Staff/Dog Listing Added
+    - c: Admin/Approve Shelter Account
+    - e: Admin/Shelter Account Created (Admin Override)
+    - c: Admin/Reject Shelter Application
+      props:
+        reason: Cannot verify legitimacy
+    - e: Admin/Shelter Application Rejected
+    tests:
+      ShelterAccountRequested:
+        when:
+        - c: Shelter Staff/Request Shelter Account
+        then:
+        - e: Shelter Staff/Shelter Account Requested
+      VerificationIssuesFound:
+        given:
+        - e: Shelter Staff/Shelter Account Requested
+        when:
+        - c: Admin/Flag Verification Issues
+        then:
+        - e: Admin/Verification Issues Found
+      ShelterAccountRequestResubmitted:
+        given:
+        - e: Admin/Verification Issues Found
+        when:
+        - c: Shelter Staff/Resubmit Shelter Account Request
+        then:
+        - e: Shelter Staff/Shelter Account Request Resubmitted
+      ShelterReverified:
+        given:
+        - e: Shelter Staff/Shelter Account Request Resubmitted
+        when:
+        - c: Admin/Verify Shelter
+        then:
+        - e: Admin/Shelter Reverified
+      ShelterVerified:
+        given:
+        - e: Shelter Staff/Shelter Account Requested
+        when:
+        - c: Admin/Verify Shelter
+        then:
+        - e: Admin/Shelter Verified
+      ShelterAccountCreatedVerifiedFirstTry:
+        given:
+        - e: Admin/Shelter Verified
+        when:
+        - c: Shelter Staff/Create Shelter Account
+        then:
+        - e: Shelter Staff/Shelter Account Created
+      DogListingAdded:
+        given:
+        - e: Shelter Staff/Shelter Account Created
+        when:
+        - c: Shelter Staff/Add Dog Listing
+        then:
+        - e: Shelter Staff/Dog Listing Added
+      AdminManuallyApprovesAFlaggedShelterApplication:
+        given:
+        - e: Shelter Staff/Shelter Account Requested
+        - e: Admin/Verification Issues Found
+        when:
+        - c: Admin/Approve Shelter Account
+        then:
+        - e: Admin/Shelter Account Created (Admin Override)
+      AdminRejectsAFlaggedShelterApplicationWithAReason:
+        given:
+        - e: Shelter Staff/Shelter Account Requested
+        - e: Admin/Verification Issues Found
+        when:
+        - c: Admin/Reject Shelter Application
+        then:
+        - e: Admin/Shelter Application Rejected
+  # [BUILT] ShelterAdoption module. "View Dog Listings" is a direct
+  # state-view query (GetShelterDogListingsHandler, ownership-gated),
+  # not a separate command+event. "Add Dog Listing" is the exact same
+  # command as TheShelterRescueOrgSigningUp's "Add First Dog Listing" -
+  # see that chapter's note.
+  # DEVIATION: "Cancel Applications For Removed Listing" and "Notify
+  # Applicant Of Listing Change" are same-module AUTOMATIONS (ADR-028 -
+  # they route through the shared k9crush.events exchange like any
+  # cross-module event, there's no separate local-only pub/sub), not
+  # further commands a Shelter Staff member issues - they fire on their
+  # own once Dog Listing Removed/Edited happens. "Notify Applicants Of
+  # Cancellation" is not a separate step either - CancelApplicationsForRemovedListing
+  # cascades ApplicationCancelledV1 directly to Notifications, one per
+  # affected applicant.
+  # v3 ENRICHMENT: real DogListings have no Status field at all today -
+  # "Update Listing Status" is a new manual command for Shelter Staff, but
+  # the status also has automatic sources once FosteringADog exists
+  # (Place/End a foster placement moves a listing to/from InFoster) and
+  # once an application is approved (ShelterReviewsApplication moves it to
+  # Adopted) - those two chapters cascade this same status change rather
+  # than duplicating the transition logic.
+  ShelterManagingListings:
+    steps:
+    - v: Shelter Staff/Shelter Dog Listings
+      props:
+        dogListingId: dog_71
+        name: Biscuit
+        breed: Beagle mix
+        ageInMonths: '24'
+        status: Available | NotReadyYet | InFoster | PendingAdoption | Adopted
+    - t: Shelter Staff/Dog Listings
+    - t: Shelter Staff/Edit Listing
+    - c: Shelter Staff/Edit Dog Listing
+      props:
+        significantChange: 'true'
+    - e: Shelter Staff/Dog Listing Edited
+      props:
+        significantChange: 'true'
+    - t: Shelter Staff/Remove Listing
+    - c: Shelter Staff/Remove Dog Listing
+    - e: Shelter Staff/Dog Listing Removed
+    - t: Shelter Staff/Add Listing
+    - c: Shelter Staff/Add Dog Listing
+    - e: Shelter Staff/Dog Listing Added
+      props:
+        status: NotReadyYet
+    - t: Shelter Staff/Update Listing Status
+    - c: Shelter Staff/Update Listing Status
+      props:
+        status: Available | NotReadyYet | InFoster | PendingAdoption | Adopted
+    - e: Shelter Staff/Listing Status Updated
+    - e: Shelter Staff/Applications Cancelled For Removed Listing
+      props:
+        cascadedTo: Notifications (ApplicationCancelledV1, one per affected applicant)
+    - e: Shelter Staff/Applicant Notified Of Listing Change
+      props:
+        cascadedTo: Notifications (ApplicationListingChangedV1, one per open applicant)
+    tests:
+      ShelterDogListings:
+        then:
+        - v: Shelter Staff/Shelter Dog Listings
+      DogListingEdited:
+        when:
+        - c: Shelter Staff/Edit Dog Listing
+        then:
+        - e: Shelter Staff/Dog Listing Edited
+      DogListingRemoved:
+        when:
+        - c: Shelter Staff/Remove Dog Listing
+        then:
+        - e: Shelter Staff/Dog Listing Removed
+      DogListingAdded:
+        when:
+        - c: Shelter Staff/Add Dog Listing
+        then:
+        - e: Shelter Staff/Dog Listing Added
+      ListingStatusUpdated:
+        given:
+        - e: Shelter Staff/Dog Listing Added
+        when:
+        - c: Shelter Staff/Update Listing Status
+        then:
+        - e: Shelter Staff/Listing Status Updated
+      ApplicationsCancelledForRemovedListing:
+        given:
+        - e: Shelter Staff/Dog Listing Removed
+        then:
+        - e: Shelter Staff/Applications Cancelled For Removed Listing
+      ApplicantNotifiedOfListingChange:
+        given:
+        - e: Shelter Staff/Dog Listing Edited
+        then:
+        - e: Shelter Staff/Applicant Notified Of Listing Change
+  DogServiceProviderApplication:
+    steps:
+    - t: Service Provider/Start Provider Application
+    - c: Service Provider/Start Provider Application
+    - e: Service Provider/Provider Application Started
+      props:
+        serviceType: groomer | trainer | walker | minder | breeder
+    - t: Service Provider/Application Details
+    - c: Service Provider/Submit Application Details
+    - e: Service Provider/Application Details Submitted
+    - t: Service Provider/Sign Declaration
+    - c: Service Provider/Sign Declaration Form
+    - e: Service Provider/Declaration Form Signed
+      props:
+        applicableServiceTypes: breeder | trainer | groomer
+        declarationText: I agree to adhere to K9Crush platform rules
+    - c: Service Provider/Confirm Required Documents Submitted
+    - e: Service Provider/Required Documents Submitted
+    - t: Service Provider/Upload Insurance
+    - c: Service Provider/Upload Proof Of Insurance
+      props:
+        applicableServiceType: walker
+        optional: 'true'
+    - e: Service Provider/Proof Of Insurance Uploaded
+      props:
+        applicableServiceType: walker
+        optional: 'true'
+    - t: Service Provider/Approve Provider
+    - c: Service Provider/Approve Provider Application
+    - e: Service Provider/Provider Approved
+      props:
+        reviewedBy: K9Crush platform team
+    - t: Service Provider/Reject Provider
+    - c: Service Provider/Reject Provider Application
+    - e: Service Provider/Provider Application Rejected
+    - c: Service Provider/Flag Renewal Due
+    - e: Service Provider/Provider Renewal Due
+      props:
+        renewalPeriodDays: '365'
+    - t: Service Provider/Renew Verification
+    - c: Service Provider/Renew Verification
+    - e: Service Provider/Provider Verification Renewed
+    - c: Service Provider/Expire Verification (Not Renewed)
+    - e: Service Provider/Provider Verification Expired
+    - t: Service Provider/Resubmit Application
+    - c: Service Provider/Resubmit Provider Application
+    - e: Service Provider/Provider Application Resubmitted
+    - c: Service Provider/Re-review Provider Application
+    - e: Service Provider/Provider Reverified
+    tests:
+      ProviderApplicationStarted:
+        when:
+        - c: Service Provider/Start Provider Application
+        then:
+        - e: Service Provider/Provider Application Started
+      ApplicationDetailsSubmitted:
+        given:
+        - e: Service Provider/Provider Application Started
+        when:
+        - c: Service Provider/Submit Application Details
+        then:
+        - e: Service Provider/Application Details Submitted
+      DeclarationFormSigned:
+        given:
+        - e: Service Provider/Application Details Submitted
+        when:
+        - c: Service Provider/Sign Declaration Form
+        then:
+        - e: Service Provider/Declaration Form Signed
+      RequiredDocumentsSubmitted:
+        given:
+        - e: Service Provider/Declaration Form Signed
+        when:
+        - c: Service Provider/Confirm Required Documents Submitted
+        then:
+        - e: Service Provider/Required Documents Submitted
+      ProofOfInsuranceUploaded:
+        given:
+        - e: Service Provider/Application Details Submitted
+        when:
+        - c: Service Provider/Upload Proof Of Insurance
+        then:
+        - e: Service Provider/Proof Of Insurance Uploaded
+      ProviderApprovedFirstTry:
+        given:
+        - e: Service Provider/Required Documents Submitted
+        when:
+        - c: Service Provider/Approve Provider Application
+        then:
+        - e: Service Provider/Provider Approved
+      ProviderApprovedAfterFixAndReapply:
+        given:
+        - e: Service Provider/Provider Reverified
+        when:
+        - c: Service Provider/Approve Provider Application
+        then:
+        - e: Service Provider/Provider Approved
+      ProviderApplicationRejected:
+        given:
+        - e: Service Provider/Application Details Submitted
+        when:
+        - c: Service Provider/Reject Provider Application
+        then:
+        - e: Service Provider/Provider Application Rejected
+      ProviderRenewalDue:
+        given:
+        - e: Service Provider/Provider Approved
+        when:
+        - c: Service Provider/Flag Renewal Due
+        then:
+        - e: Service Provider/Provider Renewal Due
+      ProviderVerificationRenewed:
+        given:
+        - e: Service Provider/Provider Renewal Due
+        when:
+        - c: Service Provider/Renew Verification
+        then:
+        - e: Service Provider/Provider Verification Renewed
+      ProviderVerificationExpired:
+        given:
+        - e: Service Provider/Provider Renewal Due
+        when:
+        - c: Service Provider/Expire Verification (Not Renewed)
+        then:
+        - e: Service Provider/Provider Verification Expired
+      ProviderApplicationResubmitted:
+        given:
+        - e: Service Provider/Provider Application Rejected
+        when:
+        - c: Service Provider/Resubmit Provider Application
+        then:
+        - e: Service Provider/Provider Application Resubmitted
+      ProviderReverified:
+        given:
+        - e: Service Provider/Provider Application Resubmitted
+        when:
+        - c: Service Provider/Re-review Provider Application
+        then:
+        - e: Service Provider/Provider Reverified
+  ContactADogServiceProvider:
+    steps:
+    - c: Member/Browse Service Providers
+    - e: Member/Service Providers Browsed
+      props:
+        serviceType: groomer | trainer | walker | minder | breeder
+    - v: Member/Provider Reviews & Ratings
+    - t: Member/Browse Providers
+    - t: Member/Provider Details
+    - c: Member/Contact Provider
+      props:
+        providerVerified: 'true'
+    - e: Member/Provider Contacted
+      props:
+        providerVerified: 'true'
+    - t: Member/Message Provider
+    - c: Member/Send Message To Provider
+    - e: Member/Provider Message Sent
+    tests:
+      ServiceProvidersBrowsed:
+        when:
+        - c: Member/Browse Service Providers
+        then:
+        - e: Member/Service Providers Browsed
+      ProviderReviewsRatings:
+        given:
+        - e: Member/Service Providers Browsed
+        then:
+        - v: Member/Provider Reviews & Ratings
+      ProviderContacted:
+        given:
+        - e: Member/Service Providers Browsed
+        when:
+        - c: Member/Contact Provider
+        then:
+        - e: Member/Provider Contacted
+      ProviderMessageSent:
+        given:
+        - e: Member/Provider Contacted
+        when:
+        - c: Member/Send Message To Provider
+        then:
+        - e: Member/Provider Message Sent
+  # [BUILT] Notifications module. "Open Notification Templates" is a
+  # direct state-view query (ViewNotificationTemplatesHandler, all
+  # templates, no filter), not a separate command+event. EditNotificationTemplateHandler
+  # submits the new content AND acquires the lock in one step (matches
+  # v1's own lockedBy prop, just folded into Edit rather than a separate
+  # "Lock" action). SaveNotificationTemplateHandler releases the lock;
+  # `appliesToAlreadyQueuedNotifications` is echoed back but has no
+  # functional effect (accepted, unused - disclosed no-op).
+  ShelterConfiguresNotificationTemplates:
+    steps:
+    - v: Shelter Staff/Notification Templates
+      props:
+        templateId: tmpl_approval
+        name: Application Approved
+        locked: 'false'
+    - t: Shelter Staff/Notification Templates
+    - t: Shelter Staff/Edit Template
+    - c: Shelter Staff/Edit Notification Template
+      props:
+        subject: Your application was approved!
+        body: Congratulations, {{applicantName}}...
+    - e: Shelter Staff/Notification Template Edited
+      props:
+        locked: 'true'
+    - t: Shelter Staff/Template Locked
+    - e: Shelter Staff/Template Edit Blocked
+      props:
+        reason: 'Template Edit Blocked.'
+    - c: Shelter Staff/Save Notification Template
+      props:
+        appliesToAlreadyQueuedNotifications: 'false'
+    - e: Shelter Staff/Notification Template Saved
+      props:
+        locked: 'false'
+    tests:
+      NotificationTemplates:
+        then:
+        - v: Shelter Staff/Notification Templates
+      NotificationTemplateEdited:
+        when:
+        - c: Shelter Staff/Edit Notification Template
+        then:
+        - e: Shelter Staff/Notification Template Edited
+      TemplateEditBlocked:
+        given:
+        - e: Shelter Staff/Notification Template Edited
+        when:
+        - c: Shelter Staff/Edit Notification Template
+        then:
+        - e: Shelter Staff/Template Edit Blocked
+      NotificationTemplateSaved:
+        given:
+        - e: Shelter Staff/Notification Template Edited
+        when:
+        - c: Shelter Staff/Save Notification Template
+        then:
+        - e: Shelter Staff/Notification Template Saved
+  ReviewingServiceProviderApplications:
+    steps:
+    - v: Admin/Application Review Queue
+    - t: Admin/Applications Queue
+    - t: Admin/Application Detail — Verification Evidence
+    tests:
+      QueueReflectsCurrentPendingApplications:
+        then:
+        - v: Admin/Application Review Queue
+  ManagingTipsHealthContent:
+    steps:
+    - t: Admin/New Tip Editor
+    - c: Admin/Create Tip
+    - e: Admin/Tip Drafted
+    - t: Admin/Tip Preview
+    - c: Admin/Preview Tip
+    - e: Admin/Tip Previewed
+    - t: Admin/Tip Published
+    - c: Admin/Publish Tip
+    - e: Admin/Tip Published
+    - c: Admin/Edit Tip
+    - e: Admin/Tip Edited
+    - c: Admin/Unpublish Tip
+    - e: Admin/Tip Unpublished
+    tests:
+      StaffDraftsANewTip:
+        when:
+        - c: Admin/Create Tip
+        then:
+        - e: Admin/Tip Drafted
+      DraftTipPreviewedBeforePublishing:
+        given:
+        - e: Admin/Tip Drafted
+        when:
+        - c: Admin/Preview Tip
+        then:
+        - e: Admin/Tip Previewed
+      TipPublishedToTheContentHub:
+        given:
+        - e: Admin/Tip Drafted
+        - e: Admin/Tip Previewed
+        when:
+        - c: Admin/Publish Tip
+        then:
+        - e: Admin/Tip Published
+      PublishedTipEdited:
+        given:
+        - e: Admin/Tip Drafted
+        - e: Admin/Tip Previewed
+        - e: Admin/Tip Published
+        when:
+        - c: Admin/Edit Tip
+        then:
+        - e: Admin/Tip Edited
+      TipPulledFromTheContentHub:
+        given:
+        - e: Admin/Tip Drafted
+        - e: Admin/Tip Previewed
+        - e: Admin/Tip Published
+        when:
+        - c: Admin/Unpublish Tip
+        then:
+        - e: Admin/Tip Unpublished
+  # [BUILT] Moderation module. "Content Flagged" is shared across 5
+  # chapters on the original board (this one, MessagingDirectGroup's
+  # Report Message, ActivityFeed's Report Post, LeaveAReviewRestaurantOrDogPark's
+  # Report Review, and Media's own Report Media which never had a named
+  # chapter counterpart at all) - only Media (see
+  # UploadShareRemovePhotosAndVideos) and Places (LeaveAReviewRestaurantOrDogPark)
+  # actually produce it today; Chat/ActivityFeed's two remaining
+  # producers don't exist as real slices yet, so the queue only ever
+  # shows Media/Review content.
+  # DEVIATION: Suspend/Ban are gated by the yaml's OWN preconditions
+  # (Suspend needs a prior Warn, Ban needs a prior Warn AND Suspend) -
+  # confirmed those preconditions are real 409-Conflict guards in code,
+  # not just illustrative GWT framing. Warn/Dismiss/RemoveContent have no
+  # guard at all (valid from any status/state), also confirmed real.
+  # Deliberately does NOT enforce Suspend/Ban anywhere - these are
+  # recorded facts only (UserModerationRecord), never checked by any
+  # authorization policy. Real platform-wide enforcement is a separate,
+  # much larger, not-yet-built feature.
+  ModeratingFlaggedContentUserReports:
+    steps:
+    - v: Admin/Moderation Queue
+      props:
+        flagId: flag_501
+        contentType: Media | Review
+        contentOwnerId: owner_44
+        reporterOwnerId: owner_82
+        status: Open
+    - t: Admin/Moderation Queue
+    - t: Admin/Flagged Content Detail
+    - c: Admin/Dismiss Flag
+    - e: Admin/Flag Dismissed
+    - c: Admin/Remove Content
+    - e: Admin/Content Removed
+      props:
+        cascadedTo: Media or Places (ContentRemovalRequestedV1)
+    - c: Admin/Warn User
+    - e: Admin/User Warned
+      props:
+        warningCount: '1'
+    - c: Admin/Suspend User
+    - e: Admin/User Suspended
+    - c: Admin/Ban User
+    - e: Admin/User Banned
+    tests:
+      QueueReflectsCurrentFlaggedContentAndReports:
+        then:
+        - v: Admin/Moderation Queue
+      AdminDismissesAFlagWithNoActionNeeded:
+        when:
+        - c: Admin/Dismiss Flag
+        then:
+        - e: Admin/Flag Dismissed
+      AdminRemovesContentThatViolatesPolicy:
+        when:
+        - c: Admin/Remove Content
+        then:
+        - e: Admin/Content Removed
+      AdminWarnsAUserForAFirstViolation:
+        when:
+        - c: Admin/Warn User
+        then:
+        - e: Admin/User Warned
+      RepeatOffenderSuspendedAfterAPriorWarning:
+        given:
+        - e: Admin/User Warned
+        when:
+        - c: Admin/Suspend User
+        then:
+        - e: Admin/User Suspended
+      RepeatOffenderBannedAfterWarningAndSuspension:
+        given:
+        - e: Admin/User Warned
+        - e: Admin/User Suspended
+        when:
+        - c: Admin/Ban User
+        then:
+        - e: Admin/User Banned
+  # [BUILT] Admin module. Fed by Identity's FeedbackSubmittedV1 (see
+  # AccountProfileSettings' "Submit Feedback" - the actual submission
+  # entry point lives in Identity, not here; this chapter is entirely the
+  # Admin-side review of it). RespondToFeedback has no status guard
+  # (re-responding overwrites); ResolveFeedback requires a prior response
+  # (Conflict otherwise) - both confirmed real guards.
+  HandlingGeneralFeedbackSupport:
+    steps:
+    - v: Admin/Feedback Inbox
+      props:
+        feedbackId: fb_301
+        ownerId: owner_44
+        message: The onboarding flow was confusing.
+        status: Open
+    - t: Admin/Feedback Inbox
+    - t: Admin/Feedback Detail
+    - c: Admin/Respond To Feedback
+      props:
+        responseMessage: Thanks for the feedback - we're looking into it!
+    - e: Admin/Feedback Responded
+    - c: Admin/Resolve Feedback
+    - e: Admin/Feedback Resolved
+    tests:
+      InboxReflectsCurrentFeedbackItems:
+        then:
+        - v: Admin/Feedback Inbox
+      AdminRepliesToAFeedbackSubmission:
+        when:
+        - c: Admin/Respond To Feedback
+        then:
+        - e: Admin/Feedback Responded
+      FeedbackResolvedAfterAReply:
+        given:
+        - e: Admin/Feedback Responded
+        when:
+        - c: Admin/Resolve Feedback
+        then:
+        - e: Admin/Feedback Resolved
+  AdminDashboardLandingView:
+    steps:
+    - c: Admin/Log In As Admin
+    - e: Admin/Admin Logged In
+    - c: Admin/View Admin Dashboard
+    - e: Admin/Admin Dashboard Viewed
+    - v: Admin/Admin Dashboard Summary
+    - t: Admin/Admin Dashboard
+    - c: Admin/View Platform Health Snapshot
+    - e: Admin/Platform Health Snapshot Viewed
+    tests:
+      AdminLogsIntoTheDashboard:
+        when:
+        - c: Admin/Log In As Admin
+        then:
+        - e: Admin/Admin Logged In
+      AdminViewsTheDashboardAfterLoggingIn:
+        given:
+        - e: Admin/Admin Logged In
+        when:
+        - c: Admin/View Admin Dashboard
+        then:
+        - e: Admin/Admin Dashboard Viewed
+      DashboardSummaryReflectsCurrentQueueCounts:
+        given:
+        - e: Admin/Admin Logged In
+        then:
+        - v: Admin/Admin Dashboard Summary
+      AdminOpensThePlatformHealthSnapshotLinkOut:
+        given:
+        - e: Admin/Admin Logged In
+        when:
+        - c: Admin/View Platform Health Snapshot
+        then:
+        - e: Admin/Platform Health Snapshot Viewed
+  # [BUILT] Media module. This is also the real entity behind Profiles'
+  # AddDogProfile chapter's `mediaAssetId` - a caller calls Upload Media
+  # here first, then passes the resulting id into AddDogProfilePhoto.
+  # DEVIATION: "Reject Upload" -> "Upload Rejected: Invalid File" is not
+  # a separate command - UploadMediaRequest's own IValidatableObject
+  # checks the storage URL's file extension against the declared
+  # mediaType (photo: .jpg/.jpeg/.png/.gif/.webp, video: .mp4/.mov/.webm)
+  # and Wolverine.Http's DataAnnotations pipeline 400s it before
+  # UploadMediaHandler ever runs - folded into the Upload Media step
+  # below as its failure branch. This backend never touches raw file
+  # bytes (Supabase Storage owns the actual upload, ADR-005/024), so this
+  # is a disclosed simplification, not real content-type sniffing.
+  # `cascadeDeletesEngagement` on Remove Media is accepted but unused -
+  # no Engagement/comments/likes concept exists anywhere in this codebase
+  # yet for it to cascade into.
+  UploadShareRemovePhotosAndVideos:
+    steps:
+    - t: Member/Upload Media
+    - c: Member/Upload Media
+      props:
+        mediaType: Photo | Video
+        storageUrl: https://storage.example/photo.jpg
+    - e: Member/Media Uploaded
+    - e: 'Member/Upload Rejected: Invalid File'
+      props:
+        reason: extension does not match declared mediaType
+    - t: Member/Share Media
+    - c: Member/Share Media
+      props:
+        visibility: Public | FollowersOnly | SpecificPeople
+        sharedWithOwnerIds: '[owner_12, owner_45]'
+    - e: Member/Media Shared
+    - t: Member/Remove Media
+    - c: Member/Remove Media
+      props:
+        cascadeDeletesEngagement: 'true'
+    - e: Member/Media Removed
+    - c: Member/Report Media
+    - e: Member/Content Flagged
+    tests:
+      MediaUploaded:
+        when:
+        - c: Member/Upload Media
+        then:
+        - e: Member/Media Uploaded
+      UploadRejectedInvalidFile:
+        when:
+        - c: Member/Upload Media
+        then:
+        - e: 'Member/Upload Rejected: Invalid File'
+      MediaShared:
+        given:
+        - e: Member/Media Uploaded
+        when:
+        - c: Member/Share Media
+        then:
+        - e: Member/Media Shared
+      MediaRemoved:
+        given:
+        - e: Member/Media Uploaded
+        when:
+        - c: Member/Remove Media
+        then:
+        - e: Member/Media Removed
+      UserReportsContentReportMedia:
+        given:
+        - e: Member/Media Shared
+        when:
+        - c: Member/Report Media
+        then:
+        - e: Member/Content Flagged
+  TheSocialDogWalker:
+    steps:
+    - c: Member/View Map
+      props:
+        locationSource: device_geolocation | manual_city_country
+        location: Portland, OR
+    - e: Member/Map Viewed
+      props:
+        locationSource: device_geolocation | manual_city_country
+        location: Portland, OR
+    - v: Member/Nearby Spots
+      props:
+        spotId: spot_12
+        name: Riverside Dog Park
+        type: park | cafe
+        trending: 'true'
+        offLeashArea: true (parks only)
+        dogMenuItems: Pup cup, dog biscuit (cafes only)
+    - t: Member/Map
+    - t: Member/Park Details
+    - c: Member/View Park Details
+    - e: Member/Park Details Viewed
+    - t: Member/Cafe Details
+    - c: Member/View Cafe Details
+    - e: Member/Cafe Details Viewed
+    - t: Member/Trending Spot
+    - c: Member/View Trending Spot
+    - e: Member/Trending Spot Viewed
+    - t: Member/Spot Reviews
+    - c: Member/View Spot Reviews
+    - e: Member/Spot Reviews Viewed
+    - t: Member/Sign Up to Review
+    - c: Member/Attempt To Leave Review
+    - e: Member/Review Attempt Gated
+    - t: Member/Sign Up
+    - c: Member/Initiate Sign-Up
+    - e: Member/Sign-Up Initiated
+    - c: Member/Send Confirmation Email
+      props:
+        linkExpiresInHours: '24'
+    - e: Member/Confirmation Email Sent
+      props:
+        linkExpiresInHours: '24'
+    - t: Member/Confirm Profile
+    - c: Member/Confirm Profile
+    - e: Member/Profile Confirmed
+    - t: Member/Write Review
+    - c: Member/Post Review
+    - e: Member/Review Posted
+    tests:
+      UserViewsTheMap:
+        when:
+        - c: Member/View Map
+        then:
+        - e: Member/Map Viewed
+      NearbySpots:
+        given:
+        - e: Member/Map Viewed
+        then:
+        - v: Member/Nearby Spots
+      ParkDetailsViewed:
+        given:
+        - e: Member/Map Viewed
+        when:
+        - c: Member/View Park Details
+        then:
+        - e: Member/Park Details Viewed
+      CafeDetailsViewed:
+        given:
+        - e: Member/Park Details Viewed
+        when:
+        - c: Member/View Cafe Details
+        then:
+        - e: Member/Cafe Details Viewed
+      TrendingSpotViewed:
+        given:
+        - e: Member/Cafe Details Viewed
+        when:
+        - c: Member/View Trending Spot
+        then:
+        - e: Member/Trending Spot Viewed
+      SpotReviewsViewed:
+        given:
+        - e: Member/Trending Spot Viewed
+        when:
+        - c: Member/View Spot Reviews
+        then:
+        - e: Member/Spot Reviews Viewed
+      ReviewAttemptGated:
+        given:
+        - e: Member/Spot Reviews Viewed
+        when:
+        - c: Member/Attempt To Leave Review
+        then:
+        - e: Member/Review Attempt Gated
+      SignUpInitiated:
+        given:
+        - e: Member/Review Attempt Gated
+        when:
+        - c: Member/Initiate Sign-Up
+        then:
+        - e: Member/Sign-Up Initiated
+      ConfirmationEmailSent:
+        given:
+        - e: Member/Sign-Up Initiated
+        when:
+        - c: Member/Send Confirmation Email
+        then:
+        - e: Member/Confirmation Email Sent
+      ProfileConfirmed:
+        given:
+        - e: Member/Confirmation Email Sent
+        when:
+        - c: Member/Confirm Profile
+        then:
+        - e: Member/Profile Confirmed
+      ReviewPosted:
+        given:
+        - e: Member/Profile Confirmed
+        when:
+        - c: Member/Post Review
+        then:
+        - e: Member/Review Posted
+  TheUrgentSearch:
+    steps:
+    - t: Member/Lost Dog Listing
+    - c: Member/View Lost Dog Listing
+    - e: Member/Lost Dog Listing Viewed
+    - c: Member/Gate Sighting Report
+    - e: Member/Sighting Report Gated
+    - t: Member/Quick Guest Signup
+    - c: Member/Create Guest Account
+      props:
+        authProvider: google | facebook | apple | email
+    - e: Member/Guest Account Created
+      props:
+        authProvider: google | facebook | apple | email
+    - t: Member/Report Sighting
+    - c: Member/Report Sighting
+    - e: Member/Sighting Reported
+    - c: Member/Notify Dog Owner
+    - e: Member/Owner Notified Of Sighting
+    - t: Member/Get Notified
+    - c: Member/Prompt Notification Opt-In
+    - e: Member/Notification Opt-In Prompted
+    - c: Member/Merge Duplicate Sighting
+    - e: Member/Duplicate Sighting Merged
+    tests:
+      LostDogListingViewed:
+        when:
+        - c: Member/View Lost Dog Listing
+        then:
+        - e: Member/Lost Dog Listing Viewed
+      SightingReportGated:
+        given:
+        - e: Member/Lost Dog Listing Viewed
+        when:
+        - c: Member/Gate Sighting Report
+        then:
+        - e: Member/Sighting Report Gated
+      GuestAccountCreated:
+        given:
+        - e: Member/Sighting Report Gated
+        when:
+        - c: Member/Create Guest Account
+        then:
+        - e: Member/Guest Account Created
+      SightingReported:
+        given:
+        - e: Member/Guest Account Created
+        when:
+        - c: Member/Report Sighting
+        then:
+        - e: Member/Sighting Reported
+      OwnerNotifiedOfSighting:
+        given:
+        - e: Member/Sighting Reported
+        when:
+        - c: Member/Notify Dog Owner
+        then:
+        - e: Member/Owner Notified Of Sighting
+      NotificationOptInPrompted:
+        given:
+        - e: Member/Sighting Reported
+        when:
+        - c: Member/Prompt Notification Opt-In
+        then:
+        - e: Member/Notification Opt-In Prompted
+      DuplicateSightingMerged:
+        given:
+        - e: Member/Sighting Reported
+        when:
+        - c: Member/Merge Duplicate Sighting
+        then:
+        - e: Member/Duplicate Sighting Merged
+  ArrangeAPlaydate:
+    steps:
+    - t: Member/Propose Playdate
+    - c: Member/Propose Playdate
+      props:
+        proposedDogId: dog_71
+        proposedTime: '2026-07-20T15:00:00Z'
+        location: Riverside Dog Park
+    - e: Member/Playdate Proposed
+    - t: Member/Playdate Invite
+    - c: Member/Accept Playdate
+    - e: Member/Playdate Accepted
+    - c: Member/Decline Playdate
+    - e: Member/Playdate Declined
+    - t: Member/Playdate Scheduled
+    - c: Member/Schedule Playdate
+    - e: Member/Playdate Scheduled
+    - t: Member/Cancel Playdate
+    - c: Member/Cancel Playdate
+    - e: Member/Playdate Cancelled
+      props:
+        cancelledBy: owner_of_dog_71
+        reason: scheduling conflict
+    tests:
+      PlaydateProposed:
+        when:
+        - c: Member/Propose Playdate
+        then:
+        - e: Member/Playdate Proposed
+      PlaydateAccepted:
+        given:
+        - e: Member/Playdate Proposed
+        when:
+        - c: Member/Accept Playdate
+        then:
+        - e: Member/Playdate Accepted
+      PlaydateDeclined:
+        given:
+        - e: Member/Playdate Proposed
+        when:
+        - c: Member/Decline Playdate
+        then:
+        - e: Member/Playdate Declined
+      PlaydateScheduled:
+        given:
+        - e: Member/Playdate Accepted
+        when:
+        - c: Member/Schedule Playdate
+        then:
+        - e: Member/Playdate Scheduled
+      PlaydateCancelled:
+        given:
+        - e: Member/Playdate Scheduled
+        when:
+        - c: Member/Cancel Playdate
+        then:
+        - e: Member/Playdate Cancelled
+  MessagingDirectGroup:
+    steps:
+    - t: Member/Message Request
+    - c: Member/Send Message Request
+    - e: Member/Message Request Sent
+    - t: Member/Message Request Received
+    - c: Member/Accept Message Request
+    - e: Member/Message Request Accepted
+    - c: Member/Start Conversation
+      props:
+        conversationType: direct | group
+    - e: Member/Conversation Started
+      props:
+        conversationType: direct | group
+    - v: Member/Conversation
+      props:
+        conversationId: conv_88
+        isGroup: 'false'
+        participantNames: Devon Price
+    - t: Member/Conversation
+    - c: Member/Send Message
+    - e: Member/Message Sent
+    - t: Member/Add Group Member
+    - c: Member/Add Group Member
+      props:
+        permission: any_member
+    - e: Member/Group Member Added
+      props:
+        permission: any_member
+    - c: Member/Report Message
+    - e: Member/Content Flagged
+    tests:
+      MessageRequestSent:
+        when:
+        - c: Member/Send Message Request
+        then:
+        - e: Member/Message Request Sent
+      MessageRequestAccepted:
+        given:
+        - e: Member/Message Request Sent
+        when:
+        - c: Member/Accept Message Request
+        then:
+        - e: Member/Message Request Accepted
+      ConversationStarted:
+        given:
+        - e: Member/Message Request Accepted
+        when:
+        - c: Member/Start Conversation
+        then:
+        - e: Member/Conversation Started
+      Conversation:
+        given:
+        - e: Member/Conversation Started
+        then:
+        - v: Member/Conversation
+      MessageSent:
+        given:
+        - e: Member/Conversation Started
+        when:
+        - c: Member/Send Message
+        then:
+        - e: Member/Message Sent
+      GroupMemberAdded:
+        given:
+        - e: Member/Conversation Started
+        when:
+        - c: Member/Add Group Member
+        then:
+        - e: Member/Group Member Added
+      UserReportsContentReportMessage:
+        given:
+        - e: Member/Message Sent
+        when:
+        - c: Member/Report Message
+        then:
+        - e: Member/Content Flagged
+  ActivityFeed:
+    steps:
+    - c: Member/Open Activity Feed
+    - e: Member/Activity Feed Page Opened
+    - v: Member/Activity Feed
+      props:
+        source: followed_profiles_only
+    - t: Member/Activity Feed
+    - c: Member/Like Post
+    - e: Member/Post Liked
+    - t: Member/Comment
+    - c: Member/Comment On Post
+    - e: Member/Post Commented
+    - c: Member/Unlike Post
+    - e: Member/Post Unliked
+    - c: Member/Report Post
+    - e: Member/Content Flagged
+    tests:
+      ActivityFeedPageOpened:
+        when:
+        - c: Member/Open Activity Feed
+        then:
+        - e: Member/Activity Feed Page Opened
+      ActivityFeed:
+        given:
+        - e: Member/Activity Feed Page Opened
+        then:
+        - v: Member/Activity Feed
+      PostLiked:
+        given:
+        - e: Member/Activity Feed Page Opened
+        when:
+        - c: Member/Like Post
+        then:
+        - e: Member/Post Liked
+      PostCommented:
+        given:
+        - e: Member/Activity Feed Page Opened
+        when:
+        - c: Member/Comment On Post
+        then:
+        - e: Member/Post Commented
+      PostUnliked:
+        given:
+        - e: Member/Post Liked
+        when:
+        - c: Member/Unlike Post
+        then:
+        - e: Member/Post Unliked
+      UserReportsContentReportPost:
+        given:
+        - e: Member/Post Commented
+        when:
+        - c: Member/Report Post
+        then:
+        - e: Member/Content Flagged
+  FollowAProfile:
+    steps:
+    - t: Member/View Profile
+    - c: Member/Follow Profile
+    - e: Member/Profile Followed
+      props:
+        notifiesFollowedUser: 'false'
+    - c: Member/Unfollow Profile
+    - e: Member/Profile Unfollowed
+    - c: Member/View Followers
+    - e: Member/Followers Viewed
+    - v: Member/Followers List
+      props:
+        userId: user_58
+        name: Devon Price
+        followedAt: '2026-06-01'
+    - t: Member/Followers
+    - t: Member/Block Follower
+    - c: Member/Block Follower
+    - e: Member/Follower Blocked
+      props:
+        reason: harassment
+    tests:
+      ProfileFollowed:
+        when:
+        - c: Member/Follow Profile
+        then:
+        - e: Member/Profile Followed
+      ProfileUnfollowed:
+        given:
+        - e: Member/Profile Followed
+        when:
+        - c: Member/Unfollow Profile
+        then:
+        - e: Member/Profile Unfollowed
+      FollowersViewed:
+        given:
+        - e: Member/Profile Followed
+        when:
+        - c: Member/View Followers
+        then:
+        - e: Member/Followers Viewed
+      FollowersList:
+        given:
+        - e: Member/Followers Viewed
+        then:
+        - v: Member/Followers List
+      FollowerBlocked:
+        given:
+        - e: Member/Followers Viewed
+        when:
+        - c: Member/Block Follower
+        then:
+        - e: Member/Follower Blocked
+  # [BUILT] Profiles module. Publishing cascades DogProfileCreatedV1 to
+  # Discovery, which is the ONLY way a dog ever enters the swipe feed -
+  # Drafts are never indexed (see the new SwipingAndMatching chapter).
+  # DEVIATION: AddDogProfileDetails carries a `location` (latitude/
+  # longitude) the yaml never listed as a prop - a disclosed gap-fill,
+  # since Discovery's feed needs coordinates to do distance filtering and
+  # nothing else in this chapter provides them.
+  # DEVIATION: PublishDogProfile has a SECOND guard beyond "photo
+  # required" - it also 409s if Location was never set (details never
+  # added), which the yaml's own steps didn't anticipate since it never
+  # modeled location as a prop in the first place.
+  AddDogProfile:
+    steps:
+    - t: Member/Start Dog Profile
+    - c: Member/Start Dog Profile
+      props:
+        maxDogProfiles: '10'
+    - e: Member/Dog Profile Started
+    - t: Member/Dog Details
+    - c: Member/Add Dog Profile Details
+      props:
+        name: Biscuit
+        breed: Labrador
+        ageInMonths: '36'
+        bio: Friendly
+        location: '{ latitude: 45.5, longitude: -122.6 }'
+    - e: Member/Dog Profile Details Added
+    - t: Member/Add Photo
+    - c: Member/Add Dog Profile Photo
+      props:
+        mediaAssetId: media_9f2a
+    - e: Member/Dog Profile Photo Added
+    - t: Member/Publish Profile
+    - c: Member/Publish Dog Profile
+    - e: Member/Dog Profile Published
+    - t: Member/Photo Required
+    - e: 'Member/Publish Blocked: Photo Required'
+    - t: Member/Details Required
+    - e: 'Member/Publish Blocked: Details Required'
+      props:
+        reason: location was never set
+    tests:
+      DogProfileStarted:
+        when:
+        - c: Member/Start Dog Profile
+        then:
+        - e: Member/Dog Profile Started
+      DogProfileDetailsAdded:
+        given:
+        - e: Member/Dog Profile Started
+        when:
+        - c: Member/Add Dog Profile Details
+        then:
+        - e: Member/Dog Profile Details Added
+      DogProfilePhotoAdded:
+        given:
+        - e: Member/Dog Profile Details Added
+        when:
+        - c: Member/Add Dog Profile Photo
+        then:
+        - e: Member/Dog Profile Photo Added
+      DogProfilePublished:
+        given:
+        - e: Member/Dog Profile Photo Added
+        when:
+        - c: Member/Publish Dog Profile
+        then:
+        - e: Member/Dog Profile Published
+      PublishBlockedPhotoRequired:
+        given:
+        - e: Member/Dog Profile Details Added
+        when:
+        - c: Member/Publish Dog Profile
+        then:
+        - e: 'Member/Publish Blocked: Photo Required'
+      PublishBlockedDetailsRequired:
+        given:
+        - e: Member/Dog Profile Started
+        when:
+        - c: Member/Publish Dog Profile
+        then:
+        - e: 'Member/Publish Blocked: Details Required'
+  RSVPingDirectly:
+    steps:
+    - t: Member/Local Events
+    - c: Member/View Local Events
+    - e: Member/Local Events Viewed
+    - t: Member/Event Full
+    - c: Member/Attempt RSVP
+    - e: 'Member/RSVP Blocked: Event Full'
+    - t: Member/RSVP Confirmed
+    - c: Member/Complete RSVP
+    - e: Member/RSVP Completed
+    - t: Member/Cancel RSVP
+    - c: Member/Cancel RSVP
+    - e: Member/RSVP Cancelled
+    - t: Member/You're On the Waitlist
+    - c: Member/Join Waitlist
+    - e: Member/Added To Waitlist
+    - c: Member/Notify Waitlist Of Opening
+    - e: Member/Waitlist Notified Of Opening
+    tests:
+      LocalEventsViewed:
+        when:
+        - c: Member/View Local Events
+        then:
+        - e: Member/Local Events Viewed
+      RSVPBlockedEventFull:
+        given:
+        - e: Member/Local Events Viewed
+        when:
+        - c: Member/Attempt RSVP
+        then:
+        - e: 'Member/RSVP Blocked: Event Full'
+      RSVPCompleted:
+        given:
+        - e: Member/Local Events Viewed
+        when:
+        - c: Member/Complete RSVP
+        then:
+        - e: Member/RSVP Completed
+      RSVPCancelled:
+        given:
+        - e: Member/RSVP Completed
+        when:
+        - c: Member/Cancel RSVP
+        then:
+        - e: Member/RSVP Cancelled
+      AddedToWaitlist:
+        given:
+        - e: 'Member/RSVP Blocked: Event Full'
+        when:
+        - c: Member/Join Waitlist
+        then:
+        - e: Member/Added To Waitlist
+      WaitlistNotifiedOfOpening:
+        given:
+        - e: Member/RSVP Cancelled
+        when:
+        - c: Member/Notify Waitlist Of Opening
+        then:
+        - e: Member/Waitlist Notified Of Opening
+  TheEventBrowser:
+    steps:
+    - c: Guest/View Local Events
+    - e: Guest/Local Events Viewed
+    - v: Guest/Local Events
+      props:
+        eventId: evt_44
+        title: Bark in the Park Meetup
+        date: '2026-08-02'
+        spotsLeft: '6'
+    - t: Guest/Local Events
+    - c: Guest/Block RSVP Attempt
+    - e: Guest/RSVP Attempt Blocked
+    - t: Guest/Sign Up or Log In
+    - c: Guest/Prompt Sign-Up Or Log-In
+    - e: Guest/Sign-Up Or Log-In Prompted
+    - t: Guest/Log In
+    - c: Guest/Log In
+    - e: Guest/Logged In (Existing User)
+    - t: Member/Sign Up
+    - c: Member/Initiate Sign-Up
+    - e: Member/Sign-Up Initiated
+    - c: Member/Send Confirmation Email
+    - e: Member/Confirmation Email Sent
+    - t: Member/Confirm Profile
+    - c: Member/Confirm Profile
+    - e: Member/Profile Confirmed
+    - t: Member/Log In To Complete RSVP
+    - c: Member/Log In To Complete RSVP
+    - e: Member/Logged In To Complete RSVP
+    - t: Member/RSVP Confirmed
+    - c: Member/Complete RSVP
+    - e: Member/RSVP Completed
+    - t: Member/Event Full
+    - c: Member/Reject RSVP (Event Full)
+    - e: 'Member/RSVP Blocked: Event Full'
+    - t: Member/You're On the Waitlist
+    - c: Member/Join Waitlist
+    - e: Member/Added To Waitlist
+    tests:
+      LocalEventsViewed:
+        when:
+        - c: Guest/View Local Events
+        then:
+        - e: Guest/Local Events Viewed
+      LocalEvents:
+        given:
+        - e: Guest/Local Events Viewed
+        then:
+        - v: Guest/Local Events
+      RSVPAttemptBlocked:
+        given:
+        - e: Guest/Local Events Viewed
+        when:
+        - c: Guest/Block RSVP Attempt
+        then:
+        - e: Guest/RSVP Attempt Blocked
+      SignUpOrLogInPrompted:
+        given:
+        - e: Guest/RSVP Attempt Blocked
+        when:
+        - c: Guest/Prompt Sign-Up Or Log-In
+        then:
+        - e: Guest/Sign-Up Or Log-In Prompted
+      LoggedInExistingUser:
+        given:
+        - e: Guest/Sign-Up Or Log-In Prompted
+        when:
+        - c: Guest/Log In
+        then:
+        - e: Guest/Logged In (Existing User)
+      SignUpInitiated:
+        given:
+        - e: Guest/Sign-Up Or Log-In Prompted
+        when:
+        - c: Member/Initiate Sign-Up
+        then:
+        - e: Member/Sign-Up Initiated
+      ConfirmationEmailSent:
+        given:
+        - e: Member/Sign-Up Initiated
+        when:
+        - c: Member/Send Confirmation Email
+        then:
+        - e: Member/Confirmation Email Sent
+      ProfileConfirmed:
+        given:
+        - e: Member/Confirmation Email Sent
+        when:
+        - c: Member/Confirm Profile
+        then:
+        - e: Member/Profile Confirmed
+      LoggedIn:
+        given:
+        - e: Member/Profile Confirmed
+        when:
+        - c: Member/Log In To Complete RSVP
+        then:
+        - e: Member/Logged In To Complete RSVP
+      RSVPCompletedAfterSignUp:
+        given:
+        - e: Member/Logged In To Complete RSVP
+        when:
+        - c: Member/Complete RSVP
+        then:
+        - e: Member/RSVP Completed
+      RSVPCompletedAfterExistingUserLogin:
+        given:
+        - e: Guest/Logged In (Existing User)
+        when:
+        - c: Member/Complete RSVP
+        then:
+        - e: Member/RSVP Completed
+      RSVPBlockedEventFull:
+        when:
+        - c: Member/Reject RSVP (Event Full)
+        then:
+        - e: 'Member/RSVP Blocked: Event Full'
+      AddedToWaitlist:
+        given:
+        - e: 'Member/RSVP Blocked: Event Full'
+        when:
+        - c: Member/Join Waitlist
+        then:
+        - e: Member/Added To Waitlist
+  TheSkepticalParent:
+    steps:
+    - t: Guest/Benefits Section
+    - c: Guest/View Benefits Section
+    - e: Guest/Benefits Section Viewed
+    - t: Guest/Testimonials
+    - c: Guest/View Testimonials
+    - e: Guest/Testimonials Viewed
+    - t: Member/Sign Up
+    - c: Member/Initiate Sign-Up
+    - e: Member/Sign-Up Initiated
+    - c: Member/Send Confirmation Email
+    - e: Member/Confirmation Email Sent
+    - t: Member/Confirm Profile
+    - c: Member/Confirm Profile
+    - e: Member/Profile Confirmed
+    - t: Member/Account Already Exists
+    - c: Member/Reject Sign-Up (Email Exists)
+      props:
+        attemptedEmail: parent@example.com
+    - e: 'Member/Sign-Up Rejected: Email Already Exists'
+      props:
+        attemptedEmail: parent@example.com
+    - t: Member/Log In or Reset
+    - c: Member/Prompt Login Or Reset
+    - e: Member/Login Or Reset Prompted
+    - t: Member/Request Password Reset
+    - c: Member/Request Password Reset
+    - e: Member/Password Reset Requested
+    - c: Member/Send Password Reset Email
+    - e: Member/Password Reset Email Sent
+    - t: Member/Set New Password
+    - c: Member/Reset Password
+    - e: Member/Password Reset Completed
+    tests:
+      BenefitsSectionViewed:
+        when:
+        - c: Guest/View Benefits Section
+        then:
+        - e: Guest/Benefits Section Viewed
+      TestimonialsViewed:
+        given:
+        - e: Guest/Benefits Section Viewed
+        when:
+        - c: Guest/View Testimonials
+        then:
+        - e: Guest/Testimonials Viewed
+      SignUpInitiated:
+        given:
+        - e: Guest/Testimonials Viewed
+        when:
+        - c: Member/Initiate Sign-Up
+        then:
+        - e: Member/Sign-Up Initiated
+      ConfirmationEmailSent:
+        given:
+        - e: Member/Sign-Up Initiated
+        when:
+        - c: Member/Send Confirmation Email
+        then:
+        - e: Member/Confirmation Email Sent
+      ProfileConfirmed:
+        given:
+        - e: Member/Confirmation Email Sent
+        when:
+        - c: Member/Confirm Profile
+        then:
+        - e: Member/Profile Confirmed
+      SignUpRejectedEmailAlreadyExists:
+        given:
+        - e: Guest/Testimonials Viewed
+        when:
+        - c: Member/Reject Sign-Up (Email Exists)
+        then:
+        - e: 'Member/Sign-Up Rejected: Email Already Exists'
+      LoginOrResetPrompted:
+        given:
+        - e: 'Member/Sign-Up Rejected: Email Already Exists'
+        when:
+        - c: Member/Prompt Login Or Reset
+        then:
+        - e: Member/Login Or Reset Prompted
+      PasswordResetRequested:
+        given:
+        - e: Member/Login Or Reset Prompted
+        when:
+        - c: Member/Request Password Reset
+        then:
+        - e: Member/Password Reset Requested
+      PasswordResetEmailSent:
+        given:
+        - e: Member/Password Reset Requested
+        when:
+        - c: Member/Send Password Reset Email
+        then:
+        - e: Member/Password Reset Email Sent
+      PasswordResetCompleted:
+        given:
+        - e: Member/Password Reset Email Sent
+        when:
+        - c: Member/Reset Password
+        then:
+        - e: Member/Password Reset Completed
+  TrainingAndTips:
+    steps:
+    - c: Member/Open Training Tips
+    - e: Member/Training Tips Page Opened
+    - v: Member/Training Tips
+      props:
+        tailoredToDogId: dog_71
+        tailoredByBreed: 'true'
+        tailoredByAge: 'true'
+    - t: Member/Training Tips
+    - c: Member/Save Tip
+      props:
+        savedToCollection: Favourites
+        itemCategory: training_tip
+    - e: Member/Tip Saved
+      props:
+        savedToCollection: Favourites
+        itemCategory: training_tip
+    tests:
+      TrainingTipsPageOpened:
+        when:
+        - c: Member/Open Training Tips
+        then:
+        - e: Member/Training Tips Page Opened
+      TrainingTips:
+        given:
+        - e: Member/Training Tips Page Opened
+        then:
+        - v: Member/Training Tips
+      TipSaved:
+        given:
+        - e: Member/Training Tips Page Opened
+        when:
+        - c: Member/Save Tip
+        then:
+        - e: Member/Tip Saved
+  ManagingSavedDogsSpots:
+    steps:
+    - c: Member/View Saved Items
+    - e: Member/Saved Items Viewed
+    - v: Member/Favourites
+      props:
+        itemId: dog_71
+        itemType: shelter_dog | dog_to_dog | spot | tip
+        savedAt: '2026-07-10'
+    - t: Member/My Favourites
+    - c: Member/Remove Saved Item
+    - e: Member/Saved Item Removed
+    - t: Member/Pursue Match
+    - c: Member/Pursue Saved Match
+      props:
+        matchType: shelter_dog | dog_to_dog
+    - e: Member/Saved Match Pursued
+      props:
+        matchType: shelter_dog | dog_to_dog
+    - c: Member/Re-add Saved Item
+    - e: Member/Saved Item Re-added
+      props:
+        history: added -> removed -> re-added
+    - c: Member/Start Application From Saved Match
+    - e: Member/Application Started From Saved Match
+      props:
+        matchType: shelter_dog
+    - t: Member/It's a Match!
+    - c: Member/Confirm Dog-to-Dog Match
+    - e: Member/Messaging Unlocked (Dog Match)
+      props:
+        matchType: dog_to_dog
+        capabilities: direct_message, video_chat
+    - t: Member/Dog No Longer Available
+    - c: Member/Block Application Start (Dog No Longer Available)
+    - e: 'Member/Application Start Blocked: Dog No Longer Available'
+    tests:
+      SavedItemsViewed:
+        when:
+        - c: Member/View Saved Items
+        then:
+        - e: Member/Saved Items Viewed
+      Favourites:
+        given:
+        - e: Member/Saved Items Viewed
+        then:
+        - v: Member/Favourites
+      SavedItemRemoved:
+        given:
+        - e: Member/Saved Items Viewed
+        when:
+        - c: Member/Remove Saved Item
+        then:
+        - e: Member/Saved Item Removed
+      SavedMatchPursued:
+        given:
+        - e: Member/Saved Items Viewed
+        when:
+        - c: Member/Pursue Saved Match
+        then:
+        - e: Member/Saved Match Pursued
+      SavedItemReAdded:
+        given:
+        - e: Member/Saved Item Removed
+        when:
+        - c: Member/Re-add Saved Item
+        then:
+        - e: Member/Saved Item Re-added
+      ApplicationStartedFromSavedMatch:
+        given:
+        - e: Member/Saved Match Pursued
+        when:
+        - c: Member/Start Application From Saved Match
+        then:
+        - e: Member/Application Started From Saved Match
+      MessagingUnlockedDogMatch:
+        given:
+        - e: Member/Saved Match Pursued
+        when:
+        - c: Member/Confirm Dog-to-Dog Match
+        then:
+        - e: Member/Messaging Unlocked (Dog Match)
+      ApplicationStartBlockedDogNoLongerAvailable:
+        given:
+        - e: Member/Saved Match Pursued
+        when:
+        - c: Member/Block Application Start (Dog No Longer Available)
+        then:
+        - e: 'Member/Application Start Blocked: Dog No Longer Available'
+  # [BUILT] Places module. DEVIATION: v1's ClaimABusinessListing chapter
+  # is entirely about claiming an "existing listing" - it never shows how
+  # one first comes into existence. "Create Place Listing" is a disclosed
+  # gap-fill added here (no v1 counterpart at all) so reviews have
+  # something to attach to; the creating caller becomes the Place's
+  # owner directly, NOT wired through ClaimABusinessListing's real
+  # request/verify/admin-override/ownership-transfer workflow (still
+  # entirely unbuilt - see that chapter, unchanged, elsewhere in this
+  # file). "Respond To Review"'s `responderRole` gate checks
+  # Place.OwnerId directly for the same reason - no verified
+  # business-owner concept exists yet.
+  LeaveAReviewRestaurantOrDogPark:
+    steps:
+    - t: Place Owner/Create Place Listing
+    - c: Place Owner/Create Place Listing
+      props:
+        name: Bark Park
+        placeType: Restaurant | DogPark | Groomer | Trainer | Walker | Minder | Breeder
+    - e: Place Owner/Place Listing Created
+    - t: Member/Write Review
+    - c: Member/Write Review
+      props:
+        rating: '5'
+        visitVerificationRequired: 'false'
+    - e: Member/Review Written
+      props:
+        placeId: place_44
+        rating: '5'
+    - c: Member/Publish Review
+    - e: Member/Review Published
+    - t: Member/Edit Review
+    - c: Member/Edit Review
+    - e: Member/Review Edited
+    - t: Member/Remove Review
+    - c: Member/Remove Review
+    - e: Member/Review Removed
+    - t: Member/Respond to Review
+    - c: Place Owner/Respond To Review
+    - e: Member/Review Response Posted
+      props:
+        responderRole: BusinessOwner | ParkOwner | DogWalker | DogTrainer
+    - c: Member/Report Review
+    - e: Member/Content Flagged
+    tests:
+      PlaceListingCreated:
+        when:
+        - c: Place Owner/Create Place Listing
+        then:
+        - e: Place Owner/Place Listing Created
+      ReviewWritten:
+        given:
+        - e: Place Owner/Place Listing Created
+        when:
+        - c: Member/Write Review
+        then:
+        - e: Member/Review Written
+      ReviewPublished:
+        given:
+        - e: Member/Review Written
+        when:
+        - c: Member/Publish Review
+        then:
+        - e: Member/Review Published
+      ReviewEdited:
+        given:
+        - e: Member/Review Published
+        when:
+        - c: Member/Edit Review
+        then:
+        - e: Member/Review Edited
+      ReviewRemoved:
+        given:
+        - e: Member/Review Published
+        when:
+        - c: Member/Remove Review
+        then:
+        - e: Member/Review Removed
+      ReviewResponsePosted:
+        given:
+        - e: Member/Review Published
+        when:
+        - c: Place Owner/Respond To Review
+        then:
+        - e: Member/Review Response Posted
+      UserReportsContentReportReview:
+        given:
+        - e: Member/Review Published
+        when:
+        - c: Member/Report Review
+        then:
+        - e: Member/Content Flagged
+  TheGiftShopper:
+    steps:
+    - c: Guest/View Merch Store
+    - e: Guest/Merch Store Viewed
+    - v: Guest/Merch Products
+      props:
+        productId: prod_19
+        name: K9Crush Adopt Don't Shop Tee
+        price: '24.00'
+    - t: Guest/Merch Store
+    - t: Guest/Product Details
+    - c: Guest/View Product
+    - e: Guest/Product Viewed
+    - c: Guest/Add Item To Cart
+      props:
+        productId: prod_123
+        quantity: '1'
+    - e: Guest/Item Added To Cart
+      props:
+        productId: prod_123
+        quantity: '1'
+    - c: Guest/Gate Checkout
+    - e: Guest/Checkout Gated
+    - t: Guest/Create an Account?
+    - c: Guest/Show Sign-Up Incentive
+    - e: Guest/Sign-Up Incentive Shown
+    - t: Guest/Guest Checkout
+    - c: Guest/Create Guest Account
+      props:
+        accountType: guest
+        convertibleToFullAccount: 'true'
+    - e: Guest/Guest Account Created
+      props:
+        accountType: guest
+        convertibleToFullAccount: 'true'
+    - c: Guest/Expire Cart
+    - e: Guest/Cart Expired
+    - t: Guest/Payment
+    - c: Guest/Submit Payment
+      props:
+        amount: '49.99'
+    - e: Guest/Payment Submitted
+      props:
+        amount: '49.99'
+    - t: Guest/Payment Failed
+    - c: Guest/Decline Payment
+    - e: Guest/Payment Failed
+    - c: Guest/Prompt Payment Retry
+    - e: Guest/Payment Retry Prompted
+    - c: Guest/Confirm Payment
+    - e: Guest/Payment Succeeded
+    - t: Guest/Order Confirmed
+    - c: Guest/Place Order
+    - e: Guest/Order Placed
+    tests:
+      MerchStoreViewed:
+        when:
+        - c: Guest/View Merch Store
+        then:
+        - e: Guest/Merch Store Viewed
+      MerchProducts:
+        given:
+        - e: Guest/Merch Store Viewed
+        then:
+        - v: Guest/Merch Products
+      ProductViewed:
+        given:
+        - e: Guest/Merch Store Viewed
+        when:
+        - c: Guest/View Product
+        then:
+        - e: Guest/Product Viewed
+      ItemAddedToCart:
+        given:
+        - e: Guest/Product Viewed
+        when:
+        - c: Guest/Add Item To Cart
+        then:
+        - e: Guest/Item Added To Cart
+      CheckoutGated:
+        given:
+        - e: Guest/Item Added To Cart
+        when:
+        - c: Guest/Gate Checkout
+        then:
+        - e: Guest/Checkout Gated
+      SignUpIncentiveShown:
+        given:
+        - e: Guest/Checkout Gated
+        when:
+        - c: Guest/Show Sign-Up Incentive
+        then:
+        - e: Guest/Sign-Up Incentive Shown
+      GuestAccountCreated:
+        given:
+        - e: Guest/Sign-Up Incentive Shown
+        when:
+        - c: Guest/Create Guest Account
+        then:
+        - e: Guest/Guest Account Created
+      CartExpired:
+        given:
+        - e: Guest/Guest Account Created
+        when:
+        - c: Guest/Expire Cart
+        then:
+        - e: Guest/Cart Expired
+      PaymentSubmitted:
+        given:
+        - e: Guest/Guest Account Created
+        when:
+        - c: Guest/Submit Payment
+        then:
+        - e: Guest/Payment Submitted
+      PaymentFailed:
+        given:
+        - e: Guest/Payment Submitted
+        when:
+        - c: Guest/Decline Payment
+        then:
+        - e: Guest/Payment Failed
+      PaymentRetryPrompted:
+        given:
+        - e: Guest/Payment Failed
+        when:
+        - c: Guest/Prompt Payment Retry
+        then:
+        - e: Guest/Payment Retry Prompted
+      PaymentSucceeded:
+        given:
+        - e: Guest/Payment Retry Prompted
+        when:
+        - c: Guest/Confirm Payment
+        then:
+        - e: Guest/Payment Succeeded
+      OrderPlaced:
+        given:
+        - e: Guest/Payment Succeeded
+        when:
+        - c: Guest/Place Order
+        then:
+        - e: Guest/Order Placed
+  # [PARTIAL] Identity module (deletion saga uses ADR-026 Wolverine
+  # scheduled messages for the 30-day grace period) + ShelterAdoption's
+  # WithdrawApplicationsOnAccountDeletionRequested (cross-module reaction
+  # to AccountDeletionRequestedV1).
+  # DEVIATION: "Open Items Flagged" (with openApplicationsCount/
+  # openPlaydatesCount props) is NOT built - showing a live count here
+  # would need either a forbidden cross-module query (module isolation)
+  # or an extra round-trip event nothing else needs yet, and
+  # openPlaydatesCount has no real source anyway (no Scheduling module
+  # exists). "Withdraw Applications Before Deletion" happens silently
+  # instead - ShelterAdoption just withdraws open applications in the
+  # background with no count ever surfaced to the member. The shelter-side
+  # "Flag Active Listings" branch is also not built - the yaml doesn't
+  # specify what happens to a shelter's listings after they're flagged,
+  # so there's no clear slice to build. "Log In During Grace Period" is
+  # exposed as an explicit RecoverAccount command the client calls right
+  # after a successful Supabase login (Supabase fires no webhook on
+  # ordinary sign-in, only user-created/user-confirmed), not an automatic
+  # webhook reaction.
+  AccountProfileSettings:
+    steps:
+    - t: Member/Profile Settings
+    - v: Member/Profile Settings
+      props:
+        displayName: Alex
+        role: Owner
+        deletionRequestedAt: null
+        gracePeriodEndsAt: null
+    - t: Member/Edit Profile
+    - c: Member/Update Profile Details
+      props:
+        displayName: Alex
+    - e: Member/Profile Details Updated
+    - t: Member/Delete Account
+    - c: Member/Request Account Deletion
+    - e: Member/Account Deletion Requested
+    - e: Member/Applications Withdrawn Before Deletion
+      props:
+        cascadedTo: ShelterAdoption (silently withdraws all open applications)
+    - t: Member/Confirm Deletion
+    - c: Member/Confirm Account Deletion
+      props:
+        gracePeriodDays: '30'
+        recoverable: 'true'
+    - e: Member/Account Deleted
+      props:
+        gracePeriodDays: '30'
+        recoverable: 'true'
+    - t: Member/Welcome Back
+    - c: Member/Log In During Grace Period
+    - e: Member/Account Recovered
+    - c: Member/Permanently Delete Account After Grace Period
+    - e: Member/Account Permanently Deleted
+    - t: Member/Submit Feedback
+    - c: Member/Submit Feedback
+    - e: Member/Feedback Submitted
+    tests:
+      ProfileSettings:
+        then:
+        - v: Member/Profile Settings
+      ProfileDetailsUpdated:
+        when:
+        - c: Member/Update Profile Details
+        then:
+        - e: Member/Profile Details Updated
+      AccountDeletionRequested:
+        when:
+        - c: Member/Request Account Deletion
+        then:
+        - e: Member/Account Deletion Requested
+      ApplicationsWithdrawnBeforeDeletion:
+        given:
+        - e: Member/Account Deletion Requested
+        then:
+        - e: Member/Applications Withdrawn Before Deletion
+      AccountDeleted:
+        given:
+        - e: Member/Account Deletion Requested
+        when:
+        - c: Member/Confirm Account Deletion
+        then:
+        - e: Member/Account Deleted
+      AccountRecovered:
+        given:
+        - e: Member/Account Deleted
+        when:
+        - c: Member/Log In During Grace Period
+        then:
+        - e: Member/Account Recovered
+      AccountPermanentlyDeleted:
+        given:
+        - e: Member/Account Deleted
+        when:
+        - c: Member/Permanently Delete Account After Grace Period
+        then:
+        - e: Member/Account Permanently Deleted
+      UserSubmitsFeedbackFromAccountSettings:
+        when:
+        - c: Member/Submit Feedback
+        then:
+        - e: Member/Feedback Submitted
+  # [BUILT] Notifications module. "View Notification Preferences" is a
+  # direct state-view (ViewNotificationPreferencesHandler) - if no
+  # NotificationPreference document exists yet, it computes an
+  # all-enabled default in-memory without persisting one, rather than a
+  # separate command+event. `mandatory` is accepted on Update but never
+  # stored/enforced (always reported false) - disclosed no-op, the yaml
+  # itself never specifies what "mandatory" should actually block.
+  # DEVIATION: notificationType gained a 5th value, `Matches` (Discovery's
+  # MatchCreatedV1 -> NotifyOnMatch), beyond the yaml's original 4 -
+  # a disclosed judgment call, since match notifications needed a
+  # category and none of the original four fit.
+  ManagingNotificationPreferences:
+    steps:
+    - t: Member/Notification Preferences
+    - v: Member/Notification Preferences
+      props:
+        notificationType: ApplicationStatus | Messages | PlaydateRequests | ActivityFeed | Matches
+        enabled: 'true'
+    - c: Member/Update Notification Preferences
+      props:
+        notificationType: ApplicationStatus | Messages | PlaydateRequests | ActivityFeed | Matches
+        mandatory: 'false'
+    - e: Member/Notification Preferences Updated
+      props:
+        notificationType: ApplicationStatus | Messages | PlaydateRequests | ActivityFeed | Matches
+        mandatory: 'false'
+    tests:
+      NotificationPreferences:
+        then:
+        - v: Member/Notification Preferences
+      NotificationPreferencesUpdated:
+        when:
+        - c: Member/Update Notification Preferences
+        then:
+        - e: Member/Notification Preferences Updated
+  # ============================================================
+  # New chapters below - real, load-bearing slices built this session
+  # that had no counterpart anywhere on the original 35-chapter board.
+  # ============================================================
+  # [BUILT, NEW - no v1 counterpart] Discovery module, event-sourced (one
+  # Marten stream per unordered dog pair, MatchStream.IdFor(dogId1,dogId2)
+  # - a deterministic hash of the sorted pair, so either dog swiping
+  # first lands on the same stream). None of the 35 original board
+  # chapters actually modeled the swipe mechanic itself, only its
+  # downstream outcomes (TheWindowShopper's guest-side flows, various
+  # chapters' "It's a Match!"/messaging-unlocked framing) - this chapter
+  # fills that gap directly from the real implementation. Ownership-gated
+  # (SwiperDogId must belong to the caller, verified against Discovery's
+  # own DiscoveryFeedItem read-model, never a cross-module Domain
+  # reference). UndoLastSwipe never touches match detection - it only
+  # ever reverses the swipe itself, even if a match had already formed.
+  # DetectMutualMatch is a same-module automation (Marten event
+  # forwarding, not scheduled/HTTP-triggered) reacting to DogLiked -
+  # cascades MatchCreatedV1 only on a genuinely NEW mutual match
+  # (idempotency via live-aggregated state, not a persisted flag).
+  SwipingAndMatching:
+    steps:
+    - t: Member/Discovery Feed
+    - c: Member/Swipe On Dog
+      props:
+        swiperDogId: dog_12
+        targetDogId: dog_71
+        liked: 'true'
+    - e: Member/Dog Liked
+    - c: Member/Swipe On Dog
+      props:
+        liked: 'false'
+    - e: Member/Dog Passed
+    - t: Member/Undo Swipe
+    - c: Member/Undo Last Swipe
+    - e: Member/Swipe Undone
+    - t: Member/No Swipe To Undo
+    - e: 'Member/Undo Blocked: No Swipe To Undo'
+    - c: Member/Detect Mutual Match
+    - e: Member/Match Formed
+      props:
+        dogAId: dog_12
+        dogBId: dog_71
+    - e: Member/Match Created
+      props:
+        cascadedTo: Chat (CreateConversationOnMatch), Notifications (NotifyOnMatch)
+    tests:
+      DogLiked:
+        when:
+        - c: Member/Swipe On Dog
+        then:
+        - e: Member/Dog Liked
+      DogPassed:
+        when:
+        - c: Member/Swipe On Dog
+        then:
+        - e: Member/Dog Passed
+      SwipeUndone:
+        given:
+        - e: Member/Dog Liked
+        when:
+        - c: Member/Undo Last Swipe
+        then:
+        - e: Member/Swipe Undone
+      UndoBlockedNoSwipeToUndo:
+        when:
+        - c: Member/Undo Last Swipe
+        then:
+        - e: 'Member/Undo Blocked: No Swipe To Undo'
+      MatchFormedAndCreated:
+        given:
+        - e: Member/Dog Liked
+        when:
+        - c: Member/Detect Mutual Match
+        then:
+        - e: Member/Match Formed
+        - e: Member/Match Created
+  # [PARTIAL, NEW - no v1 counterpart] Chat module, event-sourced. Built
+  # as REST-only + match-triggered, a deliberately narrower design than
+  # v1's own MessagingDirectGroup chapter (kept unchanged, elsewhere in
+  # this file) - see that chapter for the request/accept/group-chat
+  # design that was NOT taken. A conversation is created automatically
+  # (CreateConversationOnMatch, a cross-module automation reacting to
+  # Discovery's MatchCreatedV1) the moment two
+  # dogs mutually match - there is no message-request/accept step at all,
+  # and the conversation's own stream id directly reuses Discovery's
+  # MatchId (no second pair-hash derivation - MatchCreatedV1 already
+  # provides a stable unique key for the pair). "Get My Conversations" was
+  # a necessary addition beyond the docs' four named slices - without it
+  # a caller has no way to discover a conversationId at all once a match
+  # creates one asynchronously. No real-time push (SignalR) - a caller
+  # polls GetMyConversations/GetConversationHistory. No group chat, no
+  # manual "message anyone" flow, no Report Message -> Content Flagged
+  # (Chat is one of the two still-missing "Content Flagged" producers,
+  # alongside ActivityFeed - see ModeratingFlaggedContentUserReports'
+  # note on this).
+  ChatMatchTriggeredMessaging:
+    steps:
+    - e: Member/Match Created
+    - c: Member/Create Conversation On Match
+    - e: Member/Conversation Created
+      props:
+        conversationId: same as matchId
+    - t: Member/My Conversations
+    - v: Member/My Conversations
+      props:
+        conversationId: conv_88
+        otherOwnerId: owner_44
+    - t: Member/Conversation
+    - v: Member/Conversation History
+      props:
+        conversationId: conv_88
+        messages: '[{ senderOwnerId, text, sentAt }]'
+    - c: Member/Send Message
+      props:
+        text: Hi! Would love to set up a playdate.
+    - e: Member/Message Sent
+    - c: Member/Mark As Read
+      props:
+        lastReadMessageId: msg_501
+    - e: Member/Message Read
+    tests:
+      ConversationCreatedOnMatch:
+        given:
+        - e: Member/Match Created
+        when:
+        - c: Member/Create Conversation On Match
+        then:
+        - e: Member/Conversation Created
+      ConversationCreationIsIdempotent:
+        given:
+        - e: Member/Conversation Created
+        when:
+        - c: Member/Create Conversation On Match
+        then:
+        - e: Member/Conversation Created
+      MyConversations:
+        given:
+        - e: Member/Conversation Created
+        then:
+        - v: Member/My Conversations
+      ConversationHistory:
+        given:
+        - e: Member/Conversation Created
+        then:
+        - v: Member/Conversation History
+      MessageSent:
+        given:
+        - e: Member/Conversation Created
+        when:
+        - c: Member/Send Message
+        then:
+        - e: Member/Message Sent
+      MessageRead:
+        given:
+        - e: Member/Message Sent
+        when:
+        - c: Member/Mark As Read
+        then:
+        - e: Member/Message Read
+  # [BUILT, NEW - no v1 counterpart] Identity module. Covers three
+  # foundational Identity slices none of the 35 original chapters ever
+  # modeled, since they're platform plumbing rather than a member/shelter
+  # journey: how an OwnerAccount document comes into existence and gets
+  # verified at all (Supabase Auth owns signup/login/confirmation
+  # directly per ADR-005 - Identity only reacts to Database Webhooks
+  # after the fact), and how the very first Admin gets created (nothing
+  # else in this codebase can grant OwnerRole.Admin - there is no
+  # general-purpose AssignRole endpoint, deliberately, same as
+  # OwnerRole.Shelter only ever being reachable via
+  # ShelterAccountCreatedV1). BootstrapAdmin is a one-time self-promotion
+  # (never a target-owner parameter) that permanently 409s for everyone
+  # once any Admin exists - there is no way to reverse this or add a
+  # second admin via the API.
+  BootstrappingTheFirstAdmin:
+    steps:
+    - t: Guest/Supabase Signs Up A New User
+    - e: Guest/Supabase User Created
+    - c: Member/Provision Owner On Supabase Signup
+    - e: Member/Owner Registered
+    - e: Guest/Supabase Confirms User Email
+    - c: Member/Verify Owner On Supabase Confirmation
+    - e: Member/Owner Verified
+    - t: Member/Bootstrap Admin
+    - c: Member/Bootstrap Admin
+    - e: Member/Promoted To Admin
+    - t: Member/Bootstrap Blocked
+    - e: 'Member/Bootstrap Blocked: Admin Already Exists'
+    tests:
+      OwnerRegistered:
+        given:
+        - e: Guest/Supabase User Created
+        when:
+        - c: Member/Provision Owner On Supabase Signup
+        then:
+        - e: Member/Owner Registered
+      OwnerVerified:
+        given:
+        - e: Member/Owner Registered
+        - e: Guest/Supabase Confirms User Email
+        when:
+        - c: Member/Verify Owner On Supabase Confirmation
+        then:
+        - e: Member/Owner Verified
+      PromotedToAdminWhenNoAdminExistsYet:
+        given:
+        - e: Member/Owner Registered
+        when:
+        - c: Member/Bootstrap Admin
+        then:
+        - e: Member/Promoted To Admin
+      BootstrapBlockedOnceAnAdminAlreadyExists:
+        given:
+        - e: Member/Promoted To Admin
+        when:
+        - c: Member/Bootstrap Admin
+        then:
+        - e: 'Member/Bootstrap Blocked: Admin Already Exists'
+  # ============================================================
+  # v3 scope extension below - [PLANNED], not built. Three chapters
+  # widening ShelterAdoption's own lifecycle: a dog entering care by
+  # surrender rather than shelter intake, a dog spending time in foster
+  # care before (or instead of) direct listing, and the volunteer
+  # workforce that includes a dedicated home-check role feeding into
+  # application review. Donation/sponsorship-style flows are deliberately
+  # out of scope for this pass.
+  # ============================================================
+  # [PLANNED] ShelterAdoption module extension. A member surrendering
+  # their OWN dog into a shelter's care - distinct from TheWouldBeAdopter's
+  # applicant journey and from a shelter directly adding a listing
+  # (TheShelterRescueOrgSigningUp/ShelterManagingListings). Gated by
+  # Admin, same reviewer-role pattern as shelter-account verification -
+  # this is a platform-level intake decision, not the surrendering
+  # member's own action past the initial request. Accepting a surrender
+  # is the bridge into the existing listing lifecycle: it cascades into
+  # ShelterManagingListings' "Add Dog Listing" (status starts NotReadyYet,
+  # same as any newly added listing) rather than inventing a parallel
+  # listing-creation path.
+  SurrenderingYourDog:
+    steps:
+    - t: Member/Surrender My Dog
+    - c: Member/Request Dog Surrender
+      props:
+        dogName: Cooper
+        breed: Terrier mix
+        ageInMonths: '48'
+        reasonForSurrender: Relocating for work, no longer able to care for him
+        temperamentNotes: Gentle, a little shy with strangers
+        healthNotes: Up to date on vaccinations, no known conditions
+    - e: Member/Dog Surrender Requested
+    - v: Admin/Surrender Review Queue
+      props:
+        surrenderId: surr_204
+        dogName: Cooper
+        ownerOwnerId: owner_61
+        status: Requested
+    - t: Admin/Surrender Review Queue
+    - c: Admin/Review Surrender Request
+    - e: Admin/Surrender Request Reviewed
+    - t: Admin/Request Additional Surrender Details
+    - c: Admin/Request Additional Surrender Details
+      props:
+        reason: Please confirm current vaccination records
+    - e: Admin/Additional Surrender Details Requested
+    - t: Member/Submit Additional Surrender Details
+    - c: Member/Submit Additional Surrender Details
+    - e: Member/Additional Surrender Details Submitted
+    - t: Admin/Accept Dog Surrender
+    - c: Admin/Accept Dog Surrender
+    - e: Admin/Dog Surrender Accepted
+      props:
+        cascadedTo: ShelterManagingListings (Add Dog Listing, status NotReadyYet)
+    - t: Admin/Decline Dog Surrender
+    - c: Admin/Decline Dog Surrender
+      props:
+        reason: Outside current intake capacity
+    - e: Admin/Dog Surrender Declined
+    tests:
+      DogSurrenderRequested:
+        when:
+        - c: Member/Request Dog Surrender
+        then:
+        - e: Member/Dog Surrender Requested
+      SurrenderReviewQueue:
+        given:
+        - e: Member/Dog Surrender Requested
+        then:
+        - v: Admin/Surrender Review Queue
+      SurrenderRequestReviewed:
+        given:
+        - e: Member/Dog Surrender Requested
+        when:
+        - c: Admin/Review Surrender Request
+        then:
+        - e: Admin/Surrender Request Reviewed
+      AdditionalSurrenderDetailsRequested:
+        given:
+        - e: Admin/Surrender Request Reviewed
+        when:
+        - c: Admin/Request Additional Surrender Details
+        then:
+        - e: Admin/Additional Surrender Details Requested
+      AdditionalSurrenderDetailsSubmitted:
+        given:
+        - e: Admin/Additional Surrender Details Requested
+        when:
+        - c: Member/Submit Additional Surrender Details
+        then:
+        - e: Member/Additional Surrender Details Submitted
+      DogSurrenderAccepted:
+        given:
+        - e: Admin/Surrender Request Reviewed
+        when:
+        - c: Admin/Accept Dog Surrender
+        then:
+        - e: Admin/Dog Surrender Accepted
+      DogSurrenderAcceptedAfterAdditionalDetails:
+        given:
+        - e: Member/Additional Surrender Details Submitted
+        when:
+        - c: Admin/Accept Dog Surrender
+        then:
+        - e: Admin/Dog Surrender Accepted
+      DogSurrenderDeclined:
+        given:
+        - e: Admin/Surrender Request Reviewed
+        when:
+        - c: Admin/Decline Dog Surrender
+        then:
+        - e: Admin/Dog Surrender Declined
+  # [PLANNED] ShelterAdoption module extension. A member (the "Foster
+  # Caregiver" swimlane below) providing temporary care for a shelter's
+  # dog. Foster placement is modeled as a status change on an EXISTING
+  # DogListing (see ShelterManagingListings' v3 enrichment), not a
+  # separate document - a listing moves InFoster and back to Available
+  # (or straight to Adopted via foster-to-adopt) rather than a foster
+  # placement owning its own parallel lifecycle. "Convert Foster To
+  # Adoption" is a fast path into TheWouldBeAdopter's own Submit
+  # Application - the foster caregiver still goes through a real
+  # application, just one a reviewer can reasonably expect to approve
+  # quickly given the dog is already living with them.
+  FosteringADog:
+    steps:
+    - t: Foster Caregiver/Foster Program
+    - c: Foster Caregiver/Apply To Foster
+      props:
+        homeType: House | Apartment | Other
+        hasGarden: 'true'
+        hasOtherPets: 'false'
+        availableFrom: '2026-08-01'
+    - e: Foster Caregiver/Foster Application Submitted
+    - v: Admin/Foster Applications Queue
+      props:
+        fosterApplicationId: foster_318
+        applicantOwnerId: owner_77
+        status: Submitted
+    - t: Admin/Foster Applications Queue
+    - c: Admin/Review Foster Application
+    - e: Admin/Foster Application Reviewed
+    - t: Admin/Approve Foster Caregiver
+    - c: Admin/Approve Foster Caregiver
+    - e: Admin/Foster Caregiver Approved
+    - t: Admin/Reject Foster Application
+    - c: Admin/Reject Foster Application
+      props:
+        reason: Home visit could not confirm a secure garden
+    - e: Admin/Foster Application Rejected
+    - t: Admin/Place Dog In Foster
+    - c: Admin/Place Dog In Foster
+      props:
+        dogListingId: dog_71
+        fosterCaregiverOwnerId: owner_77
+    - e: Admin/Dog Placed In Foster
+      props:
+        cascadedTo: ShelterManagingListings (Update Listing Status -> InFoster)
+    - t: Foster Caregiver/Foster Dog Ready For Adoption
+    - c: Admin/Mark Foster Dog Ready For Adoption
+    - e: Admin/Foster Dog Marked Ready For Adoption
+      props:
+        cascadedTo: ShelterManagingListings (Update Listing Status -> Available)
+    - t: Foster Caregiver/Adopt My Foster Dog
+    - c: Foster Caregiver/Convert Foster To Adoption
+    - e: Foster Caregiver/Foster Converted To Adoption
+      props:
+        cascadedTo: TheWouldBeAdopter (Submit Application)
+    - t: Admin/End Foster Placement
+    - c: Admin/End Foster Placement
+      props:
+        reason: MovedToNewFoster | ReturnedToShelter | AdoptedByFosterCaregiver
+    - e: Admin/Foster Placement Ended
+    tests:
+      FosterApplicationSubmitted:
+        when:
+        - c: Foster Caregiver/Apply To Foster
+        then:
+        - e: Foster Caregiver/Foster Application Submitted
+      FosterApplicationsQueue:
+        given:
+        - e: Foster Caregiver/Foster Application Submitted
+        then:
+        - v: Admin/Foster Applications Queue
+      FosterApplicationReviewed:
+        given:
+        - e: Foster Caregiver/Foster Application Submitted
+        when:
+        - c: Admin/Review Foster Application
+        then:
+        - e: Admin/Foster Application Reviewed
+      FosterCaregiverApproved:
+        given:
+        - e: Admin/Foster Application Reviewed
+        when:
+        - c: Admin/Approve Foster Caregiver
+        then:
+        - e: Admin/Foster Caregiver Approved
+      FosterApplicationRejected:
+        given:
+        - e: Admin/Foster Application Reviewed
+        when:
+        - c: Admin/Reject Foster Application
+        then:
+        - e: Admin/Foster Application Rejected
+      DogPlacedInFoster:
+        given:
+        - e: Admin/Foster Caregiver Approved
+        when:
+        - c: Admin/Place Dog In Foster
+        then:
+        - e: Admin/Dog Placed In Foster
+      FosterDogMarkedReadyForAdoption:
+        given:
+        - e: Admin/Dog Placed In Foster
+        when:
+        - c: Admin/Mark Foster Dog Ready For Adoption
+        then:
+        - e: Admin/Foster Dog Marked Ready For Adoption
+      FosterConvertedToAdoption:
+        given:
+        - e: Admin/Dog Placed In Foster
+        when:
+        - c: Foster Caregiver/Convert Foster To Adoption
+        then:
+        - e: Foster Caregiver/Foster Converted To Adoption
+      FosterPlacementEnded:
+        given:
+        - e: Admin/Dog Placed In Foster
+        when:
+        - c: Admin/End Foster Placement
+        then:
+        - e: Admin/Foster Placement Ended
+  # [PLANNED] ShelterAdoption module extension (or a new Community/
+  # Operations module, if volunteer roles grow beyond home checks -
+  # deliberately not decided yet, kept here alongside Foster/Surrender
+  # since a home check's only real consumer today is ShelterReviewsApplication).
+  # A Volunteer is a Member playing a role, not a new OwnerRole - approval
+  # just marks them eligible to be assigned checks, same "role via
+  # cross-module event, not a general AssignRole endpoint" restraint
+  # already used for OwnerRole.Shelter/Admin elsewhere in this codebase.
+  # Home Check is the concrete link back into ShelterReviewsApplication -
+  # see that chapter's v3 enrichment note; deliberately advisory, not a
+  # hard precondition on Approve/Reject.
+  VolunteeringAndHomeChecks:
+    steps:
+    - t: Volunteer/Volunteer Program
+    - c: Volunteer/Apply To Volunteer
+      props:
+        areasOfInterest: Transport | Fundraising | Events | Administration | HomeChecks | FosterSupport
+    - e: Volunteer/Volunteer Application Submitted
+    - v: Admin/Volunteer Applications Queue
+      props:
+        volunteerApplicationId: vol_552
+        applicantOwnerId: owner_90
+        areasOfInterest: HomeChecks
+        status: Submitted
+    - t: Admin/Volunteer Applications Queue
+    - c: Admin/Review Volunteer Application
+    - e: Admin/Volunteer Application Reviewed
+    - t: Admin/Approve Volunteer
+    - c: Admin/Approve Volunteer
+    - e: Admin/Volunteer Approved
+    - t: Admin/Reject Volunteer Application
+    - c: Admin/Reject Volunteer Application
+      props:
+        reason: Outside our current coverage area
+    - e: Admin/Volunteer Application Rejected
+    - t: Admin/Request Home Check
+    - c: Admin/Request Home Check
+      props:
+        applicationId: app_309
+    - e: Admin/Home Check Requested
+    - t: Volunteer/Home Check Assigned
+    - c: Volunteer/Accept Home Check Assignment
+    - e: Volunteer/Home Check Assignment Accepted
+    - t: Volunteer/Submit Home Check Report
+    - c: Volunteer/Submit Home Check Report
+      props:
+        outcome: Pass | Fail | NeedsFollowUp
+        notes: Secure garden, calm household, good fit for a shy dog
+    - e: Volunteer/Home Check Report Submitted
+    tests:
+      VolunteerApplicationSubmitted:
+        when:
+        - c: Volunteer/Apply To Volunteer
+        then:
+        - e: Volunteer/Volunteer Application Submitted
+      VolunteerApplicationsQueue:
+        given:
+        - e: Volunteer/Volunteer Application Submitted
+        then:
+        - v: Admin/Volunteer Applications Queue
+      VolunteerApplicationReviewed:
+        given:
+        - e: Volunteer/Volunteer Application Submitted
+        when:
+        - c: Admin/Review Volunteer Application
+        then:
+        - e: Admin/Volunteer Application Reviewed
+      VolunteerApproved:
+        given:
+        - e: Admin/Volunteer Application Reviewed
+        when:
+        - c: Admin/Approve Volunteer
+        then:
+        - e: Admin/Volunteer Approved
+      VolunteerApplicationRejected:
+        given:
+        - e: Admin/Volunteer Application Reviewed
+        when:
+        - c: Admin/Reject Volunteer Application
+        then:
+        - e: Admin/Volunteer Application Rejected
+      HomeCheckRequested:
+        given:
+        - e: Shelter Staff/Application Reviewed
+        when:
+        - c: Admin/Request Home Check
+        then:
+        - e: Admin/Home Check Requested
+      HomeCheckAssignmentAccepted:
+        given:
+        - e: Admin/Home Check Requested
+        - e: Admin/Volunteer Approved
+        when:
+        - c: Volunteer/Accept Home Check Assignment
+        then:
+        - e: Volunteer/Home Check Assignment Accepted
+      HomeCheckReportSubmitted:
+        given:
+        - e: Volunteer/Home Check Assignment Accepted
+        when:
+        - c: Volunteer/Submit Home Check Report
+        then:
+        - e: Volunteer/Home Check Report Submitted
