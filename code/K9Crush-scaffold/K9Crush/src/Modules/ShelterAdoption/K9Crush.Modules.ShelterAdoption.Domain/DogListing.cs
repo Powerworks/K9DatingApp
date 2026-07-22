@@ -73,9 +73,13 @@ public class DogListing : Entity
 
     /// <summary>
     /// The emlang yaml's "Update Listing Status" -> "Listing Status
-    /// Updated". State-guard (none - any status can move to any other,
-    /// per the yaml) lives here since there isn't one; this method exists
-    /// mainly so callers never set Status directly.
+    /// Updated". State-guard (Adopted is a one-way door, only reachable
+    /// via an approved Application) lives in UpdateListingStatusHandler,
+    /// not here - same "guard lives in the handler" convention as every
+    /// other status-guarded entity in this codebase (e.g. Application).
+    /// ApproveApplicationHandler calls this method directly to reach
+    /// Adopted, deliberately bypassing that handler-level guard since
+    /// it's the one legitimate path.
     /// </summary>
     public void UpdateStatus(DogListingStatus status) => Status = status;
 

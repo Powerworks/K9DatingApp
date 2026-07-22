@@ -872,6 +872,14 @@ slices:
   # once an application is approved (ShelterReviewsApplication moves it to
   # Adopted) - those two chapters cascade this same status change rather
   # than duplicating the transition logic.
+  # v3 ENRICHMENT: "Update Listing Status" cannot set OR change away from
+  # Adopted (guard added 2026-07-22 after an event-modeling checklist pass
+  # flagged this chapter had no defined status transitions at all).
+  # Adopted is a one-way door reachable only via ShelterReviewsApplication's
+  # approval cascade above - never assertable by hand, and not editable
+  # once reached. A "dog returned after adoption" flow, if this product
+  # ever needs one, is a distinct not-yet-modeled chapter, not a side
+  # effect of this manual override.
   ShelterManagingListings:
     steps:
     - v: Shelter Staff/Shelter Dog Listings
@@ -900,8 +908,13 @@ slices:
     - t: Shelter Staff/Update Listing Status
     - c: Shelter Staff/Update Listing Status
       props:
-        status: Available | NotReadyYet | InFoster | PendingAdoption | Adopted
+        status: Available | NotReadyYet | InFoster | PendingAdoption
     - e: Shelter Staff/Listing Status Updated
+    - t: Shelter Staff/Status Change Blocked
+    - c: Shelter Staff/Update Listing Status
+      props:
+        status: Adopted
+    - e: 'Shelter Staff/Listing Status Update Blocked: Adopted Requires Approval'
     - e: Shelter Staff/Applications Cancelled For Removed Listing
       props:
         cascadedTo: Notifications (ApplicationCancelledV1, one per affected applicant)
@@ -934,6 +947,21 @@ slices:
         - c: Shelter Staff/Update Listing Status
         then:
         - e: Shelter Staff/Listing Status Updated
+      ListingStatusUpdateBlockedWhenTargetIsAdopted:
+        given:
+        - e: Shelter Staff/Dog Listing Added
+        when:
+        - c: Shelter Staff/Update Listing Status
+        then:
+        - e: 'Shelter Staff/Listing Status Update Blocked: Adopted Requires Approval'
+      ListingStatusUpdateBlockedWhenCurrentlyAdopted:
+        given:
+        - e: Shelter Staff/Dog Listing Added
+        - e: Shelter Staff/Application Approved # cross-reference: ShelterReviewsApplication - the only path to Adopted
+        when:
+        - c: Shelter Staff/Update Listing Status
+        then:
+        - e: 'Shelter Staff/Listing Status Update Blocked: Adopted Requires Approval'
       ApplicationsCancelledForRemovedListing:
         given:
         - e: Shelter Staff/Dog Listing Removed

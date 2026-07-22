@@ -73,4 +73,36 @@ public class UpdateListingStatusHandlerTests
 
         result.Result.Should().BeOfType<ForbidHttpResult>();
     }
+
+    [Fact]
+    public async Task Handle_WhenTargetStatusIsAdopted_ReturnsConflictAndDoesNotPersist()
+    {
+        var (shelterAccount, dogListing) = SeedListing();
+        var session = Substitute.For<IDocumentSession>();
+        session.LoadAsync<DogListing>(dogListing.Id, Arg.Any<CancellationToken>()).Returns(dogListing);
+        session.LoadAsync<ShelterAccount>(shelterAccount.Id, Arg.Any<CancellationToken>()).Returns(shelterAccount);
+
+        var result = await UpdateListingStatusHandler.Handle(
+            dogListing.Id, new UpdateListingStatusRequest(DogListingStatus.Adopted), BuildUser(ShelterOwnerId), session, CancellationToken.None);
+
+        result.Result.Should().BeOfType<Conflict<string>>();
+        dogListing.Status.Should().Be(DogListingStatus.NotReadyYet, "the guard must run before UpdateStatus is called");
+        session.DidNotReceive().Store(Arg.Any<DogListing>());
+    }
+
+    [Fact]
+    public async Task Handle_WhenCurrentStatusIsAdopted_ReturnsConflictRegardlessOfTargetStatus()
+    {
+        var (shelterAccount, dogListing) = SeedListing();
+        dogListing.UpdateStatus(DogListingStatus.Adopted);
+        var session = Substitute.For<IDocumentSession>();
+        session.LoadAsync<DogListing>(dogListing.Id, Arg.Any<CancellationToken>()).Returns(dogListing);
+        session.LoadAsync<ShelterAccount>(shelterAccount.Id, Arg.Any<CancellationToken>()).Returns(shelterAccount);
+
+        var result = await UpdateListingStatusHandler.Handle(
+            dogListing.Id, new UpdateListingStatusRequest(DogListingStatus.Available), BuildUser(ShelterOwnerId), session, CancellationToken.None);
+
+        result.Result.Should().BeOfType<Conflict<string>>();
+        session.DidNotReceive().Store(Arg.Any<DogListing>());
+    }
 }
