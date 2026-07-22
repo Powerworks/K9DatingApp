@@ -13,9 +13,9 @@
 # intake questionnaire, and an explicit listing status that now has
 # somewhere to come from other than "just added"). Donation/sponsorship-
 # style flows are deliberately excluded from this pass. As of 2026-07-22,
-# SurrenderingYourDog is real and built (see its own chapter comment);
-# FosteringADog and VolunteeringAndHomeChecks remain a scope proposal, not
-# yet built.
+# SurrenderingYourDog and FosteringADog are real and built (see their own
+# chapter comments); VolunteeringAndHomeChecks remains a scope proposal,
+# not yet built.
 #
 # Purpose: re-import onto an eventmodelers board to plan the next phase of
 # work.
@@ -28,12 +28,11 @@
 #   - 3 chapters are NEW as of v2 (no v1 equivalent) - real, built slices
 #     that never had a home on the original board.
 #   - 3 chapters are NEW as of v3 (no v1 or v2 equivalent), appended in
-#     their own marked section at the very end: SurrenderingYourDog
-#     ([BUILT] as of 2026-07-22), FosteringADog and VolunteeringAndHomeChecks
-#     ([PLANNED], not yet built - the last of which cross-references
-#     ShelterReviewsApplication - a completed home check can gate
-#     approval - via a `# v3 ENRICHMENT:` note on that existing chapter,
-#     rather than duplicating its steps).
+#     their own marked section at the very end: SurrenderingYourDog and
+#     FosteringADog ([BUILT] as of 2026-07-22), VolunteeringAndHomeChecks
+#     ([PLANNED], not yet built - it cross-references ShelterReviewsApplication
+#     - a completed home check can gate approval - via a `# v3 ENRICHMENT:`
+#     note on that existing chapter, rather than duplicating its steps).
 #   - 2 v2 chapters (TheWouldBeAdopter, ShelterManagingListings) are
 #     ENRICHED in place - marked with their own `# v3 ENRICHMENT:` comment
 #     at the point of change, distinct from v2's own `# DEVIATION:` comments
@@ -3137,17 +3136,33 @@ slices:
         - c: Admin/Decline Dog Surrender
         then:
         - e: Admin/Dog Surrender Declined
-  # [PLANNED] ShelterAdoption module extension. A member (the "Foster
-  # Caregiver" swimlane below) providing temporary care for a shelter's
-  # dog. Foster placement is modeled as a status change on an EXISTING
-  # DogListing (see ShelterManagingListings' v3 enrichment), not a
-  # separate document - a listing moves InFoster and back to Available
+  # [BUILT] ShelterAdoption module extension (2026-07-22). A member (the
+  # "Foster Caregiver" swimlane below) providing temporary care for a
+  # shelter's dog. Foster placement is modeled as a status change on an
+  # EXISTING DogListing (see ShelterManagingListings' v3 enrichment), not
+  # a separate document - a listing moves InFoster and back to Available
   # (or straight to Adopted via foster-to-adopt) rather than a foster
-  # placement owning its own parallel lifecycle. "Convert Foster To
-  # Adoption" is a fast path into TheWouldBeAdopter's own Submit
-  # Application - the foster caregiver still goes through a real
-  # application, just one a reviewer can reasonably expect to approve
-  # quickly given the dog is already living with them.
+  # placement owning its own parallel lifecycle. DogListing.
+  # CurrentFosterCaregiverOwnerId (new field, not in this yaml as a prop
+  # since it's implementation detail, not a modeled field anywhere)
+  # tracks who's currently fostering - deliberately survives "Mark Foster
+  # Dog Ready For Adoption" (status goes back to Available so other
+  # applicants can apply too, but the caregiver is still fostering until
+  # "End Foster Placement" resolves it either way). "Convert Foster To
+  # Adoption" is NOT a separate command in code - it IS TheWouldBeAdopter's
+  # "Submit Application", called by the current foster caregiver for the
+  # dog they're fostering, no special-casing (see SubmitApplicationHandler's
+  # own comment).
+  # DEVIATION: "Place Dog In Foster" takes fosterApplicationId, not the
+  # yaml's bare fosterCaregiverOwnerId - a disclosed traceability fix
+  # (same event-modeling checklist pass that found DogListing.Status's
+  # missing Adopted guard): nothing linked this step back to *which*
+  # approved application authorized the caregiver. The handler derives
+  # the caregiver's owner id from the loaded, Approved FosterApplication.
+  # DEVIATION: UpdateListingStatusHandler (ShelterManagingListings) now
+  # also rejects any manual status change while CurrentFosterCaregiverOwnerId
+  # is set - a manual flip out of InFoster would otherwise leave that
+  # field stale. Use "End Foster Placement" first.
   FosteringADog:
     steps:
     - t: Foster Caregiver/Foster Program
@@ -3178,7 +3193,7 @@ slices:
     - c: Admin/Place Dog In Foster
       props:
         dogListingId: dog_71
-        fosterCaregiverOwnerId: owner_77
+        fosterApplicationId: foster_318
     - e: Admin/Dog Placed In Foster
       props:
         cascadedTo: ShelterManagingListings (Update Listing Status -> InFoster)

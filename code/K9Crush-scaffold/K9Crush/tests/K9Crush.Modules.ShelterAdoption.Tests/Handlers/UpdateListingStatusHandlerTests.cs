@@ -105,4 +105,20 @@ public class UpdateListingStatusHandlerTests
         result.Result.Should().BeOfType<Conflict<string>>();
         session.DidNotReceive().Store(Arg.Any<DogListing>());
     }
+
+    [Fact]
+    public async Task Handle_WhenAFosterPlacementIsActive_ReturnsConflictAndDoesNotPersist()
+    {
+        var (shelterAccount, dogListing) = SeedListing();
+        dogListing.PlaceInFoster(Guid.NewGuid());
+        var session = Substitute.For<IDocumentSession>();
+        session.LoadAsync<DogListing>(dogListing.Id, Arg.Any<CancellationToken>()).Returns(dogListing);
+        session.LoadAsync<ShelterAccount>(shelterAccount.Id, Arg.Any<CancellationToken>()).Returns(shelterAccount);
+
+        var result = await UpdateListingStatusHandler.Handle(
+            dogListing.Id, new UpdateListingStatusRequest(DogListingStatus.NotReadyYet), BuildUser(ShelterOwnerId), session, CancellationToken.None);
+
+        result.Result.Should().BeOfType<Conflict<string>>();
+        session.DidNotReceive().Store(Arg.Any<DogListing>());
+    }
 }

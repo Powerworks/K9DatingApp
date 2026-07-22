@@ -65,6 +65,11 @@ public sealed class ShelterAdoptionModule : IModule
                 .DatabaseSchemaName(SchemaName)
                 .Identity(x => x.Id)
                 .Index(x => x.RequestedByOwnerId);
+
+            options.Schema.For<FosterApplication>()
+                .DatabaseSchemaName(SchemaName)
+                .Identity(x => x.Id)
+                .Index(x => x.ApplicantOwnerId);
         }
     }
 }

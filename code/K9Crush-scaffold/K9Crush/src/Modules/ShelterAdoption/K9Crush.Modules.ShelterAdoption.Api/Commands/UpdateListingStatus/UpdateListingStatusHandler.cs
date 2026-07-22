@@ -13,11 +13,11 @@ namespace K9Crush.Modules.ShelterAdoption.Api.Commands.UpdateListingStatus;
 /// "Listing Status Updated" (v3 ENRICHMENT, Spec/K9CRUSH.emlang.v3.yaml's
 /// ShelterManagingListings chapter). Manual Shelter Staff override -
 /// ApproveApplicationHandler already cascades Status to Adopted on
-/// approval, and the not-yet-built FosteringADog chapter is planned to
-/// cascade InFoster/Available around foster placements; this endpoint
-/// covers everything else a shelter needs to set by hand (e.g.
-/// NotReadyYet while a new intake settles in, or InFoster/Available/
-/// PendingAdoption corrections).
+/// approval, and FosteringADog's Place/MarkReady/EndFosterPlacement
+/// handlers cascade InFoster/Available around foster placements; this
+/// endpoint covers everything else a shelter needs to set by hand (e.g.
+/// NotReadyYet while a new intake settles in, or PendingAdoption
+/// corrections).
 ///
 /// Adopted is deliberately off-limits to this endpoint in both
 /// directions - not a settable target (Adopted must only ever be reached
@@ -30,6 +30,13 @@ namespace K9Crush.Modules.ShelterAdoption.Api.Commands.UpdateListingStatus;
 /// Spec/K9CRUSH.emlang.v3.yaml (2026-07-22) - the yaml itself doesn't
 /// define valid status transitions either; this guard is the fix on both
 /// sides.
+///
+/// Also off-limits while a foster placement is active
+/// (CurrentFosterCaregiverOwnerId is set) - a manual flip out of InFoster
+/// (or out of Available-while-still-fostering) would leave that field
+/// stale, pointing at a caregiver the listing no longer reflects. Use
+/// EndFosterPlacementHandler first. Added when FosteringADog was built -
+/// this endpoint predates that field and didn't originally know about it.
 ///
 /// Route/ownership-gate pattern matches EditDogListingHandler - keyed by
 /// dogListingId alone, ownership resolved via the listing's own
@@ -58,6 +65,9 @@ public static class UpdateListingStatusHandler
 
         if (dogListing.Status == DogListingStatus.Adopted || request.Status == DogListingStatus.Adopted)
             return TypedResults.Conflict("Adopted can only be reached via an approved Application, and cannot be changed once reached.");
+
+        if (dogListing.CurrentFosterCaregiverOwnerId is not null)
+            return TypedResults.Conflict("Cannot manually change status while a foster placement is active - end the foster placement first.");
 
         dogListing.UpdateStatus(request.Status);
         session.Store(dogListing);

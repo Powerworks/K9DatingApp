@@ -40,6 +40,17 @@ namespace K9Crush.Modules.ShelterAdoption.Api.Commands.SubmitApplication;
 /// that would apply to a brand-new submission.
 ///
 /// Any verified owner can apply - no Shelter/Admin role needed.
+///
+/// Also covers FosteringADog's "Convert Foster To Adoption" -> "Foster
+/// Converted To Adoption" (`cascadedTo: TheWouldBeAdopter (Submit
+/// Application)` in the yaml) - not a separate command/handler, just this
+/// same endpoint called by the current foster caregiver for the dog
+/// they're fostering. No special-casing: the foster caregiver goes
+/// through the exact same limit/duplicate rules and intake questionnaire
+/// as any other applicant, matching that chapter's own header comment
+/// ("still goes through a real application") - the only difference is a
+/// social expectation that a reviewer can approve it quickly, not
+/// anything this handler enforces.
 /// </summary>
 public static class SubmitApplicationHandler
 {

@@ -43,6 +43,19 @@ public class DogListing : Entity
     [JsonInclude] public DateTimeOffset AddedAt { get; private set; }
     [JsonInclude] public DogListingStatus Status { get; private set; }
 
+    /// <summary>
+    /// [PLANNED -> BUILT] Spec/K9CRUSH.emlang.v3.yaml's FosteringADog
+    /// chapter - who currently has this listing in foster care, if
+    /// anyone. Not a separate placement document (see this field's
+    /// setters below and the chapter's own header comment) - a listing
+    /// moving InFoster and back is a status change on the listing itself.
+    /// Deliberately survives PlaceInFoster -> MarkFosterDogReadyForAdoption
+    /// (Status goes back to Available, but the caregiver is still fostering
+    /// until EndFosterPlacement resolves it) - only EndFosterPlacement
+    /// clears it.
+    /// </summary>
+    [JsonInclude] public Guid? CurrentFosterCaregiverOwnerId { get; private set; }
+
     [JsonConstructor]
     private DogListing() { }
 
@@ -82,6 +95,40 @@ public class DogListing : Entity
     /// it's the one legitimate path.
     /// </summary>
     public void UpdateStatus(DogListingStatus status) => Status = status;
+
+    /// <summary>
+    /// The emlang yaml's "Place Dog In Foster" -> "Dog Placed In Foster".
+    /// State-guard (only valid from Available/NotReadyYet - not already
+    /// InFoster, not PendingAdoption/Adopted) lives in the handler.
+    /// </summary>
+    public void PlaceInFoster(Guid fosterCaregiverOwnerId)
+    {
+        CurrentFosterCaregiverOwnerId = fosterCaregiverOwnerId;
+        Status = DogListingStatus.InFoster;
+    }
+
+    /// <summary>
+    /// The emlang yaml's "Mark Foster Dog Ready For Adoption" -> "Foster
+    /// Dog Marked Ready For Adoption". Deliberately does NOT clear
+    /// CurrentFosterCaregiverOwnerId - see that field's own comment.
+    /// State-guard (only valid from InFoster) lives in the handler.
+    /// </summary>
+    public void MarkFosterDogReadyForAdoption() => Status = DogListingStatus.Available;
+
+    /// <summary>
+    /// The emlang yaml's "End Foster Placement" -> "Foster Placement
+    /// Ended". Always clears CurrentFosterCaregiverOwnerId; resets Status
+    /// to Available unless the listing has since become Adopted (that
+    /// one-way door - see UpdateStatus's comment - takes precedence over
+    /// closing out the foster record). State-guard (only valid when a
+    /// placement is actually active) lives in the handler.
+    /// </summary>
+    public void EndFosterPlacement()
+    {
+        CurrentFosterCaregiverOwnerId = null;
+        if (Status != DogListingStatus.Adopted)
+            Status = DogListingStatus.Available;
+    }
 
     /// <summary>
     /// The emlang yaml's "Edit Dog Listing" -> "Dog Listing Edited". The

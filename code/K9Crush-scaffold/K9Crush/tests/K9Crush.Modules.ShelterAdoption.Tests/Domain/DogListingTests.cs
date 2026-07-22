@@ -70,4 +70,55 @@ public class DogListingTests
 
         dogListing.Status.Should().Be(status);
     }
+
+    [Fact]
+    public void PlaceInFoster_WhenCalled_SetsCaregiverAndStatusToInFoster()
+    {
+        var dogListing = DogListing.Create(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly");
+        var caregiverOwnerId = Guid.NewGuid();
+
+        dogListing.PlaceInFoster(caregiverOwnerId);
+
+        dogListing.CurrentFosterCaregiverOwnerId.Should().Be(caregiverOwnerId);
+        dogListing.Status.Should().Be(DogListingStatus.InFoster);
+    }
+
+    [Fact]
+    public void MarkFosterDogReadyForAdoption_WhenCalled_SetsStatusToAvailableAndKeepsCaregiver()
+    {
+        var dogListing = DogListing.Create(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly");
+        var caregiverOwnerId = Guid.NewGuid();
+        dogListing.PlaceInFoster(caregiverOwnerId);
+
+        dogListing.MarkFosterDogReadyForAdoption();
+
+        dogListing.Status.Should().Be(DogListingStatus.Available);
+        dogListing.CurrentFosterCaregiverOwnerId.Should().Be(caregiverOwnerId,
+            "the caregiver is still fostering until EndFosterPlacement resolves it, even once other applicants can apply again");
+    }
+
+    [Fact]
+    public void EndFosterPlacement_WhenNotAdopted_ClearsCaregiverAndSetsStatusToAvailable()
+    {
+        var dogListing = DogListing.Create(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly");
+        dogListing.PlaceInFoster(Guid.NewGuid());
+
+        dogListing.EndFosterPlacement();
+
+        dogListing.CurrentFosterCaregiverOwnerId.Should().BeNull();
+        dogListing.Status.Should().Be(DogListingStatus.Available);
+    }
+
+    [Fact]
+    public void EndFosterPlacement_WhenAlreadyAdopted_ClearsCaregiverButLeavesStatusAsAdopted()
+    {
+        var dogListing = DogListing.Create(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly");
+        dogListing.PlaceInFoster(Guid.NewGuid());
+        dogListing.UpdateStatus(DogListingStatus.Adopted); // e.g. approved via a different applicant while still fostering
+
+        dogListing.EndFosterPlacement();
+
+        dogListing.CurrentFosterCaregiverOwnerId.Should().BeNull();
+        dogListing.Status.Should().Be(DogListingStatus.Adopted, "Adopted is a one-way door - closing out the foster record doesn't undo it");
+    }
 }
