@@ -60,6 +60,11 @@ public sealed class ShelterAdoptionModule : IModule
                 .Index(x => x.ApplicantOwnerId)
                 .Index(x => x.DogListingId)
                 .Index(x => x.ShelterAccountId);
+
+            options.Schema.For<DogSurrenderRequest>()
+                .DatabaseSchemaName(SchemaName)
+                .Identity(x => x.Id)
+                .Index(x => x.RequestedByOwnerId);
         }
     }
 }
