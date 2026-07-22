@@ -58,10 +58,10 @@ public class CancelApplicationsForRemovedListingIntegrationTests(ShelterAdoption
         (await verifySession.LoadAsync<Application>(unrelatedApplication.Id))!.Status.Should().Be(ApplicationStatus.UnderReview, "different listing - must not be touched");
 
         await bus.Received(1).PublishAsync(
-            Arg.Is<ApplicationCancelledV1>(e => e.ApplicationId == openApplicationA.Id && e.ApplicantOwnerId == applicantA),
+            Arg.Is<ApplicationCancelledV1>(e => e != null && e.ApplicationId == openApplicationA.Id && e.ApplicantOwnerId == applicantA),
             Arg.Any<DeliveryOptions?>());
         await bus.Received(1).PublishAsync(
-            Arg.Is<ApplicationCancelledV1>(e => e.ApplicationId == openApplicationB.Id && e.ApplicantOwnerId == applicantB),
+            Arg.Is<ApplicationCancelledV1>(e => e != null && e.ApplicationId == openApplicationB.Id && e.ApplicantOwnerId == applicantB),
             Arg.Any<DeliveryOptions?>());
     }
 

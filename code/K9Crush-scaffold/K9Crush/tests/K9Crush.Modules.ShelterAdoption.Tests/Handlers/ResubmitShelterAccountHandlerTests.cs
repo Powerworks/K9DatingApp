@@ -82,7 +82,7 @@ public class ResubmitShelterAccountHandlerTests
         shelterAccount.BusinessDetails.Should().Be("Updated details");
         shelterAccount.UtilityBillDocumentId.Should().Be(newUtilityBillId);
         shelterAccount.VerificationIssuesReason.Should().BeNull();
-        session.Received(1).Store(Arg.Is<ShelterAccount[]>(arr => arr.Length == 1 && arr[0] == shelterAccount));
+        session.Received(1).Store(Arg.Is<ShelterAccount[]>(arr => arr != null && arr.Length == 1 && arr[0] == shelterAccount));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

@@ -42,7 +42,7 @@ public class WarnUserHandlerTests
         var response = ((Ok<WarnUserResponse>)result.Result).Value!;
         response.OwnerId.Should().Be(contentOwnerId);
         response.WarningCount.Should().Be(1);
-        session.Received(1).Store(Arg.Is<UserModerationRecord[]>(arr => arr.Length == 1 && arr[0].Id == contentOwnerId && arr[0].WarningCount == 1));
+        session.Received(1).Store(Arg.Is<UserModerationRecord[]>(arr => arr != null && arr.Length == 1 && arr[0].Id == contentOwnerId && arr[0].WarningCount == 1));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 

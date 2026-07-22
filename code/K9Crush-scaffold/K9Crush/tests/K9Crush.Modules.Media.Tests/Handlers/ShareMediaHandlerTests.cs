@@ -60,7 +60,7 @@ public class ShareMediaHandlerTests
         result.Result.Should().BeOfType<Ok<ShareMediaResponse>>();
         ((Ok<ShareMediaResponse>)result.Result).Value!.Visibility.Should().Be(nameof(MediaVisibility.SpecificPeople));
         asset.SharedWithOwnerIds.Should().BeEquivalentTo(sharedWith);
-        session.Received(1).Store(Arg.Is<MediaAsset[]>(arr => arr.Length == 1 && arr[0] == asset));
+        session.Received(1).Store(Arg.Is<MediaAsset[]>(arr => arr != null && arr.Length == 1 && arr[0] == asset));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

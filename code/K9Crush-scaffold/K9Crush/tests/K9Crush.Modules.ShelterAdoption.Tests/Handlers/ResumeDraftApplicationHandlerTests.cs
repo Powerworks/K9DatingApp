@@ -99,7 +99,7 @@ public class ResumeDraftApplicationHandlerTests
         var ok = (Ok<ResumeDraftApplicationResponse>)result.Result;
         ok.Value!.Status.Should().Be(nameof(ApplicationStatus.ClosedDogNoLongerAvailable));
         application.Status.Should().Be(ApplicationStatus.ClosedDogNoLongerAvailable);
-        session.Received(1).Store(Arg.Is<Application[]>(arr => arr.Length == 1 && arr[0] == application));
+        session.Received(1).Store(Arg.Is<Application[]>(arr => arr != null && arr.Length == 1 && arr[0] == application));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

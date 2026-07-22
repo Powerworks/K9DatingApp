@@ -28,7 +28,7 @@ public class ReviewContentFlaggedProjectorHandlerTests
         await K9Crush.Modules.Moderation.Api.ReadModels.Projectors.ReviewContentFlaggedProjectorHandler.Handle(integrationEvent, session, CancellationToken.None);
 
         session.Received(1).Store(Arg.Is<FlaggedContent[]>(arr =>
-            arr.Length == 1 &&
+arr != null &&             arr.Length == 1 &&
             arr[0].ContentType == ContentType.Review &&
             arr[0].ContentId == reviewId &&
             arr[0].ContentOwnerId == contentOwnerId &&

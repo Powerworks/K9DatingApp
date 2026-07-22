@@ -73,7 +73,7 @@ public class SubmitAdditionalDetailsHandlerTests
 
         result.Result.Should().BeOfType<Ok<SubmitAdditionalDetailsResponse>>();
         application.Status.Should().Be(ApplicationStatus.UnderReview);
-        session.Received(1).Store(Arg.Is<Application[]>(arr => arr.Length == 1 && arr[0] == application));
+        session.Received(1).Store(Arg.Is<Application[]>(arr => arr != null && arr.Length == 1 && arr[0] == application));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

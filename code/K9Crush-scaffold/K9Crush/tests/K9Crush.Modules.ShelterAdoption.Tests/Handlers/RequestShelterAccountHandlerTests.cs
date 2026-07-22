@@ -32,7 +32,7 @@ public class RequestShelterAccountHandlerTests
         response.ShelterAccountId.Should().NotBeEmpty();
 
         session.Received(1).Store(Arg.Is<ShelterAccount[]>(arr =>
-            arr.Length == 1 &&
+arr != null &&             arr.Length == 1 &&
             arr[0].RequestedByOwnerId == ownerId &&
             arr[0].BusinessDetails == "Sunny Paws Rescue, EIN 12-3456789" &&
             arr[0].UtilityBillDocumentId == utilityBillDocumentId &&

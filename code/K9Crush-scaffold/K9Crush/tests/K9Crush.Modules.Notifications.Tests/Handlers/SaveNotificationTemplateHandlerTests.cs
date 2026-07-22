@@ -79,6 +79,6 @@ public class SaveNotificationTemplateHandlerTests
         ((Ok<SaveNotificationTemplateResponse>)result.Result).Value!.AppliesToAlreadyQueuedNotifications.Should().BeTrue();
         template.Locked.Should().BeFalse();
         template.LockedByOwnerId.Should().BeNull();
-        session.Received(1).Store(Arg.Is<NotificationTemplate[]>(arr => arr.Length == 1 && arr[0] == template));
+        session.Received(1).Store(Arg.Is<NotificationTemplate[]>(arr => arr != null && arr.Length == 1 && arr[0] == template));
     }
 }

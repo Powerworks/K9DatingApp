@@ -60,7 +60,7 @@ public class UpdateProfileDetailsHandlerTests
         result.Result.Should().BeOfType<Ok<UpdateProfileDetailsResponse>>();
         ((Ok<UpdateProfileDetailsResponse>)result.Result).Value!.DisplayName.Should().Be("Alex");
         owner.DisplayName.Should().Be("Alex");
-        session.Received(1).Store(Arg.Is<OwnerAccount[]>(arr => arr.Length == 1 && arr[0] == owner));
+        session.Received(1).Store(Arg.Is<OwnerAccount[]>(arr => arr != null && arr.Length == 1 && arr[0] == owner));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

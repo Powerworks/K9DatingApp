@@ -36,11 +36,11 @@ public class NotifyOnApplicationApprovedHandlerTests
 
         await sender.Received(1).SendAsync(
             "applicant@example.com",
-            Arg.Is<string>(s => s.Contains("Biscuit")),
+            Arg.Is<string>(s => s != null && s.Contains("Biscuit")),
             Arg.Any<string>(),
             Arg.Any<CancellationToken>());
         session.Received(1).Store(Arg.Is<NotificationLog[]>(arr =>
-            arr.Length == 1 && arr[0].Type == NotificationType.ApplicationStatus && arr[0].Channel == NotificationChannel.Email));
+arr != null &&             arr.Length == 1 && arr[0].Type == NotificationType.ApplicationStatus && arr[0].Channel == NotificationChannel.Email));
     }
 
     [Fact]
@@ -55,6 +55,6 @@ public class NotifyOnApplicationApprovedHandlerTests
         await NotifyOnApplicationApprovedHandler.Handle(BuildEvent(applicantOwnerId), session, sender, CancellationToken.None);
 
         await sender.DidNotReceiveWithAnyArgs().SendAsync(default!, default!, default!, default);
-        session.Received(1).Store(Arg.Is<NotificationLog[]>(arr => arr.Length == 1 && arr[0].Channel == NotificationChannel.Suppressed));
+        session.Received(1).Store(Arg.Is<NotificationLog[]>(arr => arr != null && arr.Length == 1 && arr[0].Channel == NotificationChannel.Suppressed));
     }
 }

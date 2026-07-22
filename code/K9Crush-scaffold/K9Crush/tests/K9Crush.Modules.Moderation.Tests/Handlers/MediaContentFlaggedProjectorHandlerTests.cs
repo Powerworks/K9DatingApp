@@ -29,7 +29,7 @@ public class MediaContentFlaggedProjectorHandlerTests
         await MediaContentFlaggedProjectorHandler.Handle(integrationEvent, session, CancellationToken.None);
 
         session.Received(1).Store(Arg.Is<FlaggedContent[]>(arr =>
-            arr.Length == 1 &&
+arr != null &&             arr.Length == 1 &&
             arr[0].ContentType == ContentType.Media &&
             arr[0].ContentId == mediaAssetId &&
             arr[0].ContentOwnerId == contentOwnerId &&

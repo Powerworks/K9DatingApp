@@ -48,7 +48,7 @@ public class ClaimSavedMatchHandlerTests
         ((Ok<ClaimSavedMatchResponse>)result.Result).Value!.DogId.Should().Be(dogId);
 
         session.Received(1).Store(Arg.Is<DogOfInterest[]>(arr =>
-            arr.Length == 1 && arr[0].OwnerId == ownerId && arr[0].DogProfileId == dogId));
+arr != null &&             arr.Length == 1 && arr[0].OwnerId == ownerId && arr[0].DogProfileId == dogId));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

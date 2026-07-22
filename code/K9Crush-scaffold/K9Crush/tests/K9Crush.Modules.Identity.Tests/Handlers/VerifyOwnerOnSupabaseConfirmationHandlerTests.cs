@@ -104,7 +104,7 @@ public class VerifyOwnerOnSupabaseConfirmationHandlerTests
         integrationEvent.Should().NotBeNull();
         integrationEvent!.OwnerId.Should().Be(owner.Id);
         owner.IsVerified.Should().BeTrue();
-        session.Received(1).Store(Arg.Is<OwnerAccount[]>(arr => arr.Length == 1 && arr[0] == owner));
+        session.Received(1).Store(Arg.Is<OwnerAccount[]>(arr => arr != null && arr.Length == 1 && arr[0] == owner));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

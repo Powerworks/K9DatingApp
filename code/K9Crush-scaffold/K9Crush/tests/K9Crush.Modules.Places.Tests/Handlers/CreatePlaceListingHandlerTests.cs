@@ -29,7 +29,7 @@ public class CreatePlaceListingHandlerTests
 
         response.PlaceId.Should().NotBeEmpty();
         session.Received(1).Store(Arg.Is<Place[]>(arr =>
-            arr.Length == 1 && arr[0].OwnerId == ownerId && arr[0].Name == "Bark Park" && arr[0].PlaceType == PlaceType.DogPark));
+arr != null &&             arr.Length == 1 && arr[0].OwnerId == ownerId && arr[0].Name == "Bark Park" && arr[0].PlaceType == PlaceType.DogPark));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

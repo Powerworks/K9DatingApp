@@ -70,7 +70,7 @@ public class EditReviewHandlerTests
         result.Result.Should().BeOfType<Ok<EditReviewResponse>>();
         review.Rating.Should().Be(3);
         review.Body.Should().Be("Actually just okay.");
-        session.Received(1).Store(Arg.Is<Review[]>(arr => arr.Length == 1 && arr[0] == review));
+        session.Received(1).Store(Arg.Is<Review[]>(arr => arr != null && arr.Length == 1 && arr[0] == review));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

@@ -54,7 +54,7 @@ public class FlagVerificationIssuesHandlerTests
         result.Result.Should().BeOfType<Ok<FlagVerificationIssuesResponse>>();
         shelterAccount.Status.Should().Be(ShelterAccountStatus.VerificationIssuesFound);
         shelterAccount.VerificationIssuesReason.Should().Be("Missing 501(c)(3) documentation");
-        session.Received(1).Store(Arg.Is<ShelterAccount[]>(arr => arr.Length == 1 && arr[0] == shelterAccount));
+        session.Received(1).Store(Arg.Is<ShelterAccount[]>(arr => arr != null && arr.Length == 1 && arr[0] == shelterAccount));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

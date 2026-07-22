@@ -50,7 +50,7 @@ public class ResolveFeedbackHandlerTests
 
         result.Result.Should().BeOfType<Ok<ResolveFeedbackResponse>>();
         item.Status.Should().Be(FeedbackStatus.Resolved);
-        session.Received(1).Store(Arg.Is<FeedbackInboxItem[]>(arr => arr.Length == 1 && arr[0] == item));
+        session.Received(1).Store(Arg.Is<FeedbackInboxItem[]>(arr => arr != null && arr.Length == 1 && arr[0] == item));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

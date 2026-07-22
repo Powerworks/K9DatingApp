@@ -38,7 +38,7 @@ public class SubmitFeedbackHandlerTests
         integrationEvent.FeedbackId.Should().Be(result.Value.FeedbackId);
 
         session.Received(1).Store(Arg.Is<Feedback[]>(arr =>
-            arr.Length == 1 && arr[0].OwnerId == ownerId && arr[0].Message == "The onboarding flow was confusing."));
+arr != null &&             arr.Length == 1 && arr[0].OwnerId == ownerId && arr[0].Message == "The onboarding flow was confusing."));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

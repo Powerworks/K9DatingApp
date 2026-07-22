@@ -83,7 +83,7 @@ public class AddDogProfileDetailsHandlerTests
         dogProfile.AgeInMonths.Should().Be(36);
         dogProfile.Location.Should().Be(GeoCoordinate.Create(45.5, -122.6));
 
-        session.Received(1).Store(Arg.Is<DogProfile[]>(arr => arr.Length == 1 && arr[0] == dogProfile));
+        session.Received(1).Store(Arg.Is<DogProfile[]>(arr => arr != null && arr.Length == 1 && arr[0] == dogProfile));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

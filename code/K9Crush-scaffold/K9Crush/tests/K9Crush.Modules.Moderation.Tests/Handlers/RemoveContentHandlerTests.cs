@@ -43,7 +43,7 @@ public class RemoveContentHandlerTests
         integrationEvent!.FlagId.Should().Be(flag.Id);
         integrationEvent.ContentType.Should().Be(nameof(ContentType.Media));
         integrationEvent.ContentId.Should().Be(contentId);
-        session.Received(1).Store(Arg.Is<FlaggedContent[]>(arr => arr.Length == 1 && arr[0] == flag));
+        session.Received(1).Store(Arg.Is<FlaggedContent[]>(arr => arr != null && arr.Length == 1 && arr[0] == flag));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

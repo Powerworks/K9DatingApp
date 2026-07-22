@@ -106,7 +106,7 @@ public class ProvisionOwnerOnSupabaseSignupHandlerTests
         integrationEvent!.OwnerId.Should().Be(ownerId);
         integrationEvent.Email.Should().Be("owner@example.com");
 
-        session.Received(1).Store(Arg.Is<OwnerAccount[]>(arr => arr.Length == 1 && arr[0].Id == ownerId));
+        session.Received(1).Store(Arg.Is<OwnerAccount[]>(arr => arr != null && arr.Length == 1 && arr[0].Id == ownerId));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

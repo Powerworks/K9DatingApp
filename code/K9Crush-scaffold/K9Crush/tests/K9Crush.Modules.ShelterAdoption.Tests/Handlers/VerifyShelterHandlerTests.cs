@@ -50,7 +50,7 @@ public class VerifyShelterHandlerTests
 
         result.Result.Should().BeOfType<Ok<VerifyShelterResponse>>();
         shelterAccount.Status.Should().Be(ShelterAccountStatus.Verified);
-        session.Received(1).Store(Arg.Is<ShelterAccount[]>(arr => arr.Length == 1 && arr[0] == shelterAccount));
+        session.Received(1).Store(Arg.Is<ShelterAccount[]>(arr => arr != null && arr.Length == 1 && arr[0] == shelterAccount));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

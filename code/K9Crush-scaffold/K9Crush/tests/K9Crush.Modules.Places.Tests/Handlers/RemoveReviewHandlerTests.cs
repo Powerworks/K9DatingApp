@@ -69,7 +69,7 @@ public class RemoveReviewHandlerTests
 
         result.Result.Should().BeOfType<Ok<RemoveReviewResponse>>();
         review.Status.Should().Be(ReviewStatus.Removed);
-        session.Received(1).Store(Arg.Is<Review[]>(arr => arr.Length == 1 && arr[0] == review));
+        session.Received(1).Store(Arg.Is<Review[]>(arr => arr != null && arr.Length == 1 && arr[0] == review));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }
