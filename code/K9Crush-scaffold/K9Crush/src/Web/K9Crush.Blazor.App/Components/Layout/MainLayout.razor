@@ -7,8 +7,17 @@
 
 <MudLayout>
     <MudAppBar Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" />
         <MudText Typo="Typo.h5">K9Crush</MudText>
     </MudAppBar>
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="1">
+        <MudDrawerHeader>
+            <MudText Typo="Typo.h6">Menu</MudText>
+        </MudDrawerHeader>
+        <MudNavMenu>
+            <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Pets">Discover</MudNavLink>
+        </MudNavMenu>
+    </MudDrawer>
     <MudMainContent>
         <MudContainer MaxWidth="MaxWidth.Large" Class="my-4">
             @Body
@@ -21,4 +30,7 @@
     // typography/spacing tokens to Penpot's design system, not yet built.
     // Swap this for a real MudTheme once those tokens exist.
     private readonly MudTheme _theme = new();
+    private bool _drawerOpen = true;
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 }
