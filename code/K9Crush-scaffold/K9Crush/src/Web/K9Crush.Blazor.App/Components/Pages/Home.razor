@@ -1,44 +1,75 @@
 @page "/"
 @rendermode InteractiveServer
+@using System.Text.Json
 @inject IHttpClientFactory HttpClientFactory
 
 <PageTitle>K9Crush</PageTitle>
 
-<h1>Discover</h1>
+<MudText Typo="Typo.h4" Class="mb-4">Discover</MudText>
 
 @if (_isLoading)
 {
-    <p>Loading nearby dogs...</p>
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+}
+else if (_errorMessage is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadFeedAsync">Try Again</MudButton>
 }
 else if (_feed is { Items.Count: 0 })
 {
-    <p>No dogs nearby yet - check back soon!</p>
+    <MudAlert Severity="Severity.Info">No dogs nearby yet - check back soon!</MudAlert>
 }
 else if (_feed is not null)
 {
-    <ul>
+    <MudGrid>
         @foreach (var item in _feed.Items)
         {
-            <li>@item.Breed - @item.DistanceKm.ToString("0.0") km away</li>
+            <MudItem xs="12" sm="6" md="4">
+                <MudCard>
+                    <MudCardContent>
+                        <MudText Typo="Typo.h6">@item.Name</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">@item.Breed</MudText>
+                        <MudChip T="string" Size="Size.Small" Class="mt-2">@item.DistanceMiles.ToString("0.0") mi away</MudChip>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
         }
-    </ul>
+    </MudGrid>
 }
 
 @code {
     private bool _isLoading = true;
+    private string? _errorMessage;
     private DiscoveryFeedResponse? _feed;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync() => await LoadFeedAsync();
+
+    private async Task LoadFeedAsync()
     {
-        // Placeholder coordinates for scaffold purposes - a real
-        // implementation resolves this from the owner's stored location
-        // or a browser geolocation prompt.
-        var client = HttpClientFactory.CreateClient("K9CrushApi");
-        _feed = await client.GetFromJsonAsync<DiscoveryFeedResponse>(
-            "/api/v1/discovery/feed?latitude=53.3498&longitude=-6.2603&radiusKm=25");
-        _isLoading = false;
+        _isLoading = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            // Placeholder coordinates for scaffold purposes - a real
+            // implementation resolves this from the owner's stored location
+            // or a browser geolocation prompt.
+            var client = HttpClientFactory.CreateClient("K9CrushApi");
+            _feed = await client.GetFromJsonAsync<DiscoveryFeedResponse>(
+                "/api/v1/discovery/feed?latitude=53.3498&longitude=-6.2603&radiusMiles=25");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or JsonException)
+        {
+            _errorMessage = "Couldn't load nearby dogs right now - please try again in a moment.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
-    private sealed record DiscoveryFeedEntry(Guid DogProfileId, string Breed, double DistanceKm);
+    private sealed record DiscoveryFeedEntry(Guid DogProfileId, string Name, string Breed, double DistanceMiles, string MatchType);
     private sealed record DiscoveryFeedResponse(IReadOnlyList<DiscoveryFeedEntry> Items);
 }
