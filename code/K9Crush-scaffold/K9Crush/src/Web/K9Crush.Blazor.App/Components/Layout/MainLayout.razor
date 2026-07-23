@@ -1,4 +1,5 @@
 @inherits LayoutComponentBase
+@using System.Security.Claims
 
 <MudThemeProvider Theme="_theme" />
 <MudPopoverProvider />
@@ -9,6 +10,18 @@
     <MudAppBar Elevation="1">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" />
         <MudText Typo="Typo.h5">K9Crush</MudText>
+        <MudSpacer />
+        <AuthorizeView>
+            <Authorized>
+                <MudText Class="mr-4 align-self-center">@context.User.FindFirst(ClaimTypes.Email)?.Value</MudText>
+                <form method="post" action="/auth/logout">
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Text" Color="Color.Inherit">Log Out</MudButton>
+                </form>
+            </Authorized>
+            <NotAuthorized>
+                <MudButton Href="/login" Variant="Variant.Text" Color="Color.Inherit">Log In</MudButton>
+            </NotAuthorized>
+        </AuthorizeView>
     </MudAppBar>
     <MudDrawer @bind-Open="_drawerOpen" Elevation="1">
         <MudDrawerHeader>
