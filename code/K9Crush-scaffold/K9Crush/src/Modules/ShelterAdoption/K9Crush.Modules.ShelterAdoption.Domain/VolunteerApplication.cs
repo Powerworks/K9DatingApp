@@ -50,4 +50,9 @@ public class VolunteerApplication : Entity
             SubmittedAt = DateTimeOffset.UtcNow
         };
     }
+
+    /// <summary>The emlang yaml's "Review Volunteer Application" ->
+    /// "Volunteer Application Reviewed". State-guard (only valid from
+    /// Submitted) lives in the handler.</summary>
+    public void Review() => Status = VolunteerApplicationStatus.UnderReview;
 }
