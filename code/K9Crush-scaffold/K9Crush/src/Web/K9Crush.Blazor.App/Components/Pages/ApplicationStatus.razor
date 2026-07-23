@@ -1,0 +1,94 @@
+@page "/applications/{ApplicationId:guid}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using System.Net
+@using System.Text.Json
+@using K9Crush.Blazor.App.Services
+@inject AuthorizedApiClient AuthorizedApiClient
+
+<PageTitle>Application Status</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Application Status</MudText>
+
+@if (_isLoading)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+}
+else if (_errorMessage is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadAsync">Try Again</MudButton>
+}
+else if (_status is not null)
+{
+    <MudCard>
+        <MudCardContent>
+            <MudChip T="string" Size="Size.Medium" Color="Color.Primary">@_status.Status</MudChip>
+
+            @if (!string.IsNullOrWhiteSpace(_status.AdditionalDetailsRequestReason))
+            {
+                <MudAlert Severity="Severity.Info" Class="mt-4">
+                    Additional details requested: @_status.AdditionalDetailsRequestReason
+                </MudAlert>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(_status.RejectionReason))
+            {
+                <MudAlert Severity="Severity.Warning" Class="mt-4">
+                    Reason: @_status.RejectionReason
+                </MudAlert>
+            }
+        </MudCardContent>
+    </MudCard>
+}
+
+@code {
+    [Parameter] public Guid ApplicationId { get; set; }
+
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    private ApplicationStatusResponse? _status;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var client = await AuthorizedApiClient.CreateAsync();
+            var response = await client.GetAsync($"/api/v1/shelter-adoption/applications/{ApplicationId}");
+            if (!response.IsSuccessStatusCode)
+            {
+                _errorMessage = response.StatusCode switch
+                {
+                    HttpStatusCode.NotFound => "That application couldn't be found.",
+                    HttpStatusCode.Forbidden => "This isn't your application.",
+                    HttpStatusCode.Unauthorized => "Your session has expired - please log in again.",
+                    _ => "Couldn't load this application right now - please try again in a moment."
+                };
+                return;
+            }
+
+            _status = await response.Content.ReadFromJsonAsync<ApplicationStatusResponse>();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or JsonException)
+        {
+            _errorMessage = "Couldn't reach the server right now - please try again in a moment.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private sealed record ApplicationStatusResponse(
+        Guid ApplicationId,
+        Guid DogListingId,
+        string Status,
+        string? AdditionalDetailsRequestReason,
+        string? RejectionReason);
+}

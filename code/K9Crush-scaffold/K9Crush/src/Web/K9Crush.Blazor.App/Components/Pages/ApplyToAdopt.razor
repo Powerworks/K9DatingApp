@@ -16,7 +16,8 @@
 
 @if (_successMessage is not null)
 {
-    <MudAlert Severity="Severity.Success">@_successMessage</MudAlert>
+    <MudAlert Severity="Severity.Success" Class="mb-4">@_successMessage</MudAlert>
+    <MudButton Href="@($"/applications/{_submittedApplicationId}")" Variant="Variant.Filled" Color="Color.Primary">View Application Status</MudButton>
 }
 else
 {
@@ -96,6 +97,7 @@ else
     private bool _isSubmitting;
     private string? _errorMessage;
     private string? _successMessage;
+    private Guid _submittedApplicationId;
 
     private async Task SubmitAsync()
     {
@@ -134,9 +136,13 @@ else
             }
 
             var result = await response.Content.ReadFromJsonAsync<SubmitApplicationResponse>();
-            _successMessage = result?.WasDuplicate == true
-                ? "You already have an open application for this dog."
-                : "Your application has been submitted!";
+            if (result is not null)
+            {
+                _submittedApplicationId = result.ApplicationId;
+                _successMessage = result.WasDuplicate
+                    ? "You already have an open application for this dog."
+                    : "Your application has been submitted!";
+            }
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or JsonException)
         {
