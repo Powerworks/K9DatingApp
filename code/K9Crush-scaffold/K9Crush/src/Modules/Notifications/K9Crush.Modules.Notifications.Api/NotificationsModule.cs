@@ -19,11 +19,10 @@ public sealed class NotificationsModule : IModule
 
     public IMartenModuleConfiguration MartenConfiguration { get; } = new NotificationsMartenConfiguration();
 
-    // NotifyOnMatchHandler.Handle(MatchCreatedV1, ...) needs this module's
-    // own durable queue bound to k9crush.events, or Discovery's published
-    // event is never delivered back into this process - see IModule.cs's
-    // doc comment for the fuller writeup (same mechanism Discovery itself
-    // uses to receive DogProfileCreatedV1 from Profiles).
+    // NotifyOnApplicationRejectedHandler/NotifyOnApplicationApprovedHandler
+    // need this module's own durable queue bound to k9crush.events, or
+    // ShelterAdoption's published events are never delivered back into
+    // this process - see IModule.cs's doc comment for the fuller writeup.
     public string? IntegrationEventQueueName => "notifications.integration-events";
 
     public void RegisterServices(IServiceCollection services, IConfiguration configuration)

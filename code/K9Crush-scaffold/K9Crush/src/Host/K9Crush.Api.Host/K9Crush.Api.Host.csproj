@@ -67,14 +67,10 @@
     <ProjectReference Include="..\..\BuildingBlocks\K9Crush.BuildingBlocks.Web\K9Crush.BuildingBlocks.Web.csproj" />
     <ProjectReference Include="..\..\Modules\Identity\K9Crush.Modules.Identity.Api\K9Crush.Modules.Identity.Api.csproj" />
     <ProjectReference Include="..\..\Modules\Profiles\K9Crush.Modules.Profiles.Api\K9Crush.Modules.Profiles.Api.csproj" />
-    <ProjectReference Include="..\..\Modules\Discovery\K9Crush.Modules.Discovery.Api\K9Crush.Modules.Discovery.Api.csproj" />
     <ProjectReference Include="..\..\Modules\ShelterAdoption\K9Crush.Modules.ShelterAdoption.Api\K9Crush.Modules.ShelterAdoption.Api.csproj" />
     <ProjectReference Include="..\..\Modules\Notifications\K9Crush.Modules.Notifications.Api\K9Crush.Modules.Notifications.Api.csproj" />
-    <ProjectReference Include="..\..\Modules\Chat\K9Crush.Modules.Chat.Api\K9Crush.Modules.Chat.Api.csproj" />
     <ProjectReference Include="..\..\Modules\Admin\K9Crush.Modules.Admin.Api\K9Crush.Modules.Admin.Api.csproj" />
     <ProjectReference Include="..\..\Modules\Media\K9Crush.Modules.Media.Api\K9Crush.Modules.Media.Api.csproj" />
-    <ProjectReference Include="..\..\Modules\Moderation\K9Crush.Modules.Moderation.Api\K9Crush.Modules.Moderation.Api.csproj" />
-    <ProjectReference Include="..\..\Modules\Places\K9Crush.Modules.Places.Api\K9Crush.Modules.Places.Api.csproj" />
   </ItemGroup>
 
 </Project>

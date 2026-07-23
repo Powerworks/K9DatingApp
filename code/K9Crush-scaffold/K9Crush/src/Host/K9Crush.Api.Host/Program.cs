@@ -6,13 +6,9 @@ using K9Crush.BuildingBlocks.Domain;
 using K9Crush.BuildingBlocks.Persistence;
 using K9Crush.BuildingBlocks.Web;
 using K9Crush.Modules.Admin.Api;
-using K9Crush.Modules.Chat.Api;
-using K9Crush.Modules.Discovery.Api;
 using K9Crush.Modules.Identity.Api;
 using K9Crush.Modules.Media.Api;
-using K9Crush.Modules.Moderation.Api;
 using K9Crush.Modules.Notifications.Api;
-using K9Crush.Modules.Places.Api;
 using K9Crush.Modules.Profiles.Api;
 using K9Crush.Modules.ShelterAdoption.Api;
 using Serilog;
@@ -36,14 +32,10 @@ var modules = new IModule[]
 {
     new IdentityModule(),
     new ProfilesModule(),
-    new DiscoveryModule(),
     new ShelterAdoptionModule(),
     new NotificationsModule(),
-    new ChatModule(),
     new AdminModule(),
-    new MediaModule(),
-    new ModerationModule(),
-    new PlacesModule()
+    new MediaModule()
 };
 
 foreach (var module in modules)
@@ -83,27 +75,14 @@ builder.Services.AddMarten(options =>
     // exact package version that's actually installed, which is more
     // reliable than what I can confirm from documentation alone.
 })
-.IntegrateWithWolverine(m =>
-{
-    // Forwards captured Marten domain events to any local Wolverine
-    // handler for that event type - this is what makes automation
-    // slices (EVENT -> AUTOMATION -> COMMAND -> EVENT) work without a
-    // hand-rolled polling loop. Each automation just declares a
-    // Handle(TDomainEvent) method; Wolverine finds and invokes it.
-    // See K9Crush.Modules.Discovery.Api.Automations.DetectMutualMatch
-    // for the concrete example (reacts to DogLiked).
-    //
-    // Verify this call against the installed WolverineFx.Marten version
-    // - event forwarding vs. the newer async-daemon event-subscriptions
-    // API have both existed at different points; pick one per the
-    // library's current guidance and don't mix both in the same app.
-    m.SubscribeToEvent<K9Crush.Modules.Discovery.Domain.Events.DogLiked>();
-
-    // Chat's own read-model projectors (ReadModels/Projectors) - same
-    // forwarding mechanism, see ChatModule.cs.
-    m.SubscribeToEvent<K9Crush.Modules.Chat.Domain.Events.ConversationCreated>();
-    m.SubscribeToEvent<K9Crush.Modules.Chat.Domain.Events.MessageSent>();
-});
+// Wires Marten's transactional outbox/inbox with Wolverine. No
+// SubscribeToEvent<T> registrations needed right now - Discovery and
+// Chat were the only modules using that same-process domain-event
+// forwarding mechanism (EVENT -> AUTOMATION -> COMMAND -> EVENT without
+// a hand-rolled polling loop), and both are removed. If a future
+// automation needs it again, register it here - see WolverineFx.Marten's
+// MartenIntegrationExpression.SubscribeToEvent<T>().
+.IntegrateWithWolverine();
 
 // --- Wolverine (mediator + RabbitMQ transport + Http endpoints) ---------
 var rabbitConnectionString = builder.Configuration.GetConnectionString("RabbitMQ")
