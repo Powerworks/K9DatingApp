@@ -1,9 +1,24 @@
 @inherits LayoutComponentBase
 
-<div class="page">
-    <main>
-        <article class="content">
+<MudThemeProvider Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudText Typo="Typo.h5">K9Crush</MudText>
+    </MudAppBar>
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="my-4">
             @Body
-        </article>
-    </main>
-</div>
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    // Default MudTheme for now - ADR-029 defers the actual palette/
+    // typography/spacing tokens to Penpot's design system, not yet built.
+    // Swap this for a real MudTheme once those tokens exist.
+    private readonly MudTheme _theme = new();
+}

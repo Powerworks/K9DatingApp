@@ -1,9 +1,13 @@
 using K9Crush.Blazor.App.Components;
+using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+// UI component library - ADR-029.
+builder.Services.AddMudServices();
 
 // Typed HTTP client for the backend Api.Host - base address comes from
 // config so it points at the in-cluster service name in each environment.
