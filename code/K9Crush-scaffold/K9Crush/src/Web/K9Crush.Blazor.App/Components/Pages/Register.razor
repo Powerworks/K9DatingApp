@@ -21,7 +21,6 @@ else
 {
     <EditForm Model="Input" method="post" OnValidSubmit="RegisterAsync" FormName="register" class="mud-width-full" style="max-width: 400px;">
         <DataAnnotationsValidator />
-        <AntiforgeryToken />
 
         @if (_errorMessage is not null)
         {

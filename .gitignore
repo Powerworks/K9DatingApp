@@ -20,6 +20,11 @@ obj/
 *.local.json
 appsettings.*.local.json
 
+## ASP.NET Core Data Protection key rings (persisted per Blazor.App
+## Program.cs so antiforgery/auth cookies survive local dev restarts -
+## local dev-machine key material, never shared/committed)
+.dataprotection-keys/
+
 ## Build-kit board credentials (eventmodelers.ai token — see .claude/skills/connect)
 .eventmodelers/config.json
 

@@ -2,12 +2,24 @@ using K9Crush.Blazor.App.Components;
 using K9Crush.Blazor.App.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+// Persist Data Protection keys to disk - without this, ASP.NET Core
+// generates a fresh in-memory key ring on every process restart, silently
+// invalidating every outstanding antiforgery token and auth cookie already
+// sitting in a browser (surfaces as "A valid antiforgery token was not
+// provided" on the very next form submit after a restart). Single-box
+// local disk storage is consistent with this app's actual deployment
+// target (ADR-025 - single Hetzner VPS, not multi-instance).
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(
+        Path.Combine(builder.Environment.ContentRootPath, ".dataprotection-keys")));
 
 // UI component library - ADR-029.
 builder.Services.AddMudServices();

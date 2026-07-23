@@ -15,7 +15,6 @@
 
 <EditForm Model="Input" method="post" OnValidSubmit="LoginAsync" FormName="login" class="mud-width-full" style="max-width: 400px;">
     <DataAnnotationsValidator />
-    <AntiforgeryToken />
 
     @if (_errorMessage is not null)
     {

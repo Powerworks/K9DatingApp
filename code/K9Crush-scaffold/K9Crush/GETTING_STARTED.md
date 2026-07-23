@@ -30,26 +30,42 @@ Useful UIs once it's up:
 
 Supabase Cloud covers Auth, Postgres, and Storage now (ADR-005/024) — all external managed services, nothing local to run for any of them. **There is currently no local/mock stand-in for Supabase Auth** — every authenticated endpoint genuinely needs a real Supabase project.
 
+**Secrets go into `dotnet user-secrets`, not `appsettings.Development.json`** (ADR-030) - that file keeps `CHANGE_ME` placeholders permanently; real values live in a per-project json file outside the repo entirely (`dotnet user-secrets set "Key:SubKey" "value"` from the project directory - both `Api.Host` and `Blazor.App` already have a `UserSecretsId`, nothing to init). **User Secrets has higher config precedence than `appsettings.{Environment}.json`** - if you ever edit the json file directly and changes don't seem to take effect, run `dotnet user-secrets list` in that project directory before assuming the json file is the actual source of truth (this cost a real debugging session once already).
+
 1. Go to https://supabase.com, create a free account if you don't have one, and create a new project (pick any name/region - this is throwaway for local dev).
 2. Wait for provisioning to finish (a couple of minutes).
-3. **Project Settings → API** → copy the **Project URL** (`https://<project-ref>.supabase.co`) into `Supabase:Url` in `appsettings.Development.json`.
-4. **Project Settings → API → JWT Settings** → copy the **JWT Secret** into `Supabase:JwtSecret` in the same file. Treat this like any other secret - it's already `.gitignore`d as part of `appsettings.*.local.json`-style patterns, but double-check before pushing if you fork this repo.
-5. **Project Settings → Database → Connection string.** This is the step most likely to bite you: Supabase shows multiple connection string variants (Direct connection, Session pooler, Transaction pooler). **Use "Session pooler" or "Direct connection" — never "Transaction pooler."** Marten's async daemon relies on Postgres advisory locks for leader election, and transaction-mode pooling doesn't reliably support session-level features like those. Getting this wrong doesn't fail loudly — the app will likely start fine and only misbehave subtly around projection/subscription processing. Copy that connection string's host/port/password into `ConnectionStrings:Postgres` in `appsettings.Development.json` (Npgsql connection string format — you may need to reformat from the `postgres://` URL Supabase shows into `Host=...;Port=...;Database=...;Username=...;Password=...;SSL Mode=Require;Trust Server Certificate=true`).
-6. **Database → Extensions** → enable `postgis` if you want it ready for later (ADR-014 calls for it eventually for Discovery/Places/Lost & Found proximity queries) — **not required today**: `GetDiscoveryFeedHandler` currently does an in-memory haversine calculation, not a PostGIS query, so you can skip this step for now without anything breaking.
-7. **Authentication → Users → Add user** → create a test owner account with an email/password, and confirm the email (Supabase's dashboard lets you manually confirm a test user without actually receiving an email).
-8. To get a token for `curl` testing (no Blazor login flow wired up yet - see Section 6):
+3. **Project Settings → API** → copy the **Project URL** (`https://<project-ref>.supabase.co`):
+   ```bash
+   cd src/Host/K9Crush.Api.Host && dotnet user-secrets set "Supabase:Url" "https://<project-ref>.supabase.co"
+   cd ../../Web/K9Crush.Blazor.App && dotnet user-secrets set "Supabase:Url" "https://<project-ref>.supabase.co"
+   ```
+4. **Project Settings → API → JWT Settings** → copy the **JWT Secret** (a long random string - if what you see is instead a JWKS document or a UUID-shaped "kid", your project is on Supabase's newer asymmetric ES256 signing mode, not the legacy shared-secret mode; look for a "Legacy JWT Secret" toggle/section on the same page - `Api.Host`'s `Program.cs` uses Authority-based OIDC/JWKS discovery and doesn't actually need this value at all, so if there's no legacy secret available, skip this step entirely):
+   ```bash
+   cd src/Host/K9Crush.Api.Host && dotnet user-secrets set "Supabase:JwtSecret" "<jwt-secret>"
+   ```
+5. **Project Settings → API** → copy the **anon/public key** (`sb_publishable_...` or "anon public" - not the `sb_secret_...`/service-role key, which is privileged and shouldn't be used here):
+   ```bash
+   cd src/Web/K9Crush.Blazor.App && dotnet user-secrets set "Supabase:AnonKey" "<anon-key>"
+   ```
+6. **Project Settings → Database → Connection string.** This is the step most likely to bite you: Supabase shows multiple connection string variants (Direct connection, Session pooler, Transaction pooler). **Use "Session pooler" — not "Direct connection" (IPv6-only on new projects, likely unreachable if you're behind an IPv4-only network) and never "Transaction pooler"** (Marten's async daemon relies on Postgres advisory locks for leader election, and transaction-mode pooling doesn't reliably support session-level features like those - getting this wrong doesn't fail loudly, the app starts fine and only misbehaves subtly around projection/subscription processing). Reformat into Npgsql format (`Host=...;Port=...;Database=...;Username=...;Password=...;SSL Mode=Require;Trust Server Certificate=true`):
+   ```bash
+   cd src/Host/K9Crush.Api.Host && dotnet user-secrets set "ConnectionStrings:Postgres" "Host=aws-0-<region>.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.<project-ref>;Password=<db-password>;SSL Mode=Require;Trust Server Certificate=true"
+   ```
+7. **Database → Extensions** → enable `postgis` if you want it ready for later (ADR-014 calls for it eventually for Discovery/Places/Lost & Found proximity queries) — **not required today**: `GetDiscoveryFeedHandler` currently does an in-memory haversine calculation, not a PostGIS query, so you can skip this step for now without anything breaking.
+8. **Authentication → Users → Add user** → create a test owner account with an email/password, and confirm the email (Supabase's dashboard lets you manually confirm a test user without actually receiving an email) - or register through the real `/register` page (Section 5) and manually confirm via SQL: `update auth.users set email_confirmed_at = now() where email = '<email>';` (Database → SQL Editor) - this fires the same webhook a real confirmation click would.
+9. To get a token for `curl` testing:
    ```bash
    curl -s -X POST "https://<project-ref>.supabase.co/auth/v1/token?grant_type=password" \
-     -H "apikey: <your project's anon/public key, from Project Settings -> API>" \
+     -H "apikey: <anon key from step 5>" \
      -H "Content-Type: application/json" \
      -d '{"email":"<your test user email>","password":"<their password>"}' \
      | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])"
    ```
-   Unverified against a live project this session - if the response shape differs from what's shown here, check Supabase's current Auth API docs rather than assuming this is exactly right.
-9. **Database Webhooks** (needed before Identity will ever create an `OwnerAccount` for your test user — see Section 5's smoke test): **Database → Webhooks → Create a new hook**, twice:
-   - On `auth.users`, event **INSERT**, HTTP POST to `http://<wherever Api.Host is reachable>/api/v1/identity/webhooks/supabase/user-created`, header `X-Webhook-Secret: <Supabase:WebhookSecret from appsettings.Development.json>`.
-   - Same again for event **UPDATE** (email confirmation), pointing at `.../user-confirmed`.
-   Supabase's webhook sender can't reach `localhost` — if you're running `Api.Host` locally rather than on a public host, tunnel it first (e.g. `ngrok http 5100`) and use the tunnel's HTTPS URL in both webhooks.
+   Confirmed live against a real project (2026-07-23) - this shape is correct.
+10. **Database Webhooks** (needed before Identity will ever create an `OwnerAccount` for your test user — see Section 5's smoke test; note this requires enabling the "Database Webhooks" extension first if it isn't already): **Database → Webhooks → Create a new hook**, twice:
+    - On `auth.users`, event **INSERT**, HTTP POST to `http://<wherever Api.Host is reachable>/api/v1/identity/webhooks/supabase/user-created`, header `X-Webhook-Secret: <Supabase:WebhookSecret you set via user-secrets>`.
+    - Same again for event **UPDATE** (email confirmation), pointing at `.../user-confirmed`.
+    Supabase's webhook sender can't reach `localhost` — if you're running `Api.Host` locally rather than on a public host, tunnel it first. `npx --yes localtunnel --port 5100` works with zero signup (confirmed reaches `Api.Host` directly, no interstitial); `ngrok http 5100` is the more common alternative if you have an account. Use the tunnel's HTTPS URL in both webhooks - note it changes every time the tunnel restarts, so both webhooks need re-pointing then. **A webhook only fires for events happening after it's configured** - a user created before the webhook existed won't retroactively get an `OwnerAccount`; you'd need to seed one manually or create a fresh test user after the webhooks are live.
 
 ## 3. Create the Supabase Storage bucket
 

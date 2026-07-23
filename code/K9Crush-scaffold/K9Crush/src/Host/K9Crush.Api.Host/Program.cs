@@ -172,24 +172,25 @@ builder.Services.AddSwaggerGen();
 // credentials. Supabase Cloud owns registration/login/MFA/password reset;
 // this only validates the bearer token Supabase already issued.
 //
-// Unlike Keycloak, Supabase's default token signing is a shared HS256
-// secret, not OIDC-discovery-compatible JWKS - so this uses an explicit
-// SymmetricSecurityKey rather than the options.Authority auto-discovery
-// pattern Keycloak supported. Supabase does offer a newer asymmetric
-// (ES256/JWKS) signing mode, which is the better long-term fit (no shared
-// secret living in this config at all), but it requires explicitly
-// enabling it in the Supabase project first - not done here. Revisit once
-// that's turned on: swap this for TokenValidationParameters.IssuerSigningKeyResolver
-// fetching https://<project-ref>.supabase.co/auth/v1/.well-known/jwks.json.
+// Confirmed live against a real Supabase project (2026-07-23): new
+// projects issue session tokens signed with ES256 (asymmetric JWKS), not
+// the legacy HS256 shared-secret mode this code originally assumed - a
+// hardcoded SymmetricSecurityKey rejected every real login token with
+// "the signature key was not found". Fixed by using Authority-based OIDC
+// discovery instead: Supabase exposes a real
+// /auth/v1/.well-known/openid-configuration document (confirmed via
+// curl) whose jwks_uri ASP.NET Core's JwtBearer handler fetches, caches,
+// and auto-rotates on its own - no manual key material in this config at
+// all, and it transparently keeps working if the project's active
+// signing key ever changes.
 var supabaseUrl = builder.Configuration["Supabase:Url"]
     ?? throw new InvalidOperationException("Missing Supabase:Url");
-var supabaseJwtSecret = builder.Configuration["Supabase:JwtSecret"]
-    ?? throw new InvalidOperationException("Missing Supabase:JwtSecret");
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+        options.Authority = $"{supabaseUrl}/auth/v1";
+        options.RequireHttpsMetadata = true;
         options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -197,12 +198,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = true,
             // "authenticated" is Supabase's standard audience for user
             // session tokens - a fixed string, not project-specific.
-            // Unverified against a real token this session; confirm
-            // against your actual Supabase project's issued JWTs.
+            // Confirmed live against a real issued token.
             ValidAudience = "authenticated",
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
-                System.Text.Encoding.UTF8.GetBytes(supabaseJwtSecret)),
             ValidateLifetime = true
         };
 
@@ -226,17 +224,24 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 // IQuerySession). See RoleRequirement.cs's doc comment.
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, RoleAuthorizationHandler>();
 
+// EmailVerifiedRequirement/EmailVerifiedAuthorizationHandler (BuildingBlocks.Web)
+// replaces a plain RequireClaim("email_verified", "true") - confirmed live
+// against a real Supabase token (2026-07-23) that there is no such
+// top-level claim; it's nested inside the "user_metadata" claim's JSON
+// as {"email_verified":true}. See that file's doc comment.
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, EmailVerifiedAuthorizationHandler>();
+
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("VerifiedOwner", policy =>
-        policy.RequireAuthenticatedUser().RequireClaim("email_verified", "true"));
+        policy.RequireAuthenticatedUser().AddRequirements(new EmailVerifiedRequirement()));
 
     // Reviewer-only actions on someone else's ShelterAccount (verify,
     // activate, flag/approve/reject) - see ShelterAdoption's Commands/*
     // handlers, all originally flagged as having no role check at all.
     options.AddPolicy("Admin", policy =>
         policy.RequireAuthenticatedUser()
-            .RequireClaim("email_verified", "true")
+            .AddRequirements(new EmailVerifiedRequirement())
             .AddRequirements(new RoleRequirement(OwnerRole.Admin)));
 
     // Actions on a shelter's own resources once it's been activated
@@ -245,7 +250,7 @@ builder.Services.AddAuthorization(options =>
     // ShelterAccount's resources, not every shelter's.
     options.AddPolicy("Shelter", policy =>
         policy.RequireAuthenticatedUser()
-            .RequireClaim("email_verified", "true")
+            .AddRequirements(new EmailVerifiedRequirement())
             .AddRequirements(new RoleRequirement(OwnerRole.Shelter)));
 });
 
