@@ -28,6 +28,12 @@ else if (_details is not null)
             <MudText Typo="Typo.body1">@_details.Bio</MudText>
             <MudChip T="string" Size="Size.Small" Class="mt-4">@_details.Status</MudChip>
         </MudCardContent>
+        @if (_details.Status == DogListingStatus.Available)
+        {
+            <MudCardActions>
+                <MudButton Href="@($"/listings/{DogListingId}/apply")" Variant="Variant.Filled" Color="Color.Primary">Apply to Adopt</MudButton>
+            </MudCardActions>
+        }
     </MudCard>
 }
 

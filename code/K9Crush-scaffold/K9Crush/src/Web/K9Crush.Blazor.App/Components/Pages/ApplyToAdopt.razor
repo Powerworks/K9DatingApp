@@ -1,0 +1,217 @@
+@page "/listings/{DogListingId:guid}/apply"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using System.Net
+@using System.Text.Json
+@using K9Crush.Blazor.App.Services
+@inject AuthorizedApiClient AuthorizedApiClient
+@inject NavigationManager NavigationManager
+
+<PageTitle>Apply to Adopt</PageTitle>
+
+<MudButton Href="@($"/listings/{DogListingId}")" Variant="Variant.Text" Class="mb-4" StartIcon="@Icons.Material.Filled.ArrowBack">Back to Details</MudButton>
+
+<MudText Typo="Typo.h4" Class="mb-4">Apply to Adopt</MudText>
+
+@if (_successMessage is not null)
+{
+    <MudAlert Severity="Severity.Success">@_successMessage</MudAlert>
+}
+else
+{
+    <EditForm Model="Input" OnValidSubmit="SubmitAsync">
+        <DataAnnotationsValidator />
+
+        @if (_errorMessage is not null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
+        }
+
+        <MudStack Spacing="4" Class="mb-4" Style="max-width: 600px;">
+            <MudNumericField @bind-Value="Input.HouseholdSize" Label="Household Size" Min="1" Max="20" For="@(() => Input.HouseholdSize)" />
+
+            <MudSelect T="HomeOwnership" @bind-Value="Input.HomeOwnership" Label="Home Ownership">
+                <MudSelectItem Value="HomeOwnership.Own">Own</MudSelectItem>
+                <MudSelectItem Value="HomeOwnership.Rent">Rent</MudSelectItem>
+            </MudSelect>
+
+            <MudSelect T="HomeType" @bind-Value="Input.HomeType" Label="Home Type">
+                <MudSelectItem Value="HomeType.House">House</MudSelectItem>
+                <MudSelectItem Value="HomeType.Apartment">Apartment</MudSelectItem>
+                <MudSelectItem Value="HomeType.Other">Other</MudSelectItem>
+            </MudSelect>
+
+            <MudSwitch @bind-Value="Input.HasGarden" Label="Has Garden" Color="Color.Primary" />
+            @if (Input.HasGarden)
+            {
+                <MudSelect T="GardenSize?" @bind-Value="Input.GardenSize" Label="Garden Size" For="@(() => Input.GardenSize)">
+                    <MudSelectItem T="GardenSize?" Value="GardenSize.Small">Small</MudSelectItem>
+                    <MudSelectItem T="GardenSize?" Value="GardenSize.Medium">Medium</MudSelectItem>
+                    <MudSelectItem T="GardenSize?" Value="GardenSize.Large">Large</MudSelectItem>
+                </MudSelect>
+                <MudSwitch T="bool" Value="Input.GardenEnclosed ?? false" ValueChanged="@(v => Input.GardenEnclosed = v)" Label="Garden Enclosed" Color="Color.Primary" />
+            }
+
+            <MudSwitch @bind-Value="Input.HasChildren" Label="Has Children" Color="Color.Primary" />
+            @if (Input.HasChildren)
+            {
+                <MudTextField @bind-Value="Input.ChildrenAgeRange" Label="Children Age Range" For="@(() => Input.ChildrenAgeRange)" />
+            }
+
+            <MudSwitch @bind-Value="Input.HasOtherPets" Label="Has Other Pets" Color="Color.Primary" />
+            @if (Input.HasOtherPets)
+            {
+                <MudTextField @bind-Value="Input.OtherPetsDetails" Label="Other Pets Details" Lines="2" For="@(() => Input.OtherPetsDetails)" />
+            }
+
+            <MudNumericField @bind-Value="Input.DailyAloneHours" Label="Daily Hours Alone" Min="0" Max="24" For="@(() => Input.DailyAloneHours)" />
+
+            <MudSwitch @bind-Value="Input.HasUpcomingExtendedAbsence" Label="Upcoming Extended Absence" Color="Color.Primary" />
+
+            <MudSelect T="EnergyLevelPreference" @bind-Value="Input.PreferredEnergyLevel" Label="Preferred Energy Level">
+                <MudSelectItem Value="EnergyLevelPreference.Low">Low</MudSelectItem>
+                <MudSelectItem Value="EnergyLevelPreference.Medium">Medium</MudSelectItem>
+                <MudSelectItem Value="EnergyLevelPreference.High">High</MudSelectItem>
+                <MudSelectItem Value="EnergyLevelPreference.NoPreference">No Preference</MudSelectItem>
+            </MudSelect>
+
+            <MudTextField @bind-Value="Input.DailyExerciseCommitment" Label="Daily Exercise Commitment" Lines="2" For="@(() => Input.DailyExerciseCommitment)" />
+
+            <MudSwitch @bind-Value="Input.PastDogOwnershipExperience" Label="Past Dog Ownership Experience" Color="Color.Primary" />
+            <MudSwitch @bind-Value="Input.WillingToCareForMedicalNeedsDog" Label="Willing to Care for a Dog with Medical Needs" Color="Color.Primary" />
+            <MudSwitch @bind-Value="Input.WillingToCareForNervousDog" Label="Willing to Care for a Nervous Dog" Color="Color.Primary" />
+
+            <MudCheckBox @bind-Value="Input.DataProcessingConsent" Label="I consent to my data being processed for this application" Color="Color.Primary" For="@(() => Input.DataProcessingConsent)" />
+        </MudStack>
+
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="_isSubmitting">Submit Application</MudButton>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public Guid DogListingId { get; set; }
+
+    private readonly InputModel Input = new();
+    private bool _isSubmitting;
+    private string? _errorMessage;
+    private string? _successMessage;
+
+    private async Task SubmitAsync()
+    {
+        _isSubmitting = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var client = await AuthorizedApiClient.CreateAsync();
+            var response = await client.PostAsJsonAsync(
+                $"/api/v1/shelter-adoption/dog-listings/{DogListingId}/applications", Input);
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                _errorMessage = "That dog listing couldn't be found.";
+                return;
+            }
+
+            if (response.StatusCode == HttpStatusCode.Conflict)
+            {
+                _errorMessage = await response.Content.ReadAsStringAsync();
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _errorMessage = response.StatusCode switch
+                {
+                    HttpStatusCode.Unauthorized => "Your session has expired - please log in again.",
+                    HttpStatusCode.Forbidden => "Your account needs to be verified before you can apply.",
+                    HttpStatusCode.BadRequest => "Please check the form for errors and try again.",
+                    _ => "Couldn't submit your application right now - please try again in a moment."
+                };
+                return;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<SubmitApplicationResponse>();
+            _successMessage = result?.WasDuplicate == true
+                ? "You already have an open application for this dog."
+                : "Your application has been submitted!";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or JsonException)
+        {
+            _errorMessage = "Couldn't reach the server right now - please try again in a moment.";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    // Enum member order must match K9Crush.Modules.ShelterAdoption.Domain
+    // exactly - enums are serialized/persisted by ordinal, not name.
+    private enum HomeOwnership { Own, Rent }
+    private enum HomeType { House, Apartment, Other }
+    private enum GardenSize { Small, Medium, Large }
+    private enum EnergyLevelPreference { Low, Medium, High, NoPreference }
+
+    private sealed record SubmitApplicationResponse(Guid ApplicationId, bool WasDuplicate);
+
+    // Mirrors SubmitApplicationRequest field-for-field (including its
+    // IValidatableObject rules) so invalid input is caught client-side
+    // with the same rules the backend enforces, not just on round-trip.
+    private sealed class InputModel : IValidatableObject
+    {
+        [Range(1, 20)]
+        public int HouseholdSize { get; set; } = 1;
+
+        public HomeOwnership HomeOwnership { get; set; }
+        public HomeType HomeType { get; set; }
+        public bool HasGarden { get; set; }
+        public GardenSize? GardenSize { get; set; }
+        public bool? GardenEnclosed { get; set; }
+        public bool HasChildren { get; set; }
+
+        [MaxLength(200)]
+        public string? ChildrenAgeRange { get; set; }
+
+        public bool HasOtherPets { get; set; }
+
+        [MaxLength(500)]
+        public string? OtherPetsDetails { get; set; }
+
+        [Range(0, 24)]
+        public int DailyAloneHours { get; set; }
+
+        public bool HasUpcomingExtendedAbsence { get; set; }
+        public EnergyLevelPreference PreferredEnergyLevel { get; set; }
+
+        [Required, MaxLength(500)]
+        public string DailyExerciseCommitment { get; set; } = "";
+
+        public bool PastDogOwnershipExperience { get; set; }
+        public bool WillingToCareForMedicalNeedsDog { get; set; }
+        public bool WillingToCareForNervousDog { get; set; }
+        public bool DataProcessingConsent { get; set; }
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            if (!DataProcessingConsent)
+                yield return new ValidationResult(
+                    "Data processing consent is required to submit an application.", [nameof(DataProcessingConsent)]);
+
+            if (HasGarden && (GardenSize is null || GardenEnclosed is null))
+                yield return new ValidationResult(
+                    "GardenSize and GardenEnclosed are required when HasGarden is true.",
+                    [nameof(GardenSize), nameof(GardenEnclosed)]);
+
+            if (HasChildren && string.IsNullOrWhiteSpace(ChildrenAgeRange))
+                yield return new ValidationResult(
+                    "ChildrenAgeRange is required when HasChildren is true.", [nameof(ChildrenAgeRange)]);
+
+            if (HasOtherPets && string.IsNullOrWhiteSpace(OtherPetsDetails))
+                yield return new ValidationResult(
+                    "OtherPetsDetails is required when HasOtherPets is true.", [nameof(OtherPetsDetails)]);
+        }
+    }
+}
