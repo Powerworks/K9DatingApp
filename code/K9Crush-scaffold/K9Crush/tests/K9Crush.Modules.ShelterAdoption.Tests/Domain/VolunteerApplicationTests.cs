@@ -40,4 +40,14 @@ public class VolunteerApplicationTests
 
         application.Status.Should().Be(VolunteerApplicationStatus.UnderReview);
     }
+
+    [Fact]
+    public void Approve_WhenCalled_SetsStatusToApproved()
+    {
+        var application = BuildApplication();
+
+        application.Approve();
+
+        application.Status.Should().Be(VolunteerApplicationStatus.Approved);
+    }
 }

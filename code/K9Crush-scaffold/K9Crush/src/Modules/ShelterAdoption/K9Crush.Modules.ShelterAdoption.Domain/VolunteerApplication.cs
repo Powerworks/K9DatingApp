@@ -55,4 +55,9 @@ public class VolunteerApplication : Entity
     /// "Volunteer Application Reviewed". State-guard (only valid from
     /// Submitted) lives in the handler.</summary>
     public void Review() => Status = VolunteerApplicationStatus.UnderReview;
+
+    /// <summary>The emlang yaml's "Approve Volunteer" -> "Volunteer
+    /// Approved". State-guard (only valid from UnderReview) lives in the
+    /// handler.</summary>
+    public void Approve() => Status = VolunteerApplicationStatus.Approved;
 }
