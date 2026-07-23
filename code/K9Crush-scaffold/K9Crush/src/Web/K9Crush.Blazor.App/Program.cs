@@ -39,6 +39,7 @@ builder.Services.AddHttpClient("SupabaseAuth", client =>
     client.DefaultRequestHeaders.Add("apikey", anonKey);
 });
 builder.Services.AddScoped<SupabaseAuthService>();
+builder.Services.AddScoped<AuthorizedApiClient>();
 
 // Typed HTTP client for the backend Api.Host - base address comes from
 // config so it points at the in-cluster service name in each environment.

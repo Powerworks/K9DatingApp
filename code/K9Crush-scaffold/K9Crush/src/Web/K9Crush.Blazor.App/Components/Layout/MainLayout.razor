@@ -29,6 +29,11 @@
         </MudDrawerHeader>
         <MudNavMenu>
             <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Pets">Discover</MudNavLink>
+            <AuthorizeView>
+                <Authorized>
+                    <MudNavLink Href="/account" Icon="@Icons.Material.Filled.Person">My Account</MudNavLink>
+                </Authorized>
+            </AuthorizeView>
         </MudNavMenu>
     </MudDrawer>
     <MudMainContent>

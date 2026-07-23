@@ -1,0 +1,94 @@
+@page "/account"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using System.Net
+@using System.Text.Json
+@using K9Crush.Blazor.App.Services
+@inject AuthorizedApiClient AuthorizedApiClient
+
+<PageTitle>My Account</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">My Account</MudText>
+
+@if (_isLoading)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+}
+else if (_errorMessage is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadAsync">Try Again</MudButton>
+}
+else if (_settings is not null)
+{
+    <MudCard>
+        <MudCardContent>
+            <MudText Typo="Typo.body1"><b>Email:</b> @_settings.Email</MudText>
+            <MudText Typo="Typo.body1"><b>Display Name:</b> @(_settings.DisplayName ?? "-")</MudText>
+            <MudText Typo="Typo.body1"><b>Role:</b> @_settings.Role</MudText>
+            <MudText Typo="Typo.body1"><b>Member Since:</b> @_settings.CreatedAt.ToString("d")</MudText>
+
+            @if (_settings.DeletionRequestedAt is not null)
+            {
+                <MudAlert Severity="Severity.Warning" Class="mt-4">
+                    Account deletion requested @_settings.DeletionRequestedAt.Value.ToString("d")
+                    @if (_settings.GracePeriodEndsAt is not null)
+                    {
+                        <text> - grace period ends @_settings.GracePeriodEndsAt.Value.ToString("d")</text>
+                    }
+                </MudAlert>
+            }
+        </MudCardContent>
+    </MudCard>
+}
+
+@code {
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    private ProfileSettingsResponse? _settings;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var client = await AuthorizedApiClient.CreateAsync();
+            var response = await client.GetAsync("/api/v1/identity/me/settings");
+            if (!response.IsSuccessStatusCode)
+            {
+                _errorMessage = response.StatusCode switch
+                {
+                    HttpStatusCode.Unauthorized => "Your session has expired - please log in again.",
+                    HttpStatusCode.Forbidden => "Your account needs to be verified before you can view this page.",
+                    _ => "Couldn't load your account right now - please try again in a moment."
+                };
+                return;
+            }
+
+            _settings = await response.Content.ReadFromJsonAsync<ProfileSettingsResponse>();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or JsonException)
+        {
+            _errorMessage = "Couldn't reach the server right now - please try again in a moment.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private sealed record ProfileSettingsResponse(
+        Guid OwnerId,
+        string Email,
+        string? DisplayName,
+        string Role,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset? DeletionRequestedAt,
+        DateTimeOffset? GracePeriodEndsAt,
+        bool IsPermanentlyDeleted);
+}
