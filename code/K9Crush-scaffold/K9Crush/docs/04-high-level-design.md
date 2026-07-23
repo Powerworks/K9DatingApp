@@ -1,5 +1,19 @@
 # High-Level Design (HLD) — K9Crush Platform
 
+> **This document's module inventory is stale and not the current source of
+> truth** - it predates several rounds of scope changes and only covers 8
+> of the modules that actually exist or are planned. `Spec/K9CRUSH.emlang.v3.yaml`
+> (its own header, plus the "SCOPE NOTE" block added 2026-07-23) is the
+> real source of truth for module boundaries and current scope. As of
+> 2026-07-23, the product itself is being descoped away from a "dog dating
+> app" toward a shelter/rescue/foster/adoption operations tool plus
+> non-profit administration - Discovery/Matching, Chat, Places, Moderation,
+> Community, Providers, and Shop are being cut; Profiles is merging into
+> ShelterAdoption; a new Donations/Sponsorship module is being added;
+> Scheduling is being repurposed for internal shelter ops. None of that is
+> reflected in the sections below yet - treat everything under "Module-by-
+> Module Design" as historical, not current.
+
 ## 1. Module-by-Module Design
 
 ### 1.1 Identity Module

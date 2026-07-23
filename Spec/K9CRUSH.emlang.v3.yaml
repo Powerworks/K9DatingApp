@@ -54,6 +54,58 @@
 #
 # Element type mapping, ordering rules, and swimlane-prefix conventions are
 # unchanged from v1 - see that file's header for the full explanation.
+#
+# ============================================================================
+# SCOPE NOTE (2026-07-23) - product direction pivot, nothing below rewritten yet
+# ============================================================================
+# User decided to descope the whole product away from its original "dog
+# dating app" framing, toward a shelter/rescue/foster/adoption operations
+# tool plus the administration of a non-profit/charity running it. Decision
+# made after reviewing several real shelter/rescue charity websites (Dogs
+# Trust Ireland, MADRA, RSPCA, ISPCA/NSPCA, Mission K9 Rescue) - none of
+# them have a swipe/matching mechanic, user-to-user chat, a social
+# activity feed, meetup/place reviews, or a vendor marketplace; all of
+# them have adopt/foster/surrender/volunteer/sponsor/donate as the real
+# core, plus training/advice content and (for larger ones) multi-centre
+# management.
+#
+# Modules/chapters this cuts (not yet removed from this file or the
+# codebase - this note records the *decision*, a later pass does the
+# actual chapter-by-chapter removal and code deletion):
+#   - Discovery/Matching (the swipe mechanic itself) - e.g. SwipingAndMatching
+#   - Chat - e.g. MessagingDirectGroup, ChatMatchTriggeredMessaging
+#   - Places (dog-park/cafe reviews, meetups) - e.g. ClaimABusinessListing,
+#     LeaveAReviewRestaurantOrDogPark
+#   - Moderation (ModeratingFlaggedContentUserReports) - nothing left to
+#     moderate once the above social/UGC surfaces are gone
+#   - Community (social feed/follow) - e.g. ActivityFeed, FollowAProfile
+#   - Providers (vendor marketplace) - e.g. DogServiceProviderApplication,
+#     ContactADogServiceProvider, ReviewingServiceProviderApplications
+#   - Shop - e.g. ShopVendorApplication, TheGiftShopper (every reference
+#     site outsources this to an external platform rather than building
+#     it in-house)
+#
+# Profiles (e.g. AddDogProfile) is being merged into ShelterAdoption - a
+# dog's photo/breed/bio lives on DogListing now, no separate "dating
+# profile" concept needed once there's nothing to swipe on.
+#
+# Kept as-is: Identity, ShelterAdoption, Notifications, Media, Admin.
+# Kept on the roadmap, not yet built: Content (training/advice - every
+# reference site has this), Lost & Found (validated by MADRA/ISPCA).
+# Scheduling (not yet built) is repurposed away from its original unclear
+# scope toward internal shelter ops - volunteer shift rosters, home-check
+# appointments, foster handovers.
+#
+# New module, not yet modeled anywhere in this file: Donations/
+# Sponsorship (one-time/recurring donations, legacy giving, and
+# "sponsor this dog" ongoing support) - validated as a major feature on
+# every non-profit reference site, previously out of scope entirely (see
+# this file's own header: "Donation/sponsorship-style flows are
+# deliberately excluded from this pass").
+#
+# See memory (module-boundaries, project-descope-direction) for the full
+# reasoning trail.
+# ============================================================================
 
 slices:
   TheCuriousNewDogOwner:
