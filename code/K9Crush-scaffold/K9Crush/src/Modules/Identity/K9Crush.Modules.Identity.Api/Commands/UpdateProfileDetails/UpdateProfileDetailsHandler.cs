@@ -27,15 +27,16 @@ public static class UpdateProfileDetailsHandler
     {
         var ownerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var ownerAccount = await session.LoadAsync<OwnerAccount>(ownerId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<OwnerAccount>(ownerId, cancellationToken);
+        var ownerAccount = stream.Aggregate;
         if (ownerAccount is null)
             return TypedResults.NotFound();
 
         if (ownerAccount.IsPermanentlyDeleted)
             return TypedResults.Conflict("This account has been permanently deleted.");
 
-        ownerAccount.UpdateDisplayName(request.DisplayName);
-        session.Store(ownerAccount);
+        var @event = ownerAccount.UpdateDisplayName(request.DisplayName);
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new UpdateProfileDetailsResponse(ownerAccount.Id, ownerAccount.DisplayName!));

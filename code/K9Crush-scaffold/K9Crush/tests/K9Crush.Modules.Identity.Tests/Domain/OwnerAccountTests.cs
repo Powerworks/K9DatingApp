@@ -18,15 +18,15 @@ namespace K9Crush.Modules.Identity.Tests.Domain;
 public class OwnerAccountTests
 {
     private static OwnerAccount CreateOwner() =>
-        OwnerAccount.Create(Guid.NewGuid(), "owner@example.com", DateTimeOffset.UtcNow);
+        OwnerAccount.CreateNew(Guid.NewGuid(), "owner@example.com", DateTimeOffset.UtcNow).OwnerAccount;
 
     [Fact]
-    public void Create_WhenCalled_CreatesUnverifiedOwnerWithOwnerRole()
+    public void CreateNew_WhenCalled_CreatesUnverifiedOwnerWithOwnerRoleAndReturnsTheEvent()
     {
         var supabaseUserId = Guid.NewGuid();
         var createdAt = DateTimeOffset.UtcNow;
 
-        var owner = OwnerAccount.Create(supabaseUserId, " owner@example.com ", createdAt);
+        var (owner, @event) = OwnerAccount.CreateNew(supabaseUserId, " owner@example.com ", createdAt);
 
         owner.Id.Should().Be(supabaseUserId);
         owner.Email.Should().Be("owner@example.com");
@@ -37,6 +37,9 @@ public class OwnerAccountTests
         owner.DeletionRequestedAt.Should().BeNull();
         owner.GracePeriodEndsAt.Should().BeNull();
         owner.IsPermanentlyDeleted.Should().BeFalse();
+
+        @event.SupabaseUserId.Should().Be(supabaseUserId);
+        @event.Email.Should().Be(" owner@example.com ");
     }
 
     [Fact]

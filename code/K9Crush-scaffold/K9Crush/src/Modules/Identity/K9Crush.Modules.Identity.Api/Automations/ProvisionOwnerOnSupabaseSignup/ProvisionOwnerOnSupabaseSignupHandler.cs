@@ -78,12 +78,12 @@ public static class ProvisionOwnerOnSupabaseSignupHandler
         if (payload is not { Type: "INSERT", Schema: "auth", Table: "users", Record: not null })
             return (Results.Ok(), null); // Not a user-created row - ack anyway so Supabase doesn't retry.
 
-        var existing = await session.LoadAsync<OwnerAccount>(payload.Record.Id, cancellationToken);
+        var existing = await session.Events.AggregateStreamAsync<OwnerAccount>(payload.Record.Id, token: cancellationToken);
         if (existing is not null)
             return (Results.Ok(), null); // Already provisioned - redelivery, not an error.
 
-        var ownerAccount = OwnerAccount.Create(payload.Record.Id, payload.Record.Email, payload.Record.CreatedAt);
-        session.Store(ownerAccount);
+        var (ownerAccount, @event) = OwnerAccount.CreateNew(payload.Record.Id, payload.Record.Email, payload.Record.CreatedAt);
+        session.Events.StartStream<OwnerAccount>(payload.Record.Id, @event);
         await session.SaveChangesAsync(cancellationToken);
 
         var integrationEvent = new OwnerRegisteredV1(

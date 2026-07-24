@@ -30,15 +30,16 @@ public static class RecoverAccountHandler
     {
         var ownerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var ownerAccount = await session.LoadAsync<OwnerAccount>(ownerId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<OwnerAccount>(ownerId, cancellationToken);
+        var ownerAccount = stream.Aggregate;
         if (ownerAccount is null)
             return TypedResults.NotFound();
 
         if (ownerAccount.GracePeriodEndsAt is null || ownerAccount.GracePeriodEndsAt <= DateTimeOffset.UtcNow)
             return TypedResults.Conflict("This account is not within a recoverable grace period.");
 
-        ownerAccount.RecoverAccount();
-        session.Store(ownerAccount);
+        var @event = ownerAccount.RecoverAccount();
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new RecoverAccountResponse(ownerAccount.Id));

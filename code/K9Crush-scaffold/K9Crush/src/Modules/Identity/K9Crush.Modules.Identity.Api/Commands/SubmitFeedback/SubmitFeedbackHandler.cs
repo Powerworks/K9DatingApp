@@ -30,8 +30,8 @@ public static class SubmitFeedbackHandler
     {
         var ownerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var feedback = Feedback.Submit(ownerId, request.Message);
-        session.Store(feedback);
+        var (feedback, @event) = Feedback.Submit(ownerId, request.Message);
+        session.Events.StartStream<Feedback>(feedback.Id, @event);
         await session.SaveChangesAsync(cancellationToken);
 
         var integrationEvent = new FeedbackSubmittedV1(

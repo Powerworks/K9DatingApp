@@ -38,17 +38,23 @@ public static class BootstrapAdminHandler
     {
         var callerOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
+        // ADR-031: Query<OwnerAccount>() keeps working unchanged against the
+        // Inline snapshot - this is a population check across OTHER
+        // OwnerAccount streams, not this command loading a snapshot of the
+        // one it's about to mutate, so it's not the ADR-019 MatchAggregate
+        // pattern (same reasoning as ShelterAdoption's SubmitApplicationHandler).
         var anyAdminExists = await session.Query<OwnerAccount>()
             .AnyAsync(x => x.Role == OwnerRole.Admin, cancellationToken);
         if (anyAdminExists)
             return TypedResults.Conflict("An admin already exists - bootstrap is only available before the first admin is created.");
 
-        var owner = await session.LoadAsync<OwnerAccount>(callerOwnerId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<OwnerAccount>(callerOwnerId, cancellationToken);
+        var owner = stream.Aggregate;
         if (owner is null)
             return TypedResults.NotFound();
 
-        owner.PromoteToAdmin();
-        session.Store(owner);
+        var @event = owner.PromoteToAdmin();
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new BootstrapAdminResponse(owner.Id, owner.Role.ToString()));

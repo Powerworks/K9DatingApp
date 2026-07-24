@@ -39,11 +39,11 @@ public class BootstrapAdminIntegrationTests : IAsyncLifetime
 
     private async Task<Guid> SeedOwnerAsync(string email)
     {
-        var ownerId = Guid.NewGuid();
+        var (owner, @event) = OwnerAccount.CreateNew(Guid.NewGuid(), email, DateTimeOffset.UtcNow);
         await using var session = _fixture.Store.LightweightSession();
-        session.Store(OwnerAccount.Create(ownerId, email, DateTimeOffset.UtcNow));
+        session.Events.StartStream<OwnerAccount>(owner.Id, @event);
         await session.SaveChangesAsync();
-        return ownerId;
+        return owner.Id;
     }
 
     [Fact]

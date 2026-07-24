@@ -25,15 +25,16 @@ public static class PermanentlyDeleteAccountAfterGracePeriodHandler
         IDocumentSession session,
         CancellationToken cancellationToken)
     {
-        var ownerAccount = await session.LoadAsync<OwnerAccount>(message.OwnerId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<OwnerAccount>(message.OwnerId, cancellationToken);
+        var ownerAccount = stream.Aggregate;
         if (ownerAccount is null || ownerAccount.IsPermanentlyDeleted)
             return;
 
         if (ownerAccount.GracePeriodEndsAt is null || ownerAccount.GracePeriodEndsAt > DateTimeOffset.UtcNow)
             return;
 
-        ownerAccount.PermanentlyDelete();
-        session.Store(ownerAccount);
+        var @event = ownerAccount.PermanentlyDelete();
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
     }
 }

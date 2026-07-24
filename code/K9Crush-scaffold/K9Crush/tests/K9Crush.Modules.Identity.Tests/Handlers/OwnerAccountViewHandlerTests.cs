@@ -33,7 +33,7 @@ public class OwnerAccountViewHandlerTests
     [Fact]
     public async Task Handle_WhenOwnerExists_ReturnsAccountDetails()
     {
-        var owner = OwnerAccount.Create(Guid.NewGuid(), "owner@example.com", DateTimeOffset.UtcNow);
+        var (owner, _) = OwnerAccount.CreateNew(Guid.NewGuid(), "owner@example.com", DateTimeOffset.UtcNow);
         owner.MarkVerified();
         var session = Substitute.For<IQuerySession>();
         session.LoadAsync<OwnerAccount>(owner.Id, Arg.Any<CancellationToken>()).Returns(owner);

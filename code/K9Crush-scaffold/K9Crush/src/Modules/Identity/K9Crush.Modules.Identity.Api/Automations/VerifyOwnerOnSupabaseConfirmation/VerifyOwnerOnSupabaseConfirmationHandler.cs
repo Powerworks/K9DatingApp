@@ -79,12 +79,13 @@ public static class VerifyOwnerOnSupabaseConfirmationHandler
         if (!justConfirmed)
             return (Results.Ok(), null); // Not the transition this slice cares about - ack anyway so Supabase doesn't retry.
 
-        var ownerAccount = await session.LoadAsync<OwnerAccount>(payload.Record!.Id, cancellationToken);
+        var stream = await session.Events.FetchForWriting<OwnerAccount>(payload.Record!.Id, cancellationToken);
+        var ownerAccount = stream.Aggregate;
         if (ownerAccount is null || ownerAccount.IsVerified)
             return (Results.Ok(), null); // Not provisioned yet, or already verified - no-op either way.
 
-        ownerAccount.MarkVerified();
-        session.Store(ownerAccount);
+        var domainEvent = ownerAccount.MarkVerified();
+        stream.AppendOne(domainEvent);
         await session.SaveChangesAsync(cancellationToken);
 
         var integrationEvent = new OwnerVerifiedV1(

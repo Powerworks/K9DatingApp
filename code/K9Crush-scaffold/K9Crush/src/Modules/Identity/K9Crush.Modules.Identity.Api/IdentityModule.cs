@@ -37,14 +37,16 @@ public sealed class IdentityModule : IModule
 
         public void Configure(StoreOptions options)
         {
-            options.Schema.For<OwnerAccount>()
-                .DatabaseSchemaName(SchemaName)
-                .Identity(x => x.Id);
+            options.Events.DatabaseSchemaName = SchemaName;
 
-            options.Schema.For<Feedback>()
-                .DatabaseSchemaName(SchemaName)
-                .Identity(x => x.Id)
-                .Index(x => x.OwnerId);
+            // ADR-031 (Phase 4/5): OwnerAccount is event-sourced AND
+            // registered as its own Inline snapshot - OwnerAccountViewHandler/
+            // ViewProfileSettingsHandler genuinely query it by id, and
+            // MartenOwnerRoleLookup (ADR-017) reads it on every
+            // Admin/Shelter-policy-gated request. Feedback is event-sourced
+            // with no snapshot - nothing under ReadModels/** queries it
+            // (same as Media's MediaAsset, Phase 1).
+            options.Projections.Snapshot<OwnerAccount>(JasperFx.Events.Projections.SnapshotLifecycle.Inline);
         }
     }
 }

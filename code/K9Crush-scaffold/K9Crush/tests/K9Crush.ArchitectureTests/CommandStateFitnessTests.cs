@@ -49,6 +49,9 @@ public class CommandStateFitnessTests
         // (ViewNotificationPreferences/ViewNotificationTemplates).
         "K9Crush.Modules.Notifications.Domain.NotificationPreference",
         "K9Crush.Modules.Notifications.Domain.NotificationTemplate",
+        // Phase 4 (Identity): queried by OwnerAccountView/ViewProfileSettings
+        // and by MartenOwnerRoleLookup (ADR-017).
+        "K9Crush.Modules.Identity.Domain.OwnerAccount",
     };
 
     private static readonly Assembly[] ApiAssembliesToScan =
@@ -60,6 +63,31 @@ public class CommandStateFitnessTests
         typeof(K9Crush.Modules.ShelterAdoption.Api.ShelterAdoptionModule).Assembly
     ];
 
+    /// <summary>
+    /// Reviewed, deliberate exceptions - ONLY for `Query&lt;T&gt;()` (never
+    /// `LoadAsync&lt;T&gt;()`, which has no legitimate use case here: a
+    /// command that needs a specific id's current state has
+    /// FetchForWriting/AggregateStreamAsync for exactly that, so a
+    /// by-id LoadAsync against a snapshot type is always the accidental
+    /// MatchAggregate-shaped mistake, never a population check). A
+    /// `Query&lt;T&gt;()` call is different in kind: it's a cross-entity
+    /// population check (e.g. "does any OTHER OwnerAccount have Role
+    /// Admin", "how many other Applications does this applicant have
+    /// open") - the same pattern this codebase's read models already use,
+    /// not a command loading a persisted snapshot of the one entity
+    /// instance it's about to decide about. Each entry here has been
+    /// read and judged legitimate; add a new one only with the same
+    /// scrutiny, not to silence a real finding.
+    /// </summary>
+    private static readonly HashSet<(string CallingType, string SnapshotType)> ReviewedCrossPopulationQueryExceptions = new()
+    {
+        // BootstrapAdminHandler checks "does any admin exist at all" across
+        // every OwnerAccount before separately FetchForWriting-ing the
+        // CALLER's own account - the query and the mutation target are
+        // different instances of the same type.
+        ("K9Crush.Modules.Identity.Api.Commands.BootstrapAdmin.BootstrapAdminHandler", "K9Crush.Modules.Identity.Domain.OwnerAccount"),
+    };
+
     [Fact]
     public void CommandsAndAutomations_MustNotLoadOrQueryARegisteredSnapshotType()
     {
@@ -68,12 +96,14 @@ public class CommandStateFitnessTests
 
         var violations = ApiAssembliesToScan
             .SelectMany(a => FindSnapshotSessionCalls(a.Location, SnapshotRegisteredTypeFullNames))
+            .Where(v => v.CalledMethod != "Query" || !ReviewedCrossPopulationQueryExceptions.Contains((v.CallingType, v.GenericArgument)))
             .ToList();
 
         violations.Should().BeEmpty(
             "a Commands/**/Automations/** type must load its own decision state live via " +
             "AggregateStreamAsync/FetchForWriting, never LoadAsync/Query against a persisted " +
-            "snapshot of the same type (ADR-019/ADR-031) - violations found: " +
+            "snapshot of the same type (ADR-019/ADR-031), unless explicitly allowlisted above as a " +
+            "reviewed cross-population check - violations found: " +
             string.Join(", ", violations.Select(v => $"{v.CallingType}.{v.CallingMethod} calls {v.CalledMethod}<{v.GenericArgument}>")));
     }
 
