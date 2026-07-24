@@ -9,7 +9,6 @@ using K9Crush.Modules.Admin.Api;
 using K9Crush.Modules.Identity.Api;
 using K9Crush.Modules.Media.Api;
 using K9Crush.Modules.Notifications.Api;
-using K9Crush.Modules.Profiles.Api;
 using K9Crush.Modules.ShelterAdoption.Api;
 using Serilog;
 using Wolverine;
@@ -31,7 +30,6 @@ builder.Host.UseSerilog((context, configuration) =>
 var modules = new IModule[]
 {
     new IdentityModule(),
-    new ProfilesModule(),
     new ShelterAdoptionModule(),
     new NotificationsModule(),
     new AdminModule(),
@@ -187,8 +185,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         // auto-remapping short JWT claim names (sub, email, name, ...) to
         // their long-form ClaimTypes.* URIs - claims come through exactly
         // as the IdP names them instead. Every handler in this codebase
-        // that reads ClaimTypes.NameIdentifier (e.g. CreateDogProfile,
-        // SwipeOnDog) was written assuming the older remapped behavior.
+        // that reads ClaimTypes.NameIdentifier (e.g. AddDogListing,
+        // ApplyToAdopt) was written assuming the older remapped behavior.
         // Restoring it centrally here means those handlers don't each
         // need to know the IdP's raw claim names - fix once, works
         // everywhere any future module reads the caller's identity. This
@@ -278,7 +276,7 @@ app.MapWolverineEndpoints(opts =>
     // the record itself (attributes, or IValidatableObject for
     // cross-field/Guid-not-empty checks that plain attributes can't
     // express) instead of a separate AbstractValidator<T> class - see
-    // CreateDogProfileRequest, SwipeOnDogRequest, RequestShelterAccountRequest.
+    // AddDogListingRequest, ApplyToAdoptRequest, RequestShelterAccountRequest.
     opts.UseDataAnnotationsValidationProblemDetailMiddleware();
 }); // maps every [WolverineGet]/[WolverinePost] slice across all modules
 

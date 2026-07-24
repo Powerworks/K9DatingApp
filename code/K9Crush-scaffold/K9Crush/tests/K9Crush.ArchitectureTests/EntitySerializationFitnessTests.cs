@@ -6,7 +6,6 @@ using K9Crush.Modules.Admin.Domain;
 using K9Crush.Modules.Identity.Domain;
 using K9Crush.Modules.Media.Domain;
 using K9Crush.Modules.Notifications.Domain;
-using K9Crush.Modules.Profiles.Domain;
 using K9Crush.Modules.ShelterAdoption.Domain;
 using Xunit;
 
@@ -14,10 +13,10 @@ namespace K9Crush.ArchitectureTests;
 
 /// <summary>
 /// Mechanizes the fix from docs/05-event-modeling-blueprint.md Section 6.1:
-/// DogProfile originally had a private constructor and private setters, which
+/// an entity originally had a private constructor and private setters, which
 /// is exactly what a DDD-minded entity should have - except System.Text.Json's
 /// reflection-based converter only populates public constructors/settable
-/// members by default, so LoadAsync&lt;DogProfile&gt; threw NotSupportedException
+/// members by default, so LoadAsync threw NotSupportedException
 /// on the first real GET request. The fix was [JsonConstructor] +
 /// [JsonInclude]; this test makes sure every current and future Entity-derived
 /// type actually has both, instead of that bug reappearing silently on the
@@ -28,7 +27,6 @@ public class EntitySerializationFitnessTests
     private static readonly Assembly[] DomainAssemblies =
     [
         typeof(OwnerAccount).Assembly,
-        typeof(DogProfile).Assembly,
         typeof(K9Crush.Modules.ShelterAdoption.Domain.Application).Assembly,
         typeof(NotificationPreference).Assembly,
         typeof(FeedbackInboxItem).Assembly,

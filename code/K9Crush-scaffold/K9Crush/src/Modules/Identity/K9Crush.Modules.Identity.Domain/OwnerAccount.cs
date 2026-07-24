@@ -12,12 +12,13 @@ namespace K9Crush.Modules.Identity.Domain;
 ///
 /// Id is deliberately set to the Supabase auth user's own id (the JWT's
 /// `sub` claim), not a freshly generated Guid like Entity's default -
-/// every other module's OwnerId foreign key (e.g. DogProfile.OwnerId)
+/// every other module's OwnerId foreign key (e.g. DogListing.ShelterAccountId)
 /// assumes this alignment.
 ///
 /// Follows the same [JsonConstructor]/[JsonInclude] serialization pattern
-/// as DogProfile - see that file for the full writeup of why every
-/// document-style entity needs it.
+/// as every document-style entity in this codebase - see
+/// docs/05-event-modeling-blueprint.md Section 6.1 for the full writeup of
+/// why every document-style entity needs it.
 /// </summary>
 public class OwnerAccount : Entity
 {
@@ -31,7 +32,7 @@ public class OwnerAccount : Entity
     /// no props for this command, so this is a disclosed judgment call:
     /// the only human-facing "profile detail" that plausibly belongs on
     /// the owner's own account rather than a dog's (K9Crush.Modules.
-    /// Profiles.Domain.DogProfile owns everything dog-related). Null
+    /// ShelterAdoption.Domain.DogListing owns everything dog-related). Null
     /// until the owner sets one.
     /// </summary>
     [JsonInclude] public string? DisplayName { get; private set; }

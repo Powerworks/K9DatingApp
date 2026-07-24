@@ -14,15 +14,15 @@ namespace K9Crush.Modules.Notifications.Domain;
 /// actual editable content field either. Both are genuine gaps in the
 /// spec, not oversights here: Subject/Body are added because a
 /// "notification template" with no content wouldn't do anything (same
-/// class of necessary addition as DogProfile's Location field earlier in
-/// this build-out). No seed/create endpoint is added, though - nothing
-/// in the yaml specifies how templates come to exist, so
-/// ViewNotificationTemplatesHandler just returns whatever's actually
-/// been created, which may be nothing. This chapter also does NOT wire
-/// these templates into the live send path (NotifyOnMatchHandler and
-/// friends still use their own inline subject/body) - that would be a
-/// separate, larger change touching every existing Notify* automation,
-/// not specified by this chapter, and deliberately deferred.
+/// class of disclosed gap-fill applied elsewhere in this build-out). No
+/// seed/create endpoint is added, though - nothing in the yaml specifies
+/// how templates come to exist, so ViewNotificationTemplatesHandler just
+/// returns whatever's actually been created, which may be nothing. This
+/// chapter also does NOT wire these templates into the live send path
+/// (the existing Notify* automations still use their own inline
+/// subject/body) - that would be a separate, larger change touching every
+/// existing Notify* automation, not specified by this chapter, and
+/// deliberately deferred.
 /// </summary>
 public class NotificationTemplate : Entity
 {

@@ -66,7 +66,6 @@
     -->
     <ProjectReference Include="..\..\BuildingBlocks\K9Crush.BuildingBlocks.Web\K9Crush.BuildingBlocks.Web.csproj" />
     <ProjectReference Include="..\..\Modules\Identity\K9Crush.Modules.Identity.Api\K9Crush.Modules.Identity.Api.csproj" />
-    <ProjectReference Include="..\..\Modules\Profiles\K9Crush.Modules.Profiles.Api\K9Crush.Modules.Profiles.Api.csproj" />
     <ProjectReference Include="..\..\Modules\ShelterAdoption\K9Crush.Modules.ShelterAdoption.Api\K9Crush.Modules.ShelterAdoption.Api.csproj" />
     <ProjectReference Include="..\..\Modules\Notifications\K9Crush.Modules.Notifications.Api\K9Crush.Modules.Notifications.Api.csproj" />
     <ProjectReference Include="..\..\Modules\Admin\K9Crush.Modules.Admin.Api\K9Crush.Modules.Admin.Api.csproj" />

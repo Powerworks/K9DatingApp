@@ -12,4 +12,5 @@ public sealed record DogListingDetailsResponse(
     int AgeInMonths,
     string Bio,
     Guid ShelterAccountId,
-    DogListingStatus Status);
+    DogListingStatus Status,
+    IReadOnlyList<Guid> PhotoIds);

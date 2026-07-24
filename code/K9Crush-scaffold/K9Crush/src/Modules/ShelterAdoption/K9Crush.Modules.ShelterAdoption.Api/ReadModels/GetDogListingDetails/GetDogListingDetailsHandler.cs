@@ -34,6 +34,7 @@ public static class GetDogListingDetailsHandler
             dogListing.AgeInMonths,
             dogListing.Bio,
             dogListing.ShelterAccountId,
-            dogListing.Status));
+            dogListing.Status,
+            dogListing.PhotoIds));
     }
 }

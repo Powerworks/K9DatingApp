@@ -42,7 +42,7 @@ public static class GetAdoptionListingsHandler
             .ToListAsync(cancellationToken);
 
         var items = listings
-            .Select(x => new AdoptionListingSummary(x.Id, x.Name, x.Breed, x.ShelterAccountId))
+            .Select(x => new AdoptionListingSummary(x.Id, x.Name, x.Breed, x.ShelterAccountId, x.PhotoIds))
             .ToList();
 
         return new AdoptionListingsResponse(items);

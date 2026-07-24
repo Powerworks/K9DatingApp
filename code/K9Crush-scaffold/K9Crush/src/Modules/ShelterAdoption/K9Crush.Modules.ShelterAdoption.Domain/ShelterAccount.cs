@@ -18,13 +18,14 @@ namespace K9Crush.Modules.ShelterAdoption.Domain;
 ///
 /// RequestedByOwnerId is the Identity module's OwnerAccount.Id (the
 /// caller's own JWT sub) - the member who submitted this request, same
-/// FK-by-convention pattern as DogProfile.OwnerId. No dependency on the
-/// deferred ADR-017 role lookup: a shelter account is just a document a
+/// FK-by-convention pattern as DogListing.ShelterAccountId. No dependency on
+/// the deferred ADR-017 role lookup: a shelter account is just a document a
 /// member requested, same as any other owned resource.
 ///
 /// Follows the same [JsonConstructor]/[JsonInclude] serialization pattern
-/// as every other document-style entity - see DogProfile.cs for the full
-/// writeup of why.
+/// as every other document-style entity - see
+/// docs/05-event-modeling-blueprint.md Section 6.1 for the full writeup of
+/// why.
 /// </summary>
 public enum ShelterAccountStatus
 {

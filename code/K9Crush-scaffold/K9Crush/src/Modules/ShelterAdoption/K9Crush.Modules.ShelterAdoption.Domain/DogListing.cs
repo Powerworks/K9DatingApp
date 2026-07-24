@@ -20,18 +20,26 @@ public enum DogListingStatus
 
 /// <summary>
 /// Current-state Marten document. A dog a shelter has listed for
-/// adoption - deliberately a separate type from
-/// K9Crush.Modules.Profiles.Domain.DogProfile, which is a member's own
-/// dog used for the dating/swipe feature. Same real-world "a dog with a
-/// name and breed" shape, genuinely different concept and lifecycle -
-/// not worth collapsing into one type across two unrelated modules.
+/// adoption.
 ///
 /// ShelterAccountId is the FK to the listing shelter, same
 /// FK-by-convention pattern as ShelterAccount.RequestedByOwnerId.
 ///
-/// Follows the same [JsonConstructor]/[JsonInclude] serialization pattern
-/// as every other document-style entity - see DogProfile.cs for the full
-/// writeup of why.
+/// Follows the [JsonConstructor]/[JsonInclude] serialization pattern
+/// every document-style entity in this codebase needs - Marten's default
+/// System.Text.Json-based serializer only populates public constructors/
+/// settable members by default; a non-public parameterless constructor
+/// needs [JsonConstructor], and every non-publicly-settable property
+/// needs [JsonInclude], or LoadAsync throws NotSupportedException on the
+/// first real read.
+///
+/// Previously described as "deliberately a separate type from
+/// K9Crush.Modules.Profiles.Domain.DogProfile" - that module (a member's
+/// own dog used for the dating/swipe feature) was removed entirely
+/// 2026-07-24 as part of the product's descope away from that framing
+/// (see Spec/K9CRUSH.emlang.v3.yaml's SCOPE NOTE); PhotoIds below is the
+/// one piece of DogProfile actually worth keeping, ported here rather
+/// than lost with the rest of that module.
 /// </summary>
 public class DogListing : Entity
 {
@@ -42,6 +50,7 @@ public class DogListing : Entity
     [JsonInclude] public string Bio { get; private set; } = string.Empty;
     [JsonInclude] public DateTimeOffset AddedAt { get; private set; }
     [JsonInclude] public DogListingStatus Status { get; private set; }
+    [JsonInclude] public List<Guid> PhotoIds { get; private set; } = new();
 
     /// <summary>
     /// [PLANNED -> BUILT] Spec/K9CRUSH.emlang.v3.yaml's FosteringADog
@@ -147,5 +156,16 @@ public class DogListing : Entity
         Breed = breed.Trim();
         AgeInMonths = ageInMonths;
         Bio = bio.Trim();
+    }
+
+    /// <summary>
+    /// Ported from the removed Profiles module's DogProfile.AttachPhoto -
+    /// same de-duplication behavior (attaching the same MediaAssetId
+    /// twice is a no-op, not an error).
+    /// </summary>
+    public void AttachPhoto(Guid mediaAssetId)
+    {
+        if (!PhotoIds.Contains(mediaAssetId))
+            PhotoIds.Add(mediaAssetId);
     }
 }

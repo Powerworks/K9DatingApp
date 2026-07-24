@@ -4,7 +4,6 @@ using K9Crush.Modules.Admin.Api.Commands.RespondToFeedback;
 using K9Crush.Modules.Identity.Api.Automations.ProvisionOwnerOnSupabaseSignup;
 using K9Crush.Modules.Media.Api.Commands.UploadMedia;
 using K9Crush.Modules.Notifications.Api.Automations.NotifyOnApplicationApproved;
-using K9Crush.Modules.Profiles.Api.ReadModels.GetDogProfile;
 using K9Crush.Modules.ShelterAdoption.Api.Commands.SubmitApplication;
 using Xunit;
 
@@ -24,7 +23,6 @@ public class HandlerNamingFitnessTests
     private static readonly Assembly[] ApiAssemblies =
     [
         typeof(ProvisionOwnerOnSupabaseSignupHandler).Assembly,
-        typeof(GetDogProfileHandler).Assembly,
         typeof(SubmitApplicationHandler).Assembly,
         typeof(NotifyOnApplicationApprovedHandler).Assembly,
         typeof(RespondToFeedbackHandler).Assembly,

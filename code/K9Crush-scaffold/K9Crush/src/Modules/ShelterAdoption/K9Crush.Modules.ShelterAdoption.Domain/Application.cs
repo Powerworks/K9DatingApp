@@ -56,8 +56,7 @@ public enum EnergyLevelPreference { Low, Medium, High, NoPreference }
 /// v3 ENRICHMENT (Spec/K9CRUSH.emlang.v3.yaml's TheWouldBeAdopter chapter) -
 /// the household/lifestyle questionnaire answered once, at the point of
 /// submission (not the Draft precursor - see Application.Intake's own
-/// comment). Plain record value object, same convention as
-/// Profiles.Domain.GeoCoordinate. GardenSize/GardenEnclosed/
+/// comment). Plain record value object. GardenSize/GardenEnclosed/
 /// ChildrenAgeRange/OtherPetsDetails are only meaningful (and required by
 /// SubmitApplicationRequest's validation) when HasGarden/HasChildren/
 /// HasOtherPets is true respectively.

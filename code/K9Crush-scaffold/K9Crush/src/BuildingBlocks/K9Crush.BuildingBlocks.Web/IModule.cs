@@ -35,15 +35,16 @@ public interface IModule
     /// Null (the default) if this module has no local handler for any
     /// cross-module integration event delivered via the k9crush.events
     /// RabbitMQ exchange (Solution Architecture doc Section 5). A module
-    /// that DOES consume one (e.g. Discovery's DogProfileCreatedProjector
-    /// reacting to Profiles' DogProfileCreatedV1) returns its own durable
-    /// queue name here - Api.Host's UseWolverine composition binds it to
-    /// the exchange. Without this, opts.PublishAllMessages().ToRabbitExchange(...)
-    /// is publish-only: a published integration event has nothing bound
-    /// to receive it and is silently dropped (confirmed live 2026-07-19 -
-    /// GetDiscoveryFeed returned empty after CreateDogProfile, and the
-    /// RabbitMQ queue list showed no queue at all bound to the exchange).
-    /// One queue per module, not per event type - the exchange is a
+    /// that DOES consume one (e.g. Media's RemoveMediaOnContentRemovalRequested
+    /// reacting to a Moderation event, before Moderation was removed in the
+    /// 2026-07-24 descope) returns its own durable queue name here -
+    /// Api.Host's UseWolverine composition binds it to the exchange.
+    /// Without this, opts.PublishAllMessages().ToRabbitExchange(...) is
+    /// publish-only: a published integration event has nothing bound to
+    /// receive it and is silently dropped (confirmed live 2026-07-19 against
+    /// the since-removed Discovery/Profiles pair - a published event
+    /// produced no bound RabbitMQ queue at all). One queue per module, not
+    /// per event type - the exchange is a
     /// fanout (see Program.cs), so a single bound queue receives every
     /// published integration event and Wolverine's own message-type
     /// dispatch routes each to whichever local Handle(TEvent) matches,

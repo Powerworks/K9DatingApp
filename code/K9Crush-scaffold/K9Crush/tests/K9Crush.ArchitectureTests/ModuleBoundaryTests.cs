@@ -5,7 +5,6 @@ using K9Crush.Modules.Admin.Domain;
 using K9Crush.Modules.Identity.Domain;
 using K9Crush.Modules.Media.Domain;
 using K9Crush.Modules.Notifications.Domain;
-using K9Crush.Modules.Profiles.Domain;
 using K9Crush.Modules.ShelterAdoption.Domain;
 using Xunit;
 
@@ -23,7 +22,6 @@ public class ModuleBoundaryTests
     private static readonly (string ModuleName, Assembly DomainAssembly)[] Modules =
     [
         ("Identity", typeof(OwnerAccount).Assembly),
-        ("Profiles", typeof(DogProfile).Assembly),
         ("ShelterAdoption", typeof(Application).Assembly),
         ("Notifications", typeof(NotificationPreference).Assembly),
         ("Admin", typeof(FeedbackInboxItem).Assembly),

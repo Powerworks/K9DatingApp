@@ -121,4 +121,27 @@ public class DogListingTests
         dogListing.CurrentFosterCaregiverOwnerId.Should().BeNull();
         dogListing.Status.Should().Be(DogListingStatus.Adopted, "Adopted is a one-way door - closing out the foster record doesn't undo it");
     }
+
+    [Fact]
+    public void AttachPhoto_WhenCalled_AddsToPhotoIds()
+    {
+        var dogListing = DogListing.Create(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly");
+        var mediaAssetId = Guid.NewGuid();
+
+        dogListing.AttachPhoto(mediaAssetId);
+
+        dogListing.PhotoIds.Should().ContainSingle().Which.Should().Be(mediaAssetId);
+    }
+
+    [Fact]
+    public void AttachPhoto_WhenSameMediaAssetIdAttachedTwice_IsANoOp()
+    {
+        var dogListing = DogListing.Create(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly");
+        var mediaAssetId = Guid.NewGuid();
+
+        dogListing.AttachPhoto(mediaAssetId);
+        dogListing.AttachPhoto(mediaAssetId);
+
+        dogListing.PhotoIds.Should().ContainSingle();
+    }
 }
