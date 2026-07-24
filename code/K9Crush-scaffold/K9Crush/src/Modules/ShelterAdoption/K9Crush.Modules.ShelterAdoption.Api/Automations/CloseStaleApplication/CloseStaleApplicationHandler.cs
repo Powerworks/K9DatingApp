@@ -20,12 +20,13 @@ public static class CloseStaleApplicationHandler
         IDocumentSession session,
         CancellationToken cancellationToken)
     {
-        var application = await session.LoadAsync<Application>(message.ApplicationId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<Application>(message.ApplicationId, cancellationToken);
+        var application = stream.Aggregate;
         if (application is null || application.Status != ApplicationStatus.Stale)
             return;
 
-        application.Close();
-        session.Store(application);
+        var @event = application.Close();
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
     }
 }

@@ -29,15 +29,16 @@ public static class VerifyShelterHandler
         IDocumentSession session,
         CancellationToken cancellationToken)
     {
-        var shelterAccount = await session.LoadAsync<ShelterAccount>(shelterAccountId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<ShelterAccount>(shelterAccountId, cancellationToken);
+        var shelterAccount = stream.Aggregate;
         if (shelterAccount is null)
             return TypedResults.NotFound();
 
         if (shelterAccount.Status != ShelterAccountStatus.Requested)
             return TypedResults.Conflict($"Cannot verify a shelter account in status {shelterAccount.Status}.");
 
-        shelterAccount.Verify();
-        session.Store(shelterAccount);
+        var @event = shelterAccount.Verify();
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new VerifyShelterResponse(shelterAccount.Id, shelterAccount.Status.ToString()));

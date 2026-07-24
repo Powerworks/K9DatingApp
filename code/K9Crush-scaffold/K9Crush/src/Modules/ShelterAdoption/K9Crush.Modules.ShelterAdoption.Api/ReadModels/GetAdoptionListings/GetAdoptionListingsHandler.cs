@@ -38,7 +38,7 @@ public static class GetAdoptionListingsHandler
         CancellationToken cancellationToken)
     {
         var listings = await session.Query<DogListing>()
-            .Where(x => x.Status == DogListingStatus.Available)
+            .Where(x => x.Status == DogListingStatus.Available && !x.IsRemoved)
             .ToListAsync(cancellationToken);
 
         var items = listings

@@ -24,15 +24,16 @@ public static class ReviewVolunteerApplicationHandler
         IDocumentSession session,
         CancellationToken cancellationToken)
     {
-        var volunteerApplication = await session.LoadAsync<VolunteerApplication>(volunteerApplicationId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<VolunteerApplication>(volunteerApplicationId, cancellationToken);
+        var volunteerApplication = stream.Aggregate;
         if (volunteerApplication is null)
             return TypedResults.NotFound();
 
         if (volunteerApplication.Status != VolunteerApplicationStatus.Submitted)
             return TypedResults.Conflict($"Cannot review a volunteer application in status {volunteerApplication.Status}.");
 
-        volunteerApplication.Review();
-        session.Store(volunteerApplication);
+        var @event = volunteerApplication.Review();
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new ReviewVolunteerApplicationResponse(volunteerApplication.Id, volunteerApplication.Status.ToString()));

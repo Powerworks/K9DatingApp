@@ -28,15 +28,16 @@ public static class RejectShelterApplicationHandler
         IDocumentSession session,
         CancellationToken cancellationToken)
     {
-        var shelterAccount = await session.LoadAsync<ShelterAccount>(shelterAccountId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<ShelterAccount>(shelterAccountId, cancellationToken);
+        var shelterAccount = stream.Aggregate;
         if (shelterAccount is null)
             return TypedResults.NotFound();
 
         if (shelterAccount.Status != ShelterAccountStatus.VerificationIssuesFound)
             return TypedResults.Conflict($"Cannot reject a shelter application in status {shelterAccount.Status}.");
 
-        shelterAccount.Reject(request.Reason);
-        session.Store(shelterAccount);
+        var @event = shelterAccount.Reject(request.Reason);
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new RejectShelterApplicationResponse(shelterAccount.Id, shelterAccount.Status.ToString()));

@@ -22,15 +22,16 @@ public static class MarkFosterDogReadyForAdoptionHandler
         IDocumentSession session,
         CancellationToken cancellationToken)
     {
-        var dogListing = await session.LoadAsync<DogListing>(dogListingId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<DogListing>(dogListingId, cancellationToken);
+        var dogListing = stream.Aggregate;
         if (dogListing is null)
             return TypedResults.NotFound();
 
         if (dogListing.Status != DogListingStatus.InFoster)
             return TypedResults.Conflict($"Cannot mark ready for adoption from listing status {dogListing.Status}.");
 
-        dogListing.MarkFosterDogReadyForAdoption();
-        session.Store(dogListing);
+        var @event = dogListing.MarkFosterDogReadyForAdoption();
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new MarkFosterDogReadyForAdoptionResponse(dogListing.Id, dogListing.Status.ToString()));

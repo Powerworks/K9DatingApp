@@ -68,7 +68,7 @@ public static class SubmitApplicationHandler
         var applicantOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
         var dogListing = await session.LoadAsync<DogListing>(dogListingId, cancellationToken);
-        if (dogListing is null)
+        if (dogListing is null || dogListing.IsRemoved)
             return TypedResults.NotFound();
 
         var applicantApplications = await session.Query<Application>()
@@ -83,8 +83,9 @@ public static class SubmitApplicationHandler
             x => x.DogListingId == dogListingId && x.Status == ApplicationStatus.Draft);
         if (draftForThisDog is not null)
         {
-            draftForThisDog.SubmitDraft(request.ToIntake());
-            session.Store(draftForThisDog);
+            var draftStream = await session.Events.FetchForWriting<Application>(draftForThisDog.Id, cancellationToken);
+            var @event = draftStream.Aggregate!.SubmitDraft(request.ToIntake());
+            draftStream.AppendOne(@event);
             await session.SaveChangesAsync(cancellationToken);
 
             return TypedResults.Ok(new SubmitApplicationResponse(draftForThisDog.Id, WasDuplicate: false));
@@ -94,8 +95,8 @@ public static class SubmitApplicationHandler
         if (openCount >= MaxOpenApplications)
             return TypedResults.Conflict($"Application limit reached - at most {MaxOpenApplications} open applications allowed.");
 
-        var application = Application.Submit(applicantOwnerId, dogListingId, dogListing.ShelterAccountId, request.ToIntake());
-        session.Store(application);
+        var (application, submittedEvent) = Application.SubmitNew(applicantOwnerId, dogListingId, dogListing.ShelterAccountId, request.ToIntake());
+        session.Events.StartStream<Application>(application.Id, submittedEvent);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new SubmitApplicationResponse(application.Id, WasDuplicate: false));

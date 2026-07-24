@@ -26,8 +26,8 @@ public static class ApplyToVolunteerHandler
     {
         var applicantOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var volunteerApplication = VolunteerApplication.Apply(applicantOwnerId, request.AreaOfInterest);
-        session.Store(volunteerApplication);
+        var (volunteerApplication, @event) = VolunteerApplication.ApplyNew(applicantOwnerId, request.AreaOfInterest);
+        session.Events.StartStream<VolunteerApplication>(volunteerApplication.Id, @event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new ApplyToVolunteerResponse(volunteerApplication.Id));

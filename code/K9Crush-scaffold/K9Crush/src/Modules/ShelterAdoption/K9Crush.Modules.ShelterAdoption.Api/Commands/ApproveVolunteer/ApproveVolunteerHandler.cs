@@ -25,15 +25,16 @@ public static class ApproveVolunteerHandler
         IDocumentSession session,
         CancellationToken cancellationToken)
     {
-        var volunteerApplication = await session.LoadAsync<VolunteerApplication>(volunteerApplicationId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<VolunteerApplication>(volunteerApplicationId, cancellationToken);
+        var volunteerApplication = stream.Aggregate;
         if (volunteerApplication is null)
             return TypedResults.NotFound();
 
         if (volunteerApplication.Status != VolunteerApplicationStatus.UnderReview)
             return TypedResults.Conflict($"Cannot approve a volunteer application in status {volunteerApplication.Status}.");
 
-        volunteerApplication.Approve();
-        session.Store(volunteerApplication);
+        var @event = volunteerApplication.Approve();
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new ApproveVolunteerResponse(volunteerApplication.Id, volunteerApplication.Status.ToString()));

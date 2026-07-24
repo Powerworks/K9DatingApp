@@ -27,9 +27,9 @@ public static class ApplyToFosterHandler
     {
         var applicantOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var fosterApplication = FosterApplication.Apply(
+        var (fosterApplication, @event) = FosterApplication.ApplyNew(
             applicantOwnerId, request.HomeType, request.HasGarden, request.HasOtherPets, request.AvailableFrom);
-        session.Store(fosterApplication);
+        session.Events.StartStream<FosterApplication>(fosterApplication.Id, @event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new ApplyToFosterResponse(fosterApplication.Id));

@@ -27,15 +27,16 @@ public static class EndFosterPlacementHandler
         IDocumentSession session,
         CancellationToken cancellationToken)
     {
-        var dogListing = await session.LoadAsync<DogListing>(dogListingId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<DogListing>(dogListingId, cancellationToken);
+        var dogListing = stream.Aggregate;
         if (dogListing is null)
             return TypedResults.NotFound();
 
         if (dogListing.CurrentFosterCaregiverOwnerId is null)
             return TypedResults.Conflict("This listing has no active foster placement to end.");
 
-        dogListing.EndFosterPlacement();
-        session.Store(dogListing);
+        var @event = dogListing.EndFosterPlacement();
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new EndFosterPlacementResponse(dogListing.Id, dogListing.Status.ToString()));

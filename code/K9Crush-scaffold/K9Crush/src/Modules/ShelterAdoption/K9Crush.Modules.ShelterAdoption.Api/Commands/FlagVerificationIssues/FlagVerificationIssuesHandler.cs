@@ -26,15 +26,16 @@ public static class FlagVerificationIssuesHandler
         IDocumentSession session,
         CancellationToken cancellationToken)
     {
-        var shelterAccount = await session.LoadAsync<ShelterAccount>(shelterAccountId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<ShelterAccount>(shelterAccountId, cancellationToken);
+        var shelterAccount = stream.Aggregate;
         if (shelterAccount is null)
             return TypedResults.NotFound();
 
         if (shelterAccount.Status != ShelterAccountStatus.Requested)
             return TypedResults.Conflict($"Cannot flag verification issues on a shelter account in status {shelterAccount.Status}.");
 
-        shelterAccount.FlagVerificationIssues(request.Reason);
-        session.Store(shelterAccount);
+        var @event = shelterAccount.FlagVerificationIssues(request.Reason);
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new FlagVerificationIssuesResponse(shelterAccount.Id, shelterAccount.Status.ToString()));

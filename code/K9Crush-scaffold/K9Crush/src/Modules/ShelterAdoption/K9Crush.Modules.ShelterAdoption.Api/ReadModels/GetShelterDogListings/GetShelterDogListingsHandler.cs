@@ -45,7 +45,7 @@ public static class GetShelterDogListingsHandler
             return TypedResults.Forbid();
 
         var listings = await session.Query<DogListing>()
-            .Where(x => x.ShelterAccountId == shelterAccountId)
+            .Where(x => x.ShelterAccountId == shelterAccountId && !x.IsRemoved)
             .ToListAsync(cancellationToken);
 
         var items = listings

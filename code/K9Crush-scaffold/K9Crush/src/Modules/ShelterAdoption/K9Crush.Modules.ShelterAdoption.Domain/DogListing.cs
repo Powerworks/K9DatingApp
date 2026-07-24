@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using K9Crush.BuildingBlocks.Domain;
+using K9Crush.Modules.ShelterAdoption.Domain.Events;
 
 namespace K9Crush.Modules.ShelterAdoption.Domain;
 
@@ -19,27 +20,20 @@ public enum DogListingStatus
 }
 
 /// <summary>
-/// Current-state Marten document. A dog a shelter has listed for
-/// adoption.
+/// A dog a shelter has listed for adoption.
+///
+/// Self-aggregating event-sourced entity (ADR-031, Phase 5/5). Registered
+/// as its own Inline snapshot - GetDogListingDetails/GetShelterDogListings/
+/// GetAdoptionListings genuinely query it. No hard delete under ES -
+/// RemoveDogListingHandler appends <see cref="DogListingWithdrawnV1"/>
+/// instead of session.Delete; IsRemoved flags it out of active queries.
 ///
 /// ShelterAccountId is the FK to the listing shelter, same
 /// FK-by-convention pattern as ShelterAccount.RequestedByOwnerId.
 ///
-/// Follows the [JsonConstructor]/[JsonInclude] serialization pattern
-/// every document-style entity in this codebase needs - Marten's default
-/// System.Text.Json-based serializer only populates public constructors/
-/// settable members by default; a non-public parameterless constructor
-/// needs [JsonConstructor], and every non-publicly-settable property
-/// needs [JsonInclude], or LoadAsync throws NotSupportedException on the
-/// first real read.
-///
-/// Previously described as "deliberately a separate type from
-/// K9Crush.Modules.Profiles.Domain.DogProfile" - that module (a member's
-/// own dog used for the dating/swipe feature) was removed entirely
-/// 2026-07-24 as part of the product's descope away from that framing
-/// (see Spec/K9CRUSH.emlang.v3.yaml's SCOPE NOTE); PhotoIds below is the
-/// one piece of DogProfile actually worth keeping, ported here rather
-/// than lost with the rest of that module.
+/// PhotoIds was ported from the removed Profiles module's DogProfile
+/// (2026-07-24 descope) - the one piece of that module actually worth
+/// keeping.
 /// </summary>
 public class DogListing : Entity
 {
@@ -51,14 +45,12 @@ public class DogListing : Entity
     [JsonInclude] public DateTimeOffset AddedAt { get; private set; }
     [JsonInclude] public DogListingStatus Status { get; private set; }
     [JsonInclude] public List<Guid> PhotoIds { get; private set; } = new();
+    [JsonInclude] public bool IsRemoved { get; private set; }
 
     /// <summary>
     /// [PLANNED -> BUILT] Spec/K9CRUSH.emlang.v3.yaml's FosteringADog
     /// chapter - who currently has this listing in foster care, if
-    /// anyone. Not a separate placement document (see this field's
-    /// setters below and the chapter's own header comment) - a listing
-    /// moving InFoster and back is a status change on the listing itself.
-    /// Deliberately survives PlaceInFoster -> MarkFosterDogReadyForAdoption
+    /// anyone. Deliberately survives PlaceInFoster -> MarkFosterDogReadyForAdoption
     /// (Status goes back to Available, but the caregiver is still fostering
     /// until EndFosterPlacement resolves it) - only EndFosterPlacement
     /// clears it.
@@ -68,94 +60,133 @@ public class DogListing : Entity
     [JsonConstructor]
     private DogListing() { }
 
-    /// <summary>
-    /// v3 ENRICHMENT (Spec/K9CRUSH.emlang.v3.yaml's ShelterManagingListings
-    /// chapter) - new listings start NotReadyYet, not Available (the
-    /// yaml's "Add Dog Listing" event props). Available is deliberately
-    /// enum value 0 (see DogListingStatus below), so listings created
-    /// before this field existed deserialize as Available - matching
-    /// their previous implicit "adoptable" meaning, no migration needed.
-    /// </summary>
-    public static DogListing Create(Guid shelterAccountId, string name, string breed, int ageInMonths, string bio)
+    public static DogListing Create(DogListingAddedV1 e) => new()
     {
-        if (string.IsNullOrWhiteSpace(name))
-            throw new ArgumentException("Name is required.", nameof(name));
+        ShelterAccountId = e.ShelterAccountId,
+        Name = e.Name,
+        Breed = e.Breed,
+        AgeInMonths = e.AgeInMonths,
+        Bio = e.Bio,
+        AddedAt = e.AddedAt,
+        Status = DogListingStatus.NotReadyYet
+    };
 
-        return new DogListing
-        {
-            ShelterAccountId = shelterAccountId,
-            Name = name.Trim(),
-            Breed = breed.Trim(),
-            AgeInMonths = ageInMonths,
-            Bio = bio.Trim(),
-            AddedAt = DateTimeOffset.UtcNow,
-            Status = DogListingStatus.NotReadyYet
-        };
-    }
+    public void Apply(DogListingStatusUpdatedV1 e) => Status = e.Status;
 
-    /// <summary>
-    /// The emlang yaml's "Update Listing Status" -> "Listing Status
-    /// Updated". State-guard (Adopted is a one-way door, only reachable
-    /// via an approved Application) lives in UpdateListingStatusHandler,
-    /// not here - same "guard lives in the handler" convention as every
-    /// other status-guarded entity in this codebase (e.g. Application).
-    /// ApproveApplicationHandler calls this method directly to reach
-    /// Adopted, deliberately bypassing that handler-level guard since
-    /// it's the one legitimate path.
-    /// </summary>
-    public void UpdateStatus(DogListingStatus status) => Status = status;
-
-    /// <summary>
-    /// The emlang yaml's "Place Dog In Foster" -> "Dog Placed In Foster".
-    /// State-guard (only valid from Available/NotReadyYet - not already
-    /// InFoster, not PendingAdoption/Adopted) lives in the handler.
-    /// </summary>
-    public void PlaceInFoster(Guid fosterCaregiverOwnerId)
+    public void Apply(DogListingPlacedInFosterV1 e)
     {
-        CurrentFosterCaregiverOwnerId = fosterCaregiverOwnerId;
+        CurrentFosterCaregiverOwnerId = e.FosterCaregiverOwnerId;
         Status = DogListingStatus.InFoster;
     }
 
-    /// <summary>
-    /// The emlang yaml's "Mark Foster Dog Ready For Adoption" -> "Foster
-    /// Dog Marked Ready For Adoption". Deliberately does NOT clear
-    /// CurrentFosterCaregiverOwnerId - see that field's own comment.
-    /// State-guard (only valid from InFoster) lives in the handler.
-    /// </summary>
-    public void MarkFosterDogReadyForAdoption() => Status = DogListingStatus.Available;
+    public void Apply(FosterDogMarkedReadyForAdoptionV1 e) => Status = DogListingStatus.Available;
 
-    /// <summary>
-    /// The emlang yaml's "End Foster Placement" -> "Foster Placement
-    /// Ended". Always clears CurrentFosterCaregiverOwnerId; resets Status
-    /// to Available unless the listing has since become Adopted (that
-    /// one-way door - see UpdateStatus's comment - takes precedence over
-    /// closing out the foster record). State-guard (only valid when a
-    /// placement is actually active) lives in the handler.
-    /// </summary>
-    public void EndFosterPlacement()
+    public void Apply(FosterPlacementEndedV1 e)
     {
         CurrentFosterCaregiverOwnerId = null;
         if (Status != DogListingStatus.Adopted)
             Status = DogListingStatus.Available;
     }
 
+    public void Apply(DogListingEditedV1 e)
+    {
+        Name = e.Name;
+        Breed = e.Breed;
+        AgeInMonths = e.AgeInMonths;
+        Bio = e.Bio;
+    }
+
+    public void Apply(DogListingPhotoAddedV1 e)
+    {
+        if (!PhotoIds.Contains(e.MediaAssetId))
+            PhotoIds.Add(e.MediaAssetId);
+    }
+
+    public void Apply(DogListingWithdrawnV1 e) => IsRemoved = true;
+
     /// <summary>
-    /// The emlang yaml's "Edit Dog Listing" -> "Dog Listing Edited". The
-    /// yaml's `significantChange` prop isn't stored on this document -
-    /// it's caller-supplied per edit (see EditDogListingRequest), not a
-    /// property of the listing itself, and only matters as the guard on
-    /// whether EditDogListingHandler cascades DogListingSignificantlyEditedV1
-    /// (ADR-028) - nothing reads it back later.
+    /// v3 ENRICHMENT (Spec/K9CRUSH.emlang.v3.yaml's ShelterManagingListings
+    /// chapter) - new listings start NotReadyYet, not Available (the
+    /// yaml's "Add Dog Listing" event props).
     /// </summary>
-    public void Edit(string name, string breed, int ageInMonths, string bio)
+    public static (DogListing DogListing, DogListingAddedV1 Event) AddNew(
+        Guid shelterAccountId, string name, string breed, int ageInMonths, string bio)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Name is required.", nameof(name));
 
-        Name = name.Trim();
-        Breed = breed.Trim();
-        AgeInMonths = ageInMonths;
-        Bio = bio.Trim();
+        var @event = new DogListingAddedV1(
+            shelterAccountId, name.Trim(), breed.Trim(), ageInMonths, bio.Trim(), DateTimeOffset.UtcNow);
+        return (Create(@event), @event);
+    }
+
+    /// <summary>
+    /// The emlang yaml's "Update Listing Status" -> "Listing Status
+    /// Updated". State-guard (Adopted is a one-way door, only reachable
+    /// via an approved Application) lives in UpdateListingStatusHandler,
+    /// not here. ApproveApplicationHandler calls this method directly to
+    /// reach Adopted, deliberately bypassing that handler-level guard
+    /// since it's the one legitimate path.
+    /// </summary>
+    public DogListingStatusUpdatedV1 UpdateStatus(DogListingStatus status)
+    {
+        var @event = new DogListingStatusUpdatedV1(status);
+        Apply(@event);
+        return @event;
+    }
+
+    /// <summary>
+    /// The emlang yaml's "Place Dog In Foster" -> "Dog Placed In Foster".
+    /// State-guard (only valid from Available/NotReadyYet) lives in the
+    /// handler.
+    /// </summary>
+    public DogListingPlacedInFosterV1 PlaceInFoster(Guid fosterCaregiverOwnerId)
+    {
+        var @event = new DogListingPlacedInFosterV1(fosterCaregiverOwnerId);
+        Apply(@event);
+        return @event;
+    }
+
+    /// <summary>
+    /// The emlang yaml's "Mark Foster Dog Ready For Adoption" -> "Foster
+    /// Dog Marked Ready For Adoption". Deliberately does NOT clear
+    /// CurrentFosterCaregiverOwnerId. State-guard (only valid from
+    /// InFoster) lives in the handler.
+    /// </summary>
+    public FosterDogMarkedReadyForAdoptionV1 MarkFosterDogReadyForAdoption()
+    {
+        var @event = new FosterDogMarkedReadyForAdoptionV1();
+        Apply(@event);
+        return @event;
+    }
+
+    /// <summary>
+    /// The emlang yaml's "End Foster Placement" -> "Foster Placement
+    /// Ended". Always clears CurrentFosterCaregiverOwnerId; resets Status
+    /// to Available unless the listing has since become Adopted. State-
+    /// guard (only valid when a placement is actually active) lives in
+    /// the handler.
+    /// </summary>
+    public FosterPlacementEndedV1 EndFosterPlacement()
+    {
+        var @event = new FosterPlacementEndedV1();
+        Apply(@event);
+        return @event;
+    }
+
+    /// <summary>
+    /// The emlang yaml's "Edit Dog Listing" -> "Dog Listing Edited". The
+    /// yaml's `significantChange` prop isn't stored on this entity - it's
+    /// caller-supplied per edit, not a property of the listing itself.
+    /// </summary>
+    public DogListingEditedV1 Edit(string name, string breed, int ageInMonths, string bio)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Name is required.", nameof(name));
+
+        var @event = new DogListingEditedV1(name.Trim(), breed.Trim(), ageInMonths, bio.Trim());
+        Apply(@event);
+        return @event;
     }
 
     /// <summary>
@@ -163,9 +194,21 @@ public class DogListing : Entity
     /// same de-duplication behavior (attaching the same MediaAssetId
     /// twice is a no-op, not an error).
     /// </summary>
-    public void AttachPhoto(Guid mediaAssetId)
+    public DogListingPhotoAddedV1 AttachPhoto(Guid mediaAssetId)
     {
-        if (!PhotoIds.Contains(mediaAssetId))
-            PhotoIds.Add(mediaAssetId);
+        var @event = new DogListingPhotoAddedV1(mediaAssetId);
+        Apply(@event);
+        return @event;
+    }
+
+    /// <summary>
+    /// The emlang yaml's "Remove Dog Listing" -> "Dog Listing Removed" -
+    /// no-hard-delete flag under ADR-031 (see this class's own comment).
+    /// </summary>
+    public DogListingWithdrawnV1 Remove()
+    {
+        var @event = new DogListingWithdrawnV1();
+        Apply(@event);
+        return @event;
     }
 }

@@ -38,7 +38,7 @@ public static class StartDraftApplicationHandler
         var applicantOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
         var dogListing = await session.LoadAsync<DogListing>(dogListingId, cancellationToken);
-        if (dogListing is null)
+        if (dogListing is null || dogListing.IsRemoved)
             return TypedResults.NotFound();
 
         var applicantApplications = await session.Query<Application>()
@@ -54,8 +54,8 @@ public static class StartDraftApplicationHandler
         if (draftCount >= MaxDraftApplications)
             return TypedResults.Conflict($"Draft application limit reached - at most {MaxDraftApplications} drafts allowed.");
 
-        var application = Application.StartDraft(applicantOwnerId, dogListingId, dogListing.ShelterAccountId);
-        session.Store(application);
+        var (application, @event) = Application.StartDraftNew(applicantOwnerId, dogListingId, dogListing.ShelterAccountId);
+        session.Events.StartStream<Application>(application.Id, @event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new StartDraftApplicationResponse(application.Id, WasExisting: false));

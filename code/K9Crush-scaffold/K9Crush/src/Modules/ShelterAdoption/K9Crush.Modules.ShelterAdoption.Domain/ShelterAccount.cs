@@ -1,31 +1,21 @@
 using System.Text.Json.Serialization;
 using K9Crush.BuildingBlocks.Domain;
+using K9Crush.Modules.ShelterAdoption.Domain.Events;
 
 namespace K9Crush.Modules.ShelterAdoption.Domain;
 
 /// <summary>
-/// Current-state Marten document (Shelter & Adoption is document-centric,
-/// not event-sourced - see Solution Architecture doc Section 2.1).
 /// Represents one shelter/rescue org's application to operate on the
 /// platform, from Spec/K9CRUSH.emlang.yaml's TheShelterRescueOrgSigningUp
 /// chapter.
 ///
-/// Status only covers what's actually been built (Requested, Verified) -
-/// VerificationIssuesFound/Created/Rejected get added to the enum when
-/// FlagVerificationIssues/CreateShelterAccount/RejectShelterApplication
-/// are actually built, same pattern as OwnerAccount not gaining
-/// IsVerified until the VerifyEmail slice needed it.
+/// Self-aggregating event-sourced entity (ADR-031, Phase 5/5). Registered
+/// as its own Inline snapshot - reviewer-facing read models query it
+/// directly.
 ///
 /// RequestedByOwnerId is the Identity module's OwnerAccount.Id (the
 /// caller's own JWT sub) - the member who submitted this request, same
-/// FK-by-convention pattern as DogListing.ShelterAccountId. No dependency on
-/// the deferred ADR-017 role lookup: a shelter account is just a document a
-/// member requested, same as any other owned resource.
-///
-/// Follows the same [JsonConstructor]/[JsonInclude] serialization pattern
-/// as every other document-style entity - see
-/// docs/05-event-modeling-blueprint.md Section 6.1 for the full writeup of
-/// why.
+/// FK-by-convention pattern as DogListing.ShelterAccountId.
 /// </summary>
 public enum ShelterAccountStatus
 {
@@ -49,96 +39,114 @@ public class ShelterAccount : Entity
     [JsonConstructor]
     private ShelterAccount() { }
 
-    public static ShelterAccount Create(Guid requestedByOwnerId, string businessDetails, Guid utilityBillDocumentId)
+    public static ShelterAccount Create(ShelterAccountRequestedV1 e) => new()
+    {
+        RequestedByOwnerId = e.RequestedByOwnerId,
+        BusinessDetails = e.BusinessDetails,
+        UtilityBillDocumentId = e.UtilityBillDocumentId,
+        Status = ShelterAccountStatus.Requested,
+        RequestedAt = e.RequestedAt
+    };
+
+    public void Apply(ShelterAccountVerifiedV1 e) => Status = ShelterAccountStatus.Verified;
+
+    public void Apply(ShelterAccountVerificationIssuesFoundV1 e)
+    {
+        VerificationIssuesReason = e.Reason;
+        Status = ShelterAccountStatus.VerificationIssuesFound;
+    }
+
+    public void Apply(ShelterAccountResubmittedV1 e)
+    {
+        BusinessDetails = e.BusinessDetails;
+        UtilityBillDocumentId = e.UtilityBillDocumentId;
+        VerificationIssuesReason = null;
+        Status = ShelterAccountStatus.Requested;
+    }
+
+    public void Apply(ShelterAccountActivatedV1 e) => Status = ShelterAccountStatus.Created;
+
+    public void Apply(ShelterAccountRejectedV1 e)
+    {
+        RejectionReason = e.Reason;
+        Status = ShelterAccountStatus.Rejected;
+    }
+
+    /// <summary>The emlang yaml's "Request Shelter Account" -> "Shelter Account Requested".</summary>
+    public static (ShelterAccount ShelterAccount, ShelterAccountRequestedV1 Event) RequestNew(
+        Guid requestedByOwnerId, string businessDetails, Guid utilityBillDocumentId)
     {
         if (string.IsNullOrWhiteSpace(businessDetails))
             throw new ArgumentException("Business details are required.", nameof(businessDetails));
 
-        return new ShelterAccount
-        {
-            RequestedByOwnerId = requestedByOwnerId,
-            BusinessDetails = businessDetails.Trim(),
-            UtilityBillDocumentId = utilityBillDocumentId,
-            Status = ShelterAccountStatus.Requested,
-            RequestedAt = DateTimeOffset.UtcNow
-        };
+        var @event = new ShelterAccountRequestedV1(
+            requestedByOwnerId, businessDetails.Trim(), utilityBillDocumentId, DateTimeOffset.UtcNow);
+        return (Create(@event), @event);
     }
 
     /// <summary>
     /// Covers both "Shelter Verified" (first try) and "Shelter Reverified"
     /// (after fixing flagged issues) from the emlang yaml - same
-    /// technical transition, same resulting status, the yaml's two event
-    /// names are narrative framing rather than a real distinction (same
-    /// consolidation call made for Identity's sign-up fragment).
-    /// State-guard (only valid from Requested) lives in the handler, not
-    /// here - same split as VerifyOwnerOnSupabaseConfirmationHandler.
+    /// technical transition, same resulting status. State-guard (only
+    /// valid from Requested) lives in the handler, not here.
     /// </summary>
-    public void Verify() => Status = ShelterAccountStatus.Verified;
+    public ShelterAccountVerifiedV1 Verify()
+    {
+        var @event = new ShelterAccountVerifiedV1();
+        Apply(@event);
+        return @event;
+    }
 
     /// <summary>
     /// The emlang yaml's "Flag Verification Issues" -> "Verification
-    /// Issues Found". Reason has no corresponding prop in the yaml for
-    /// this step, but a flag with no explanation of what to fix isn't a
-    /// usable feature for the shelter on the other end - added as a
-    /// necessary gap-fill, not speculative scope.
-    /// State-guard (only valid from Requested) lives in the handler.
+    /// Issues Found". State-guard (only valid from Requested) lives in
+    /// the handler.
     /// </summary>
-    public void FlagVerificationIssues(string reason)
+    public ShelterAccountVerificationIssuesFoundV1 FlagVerificationIssues(string reason)
     {
-        VerificationIssuesReason = reason.Trim();
-        Status = ShelterAccountStatus.VerificationIssuesFound;
+        var @event = new ShelterAccountVerificationIssuesFoundV1(reason.Trim());
+        Apply(@event);
+        return @event;
     }
 
     /// <summary>
     /// The emlang yaml's "Resubmit Shelter Account Request" ->
     /// "Shelter Account Request Resubmitted". Resets status back to
-    /// Requested (not a new status value) rather than a dedicated
-    /// "resubmitted" state - deliberately reuses the exact same
-    /// pre-condition Verify() already checks, so re-verification after a
-    /// resubmission needs zero changes to VerifyShelterHandler's guard.
-    /// State-guard (only valid from VerificationIssuesFound) lives in the
-    /// handler.
+    /// Requested. State-guard (only valid from VerificationIssuesFound)
+    /// lives in the handler.
     /// </summary>
-    public void Resubmit(string businessDetails, Guid utilityBillDocumentId)
+    public ShelterAccountResubmittedV1 Resubmit(string businessDetails, Guid utilityBillDocumentId)
     {
         if (string.IsNullOrWhiteSpace(businessDetails))
             throw new ArgumentException("Business details are required.", nameof(businessDetails));
 
-        BusinessDetails = businessDetails.Trim();
-        UtilityBillDocumentId = utilityBillDocumentId;
-        VerificationIssuesReason = null;
-        Status = ShelterAccountStatus.Requested;
+        var @event = new ShelterAccountResubmittedV1(businessDetails.Trim(), utilityBillDocumentId);
+        Apply(@event);
+        return @event;
     }
 
     /// <summary>
     /// The emlang yaml's "Create Shelter Account" event - named Activate,
     /// not Create, to avoid colliding with the static Create() factory
-    /// above (which already ran back at RequestShelterAccount time; this
-    /// is the ShelterAccount document going operational, not the document
-    /// coming into existence).
-    ///
-    /// Shared by two different commands with two different preconditions,
-    /// same technical transition and same resulting status - the yaml
-    /// itself converges "Create Shelter Account" (normal path, from
-    /// Verified) and "Approve Shelter Account" (admin override, from
-    /// VerificationIssuesFound, bypassing re-verification) on this exact
-    /// same "Shelter Account Created" event. State-guard lives in each
-    /// handler, not here - see CreateShelterAccountHandler and
+    /// above. Shared by two different commands with two different
+    /// preconditions - see CreateShelterAccountHandler and
     /// ApproveShelterAccountHandler.
     /// </summary>
-    public void Activate() => Status = ShelterAccountStatus.Created;
+    public ShelterAccountActivatedV1 Activate()
+    {
+        var @event = new ShelterAccountActivatedV1();
+        Apply(@event);
+        return @event;
+    }
 
     /// <summary>
     /// The emlang yaml's "Reject Shelter Application" -> "Shelter
-    /// Application Rejected". Per the yaml's GWT test
-    /// (AdminRejectsAFlaggedShelterApplicationWithAReason), only valid
-    /// from VerificationIssuesFound - a shelter gets rejected after
-    /// issues were flagged and not resolved to satisfaction, not directly
-    /// off a fresh request. State-guard lives in the handler.
+    /// Application Rejected". State-guard lives in the handler.
     /// </summary>
-    public void Reject(string reason)
+    public ShelterAccountRejectedV1 Reject(string reason)
     {
-        RejectionReason = reason.Trim();
-        Status = ShelterAccountStatus.Rejected;
+        var @event = new ShelterAccountRejectedV1(reason.Trim());
+        Apply(@event);
+        return @event;
     }
 }

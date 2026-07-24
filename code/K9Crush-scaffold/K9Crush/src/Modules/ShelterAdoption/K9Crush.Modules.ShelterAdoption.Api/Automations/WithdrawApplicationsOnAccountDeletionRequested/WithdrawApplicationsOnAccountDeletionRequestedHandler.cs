@@ -32,14 +32,14 @@ public static class WithdrawApplicationsOnAccountDeletionRequestedHandler
             .Where(x => x.ApplicantOwnerId == integrationEvent.OwnerId)
             .ToListAsync(cancellationToken);
 
-        var openApplications = applications.Where(x => x.IsOpen).ToList();
-        if (openApplications.Count == 0)
+        var openApplicationIds = applications.Where(x => x.IsOpen).Select(x => x.Id).ToList();
+        if (openApplicationIds.Count == 0)
             return;
 
-        foreach (var application in openApplications)
+        foreach (var applicationId in openApplicationIds)
         {
-            application.Withdraw();
-            session.Store(application);
+            var stream = await session.Events.FetchForWriting<Application>(applicationId, cancellationToken);
+            stream.AppendOne(stream.Aggregate!.Withdraw());
         }
 
         await session.SaveChangesAsync(cancellationToken);

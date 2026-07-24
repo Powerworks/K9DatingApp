@@ -55,7 +55,8 @@ public static class UpdateListingStatusHandler
     {
         var callerOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var dogListing = await session.LoadAsync<DogListing>(dogListingId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<DogListing>(dogListingId, cancellationToken);
+        var dogListing = stream.Aggregate;
         if (dogListing is null)
             return TypedResults.NotFound();
 
@@ -69,8 +70,8 @@ public static class UpdateListingStatusHandler
         if (dogListing.CurrentFosterCaregiverOwnerId is not null)
             return TypedResults.Conflict("Cannot manually change status while a foster placement is active - end the foster placement first.");
 
-        dogListing.UpdateStatus(request.Status);
-        session.Store(dogListing);
+        var @event = dogListing.UpdateStatus(request.Status);
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new UpdateListingStatusResponse(dogListing.Id, dogListing.Status));

@@ -38,7 +38,8 @@ public static class RemoveDogListingHandler
     {
         var callerOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var dogListing = await session.LoadAsync<DogListing>(dogListingId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<DogListing>(dogListingId, cancellationToken);
+        var dogListing = stream.Aggregate;
         if (dogListing is null)
             return (TypedResults.NotFound(), null);
 
@@ -53,7 +54,8 @@ public static class RemoveDogListingHandler
             ShelterAccountId: dogListing.ShelterAccountId,
             DogName: dogListing.Name);
 
-        session.Delete(dogListing);
+        var withdrawnEvent = dogListing.Remove();
+        stream.AppendOne(withdrawnEvent);
         await session.SaveChangesAsync(cancellationToken);
 
         return (TypedResults.Ok(), integrationEvent);

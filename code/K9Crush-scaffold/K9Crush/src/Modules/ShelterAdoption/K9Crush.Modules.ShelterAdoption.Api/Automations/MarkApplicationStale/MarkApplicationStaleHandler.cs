@@ -28,12 +28,13 @@ public static class MarkApplicationStaleHandler
         IMessageBus bus,
         CancellationToken cancellationToken)
     {
-        var application = await session.LoadAsync<Application>(message.ApplicationId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<Application>(message.ApplicationId, cancellationToken);
+        var application = stream.Aggregate;
         if (application is null || application.Status != ApplicationStatus.ReturnedForAlteration)
             return;
 
-        application.MarkStale();
-        session.Store(application);
+        var @event = application.MarkStale();
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         await bus.ScheduleAsync(new CheckApplicationClosed(application.Id), TimeSpan.FromDays(30));

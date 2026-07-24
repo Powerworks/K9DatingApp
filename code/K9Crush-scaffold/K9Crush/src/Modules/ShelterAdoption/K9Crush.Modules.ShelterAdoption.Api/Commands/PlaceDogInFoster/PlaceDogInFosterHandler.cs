@@ -29,7 +29,8 @@ public static class PlaceDogInFosterHandler
         IDocumentSession session,
         CancellationToken cancellationToken)
     {
-        var dogListing = await session.LoadAsync<DogListing>(dogListingId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<DogListing>(dogListingId, cancellationToken);
+        var dogListing = stream.Aggregate;
         if (dogListing is null)
             return TypedResults.NotFound();
 
@@ -43,8 +44,8 @@ public static class PlaceDogInFosterHandler
         if (fosterApplication.Status != FosterApplicationStatus.Approved)
             return TypedResults.Conflict($"Cannot place a dog with a foster application in status {fosterApplication.Status}.");
 
-        dogListing.PlaceInFoster(fosterApplication.ApplicantOwnerId);
-        session.Store(dogListing);
+        var @event = dogListing.PlaceInFoster(fosterApplication.ApplicantOwnerId);
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new PlaceDogInFosterResponse(dogListing.Id, dogListing.Status.ToString(), fosterApplication.ApplicantOwnerId));

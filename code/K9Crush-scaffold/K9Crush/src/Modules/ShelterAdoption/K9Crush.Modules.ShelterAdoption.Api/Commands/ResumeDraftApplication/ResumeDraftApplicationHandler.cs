@@ -38,7 +38,8 @@ public static class ResumeDraftApplicationHandler
     {
         var callerOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var application = await session.LoadAsync<Application>(applicationId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<Application>(applicationId, cancellationToken);
+        var application = stream.Aggregate;
         if (application is null)
             return TypedResults.NotFound();
 
@@ -49,10 +50,10 @@ public static class ResumeDraftApplicationHandler
             return TypedResults.Conflict($"Cannot resume a draft application in status {application.Status}.");
 
         var dogListing = await session.LoadAsync<DogListing>(application.DogListingId, cancellationToken);
-        if (dogListing is null)
+        if (dogListing is null || dogListing.IsRemoved)
         {
-            application.CloseDraftDogNoLongerAvailable();
-            session.Store(application);
+            var @event = application.CloseDraftDogNoLongerAvailable();
+            stream.AppendOne(@event);
             await session.SaveChangesAsync(cancellationToken);
 
             return TypedResults.Ok(new ResumeDraftApplicationResponse(

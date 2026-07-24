@@ -41,7 +41,8 @@ public static class ApproveApplicationHandler
     {
         var callerOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var application = await session.LoadAsync<Application>(applicationId, cancellationToken);
+        var applicationStream = await session.Events.FetchForWriting<Application>(applicationId, cancellationToken);
+        var application = applicationStream.Aggregate;
         if (application is null)
             return (TypedResults.NotFound(), null);
 
@@ -52,14 +53,15 @@ public static class ApproveApplicationHandler
         if (application.Status != ApplicationStatus.UnderReview)
             return (TypedResults.Conflict($"Cannot approve an application in status {application.Status}."), null);
 
-        application.Approve();
-        session.Store(application);
+        var approvedEvent = application.Approve();
+        applicationStream.AppendOne(approvedEvent);
 
-        var dogListing = await session.LoadAsync<DogListing>(application.DogListingId, cancellationToken);
+        var dogListingStream = await session.Events.FetchForWriting<DogListing>(application.DogListingId, cancellationToken);
+        var dogListing = dogListingStream.Aggregate;
         if (dogListing is not null)
         {
-            dogListing.UpdateStatus(DogListingStatus.Adopted);
-            session.Store(dogListing);
+            var statusEvent = dogListing.UpdateStatus(DogListingStatus.Adopted);
+            dogListingStream.AppendOne(statusEvent);
         }
 
         await session.SaveChangesAsync(cancellationToken);

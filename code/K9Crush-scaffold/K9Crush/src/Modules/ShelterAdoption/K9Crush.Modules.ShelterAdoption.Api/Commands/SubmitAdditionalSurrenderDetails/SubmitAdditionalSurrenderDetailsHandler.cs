@@ -34,7 +34,8 @@ public static class SubmitAdditionalSurrenderDetailsHandler
     {
         var callerOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var surrenderRequest = await session.LoadAsync<DogSurrenderRequest>(surrenderRequestId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<DogSurrenderRequest>(surrenderRequestId, cancellationToken);
+        var surrenderRequest = stream.Aggregate;
         if (surrenderRequest is null)
             return TypedResults.NotFound();
 
@@ -44,8 +45,8 @@ public static class SubmitAdditionalSurrenderDetailsHandler
         if (surrenderRequest.Status != SurrenderRequestStatus.AdditionalDetailsRequested)
             return TypedResults.Conflict($"Cannot submit additional details on a surrender request in status {surrenderRequest.Status}.");
 
-        surrenderRequest.SubmitAdditionalDetails();
-        session.Store(surrenderRequest);
+        var @event = surrenderRequest.SubmitAdditionalDetails();
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new SubmitAdditionalSurrenderDetailsResponse(surrenderRequest.Id, surrenderRequest.Status.ToString()));

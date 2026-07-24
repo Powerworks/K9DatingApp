@@ -52,6 +52,14 @@ public class CommandStateFitnessTests
         // Phase 4 (Identity): queried by OwnerAccountView/ViewProfileSettings
         // and by MartenOwnerRoleLookup (ADR-017).
         "K9Crush.Modules.Identity.Domain.OwnerAccount",
+        // Phase 5 (ShelterAdoption): all 6 entities are queried by at least
+        // one ReadModels/** handler or an ownership-check LoadAsync.
+        "K9Crush.Modules.ShelterAdoption.Domain.ShelterAccount",
+        "K9Crush.Modules.ShelterAdoption.Domain.DogListing",
+        "K9Crush.Modules.ShelterAdoption.Domain.Application",
+        "K9Crush.Modules.ShelterAdoption.Domain.DogSurrenderRequest",
+        "K9Crush.Modules.ShelterAdoption.Domain.FosterApplication",
+        "K9Crush.Modules.ShelterAdoption.Domain.VolunteerApplication",
     };
 
     private static readonly Assembly[] ApiAssembliesToScan =
@@ -86,6 +94,21 @@ public class CommandStateFitnessTests
         // CALLER's own account - the query and the mutation target are
         // different instances of the same type.
         ("K9Crush.Modules.Identity.Api.Commands.BootstrapAdmin.BootstrapAdminHandler", "K9Crush.Modules.Identity.Domain.OwnerAccount"),
+        // SubmitApplicationHandler/StartDraftApplicationHandler each query
+        // "how many other open Applications/Drafts does this applicant have"
+        // (duplicate detection + maxOpenApplications/maxDraftApplications
+        // limit checks) across the CALLER's own Applications - a population
+        // check, not a self-load of the one Application being mutated (a
+        // fresh/different id in both cases).
+        ("K9Crush.Modules.ShelterAdoption.Api.Commands.SubmitApplication.SubmitApplicationHandler", "K9Crush.Modules.ShelterAdoption.Domain.Application"),
+        ("K9Crush.Modules.ShelterAdoption.Api.Commands.StartDraftApplication.StartDraftApplicationHandler", "K9Crush.Modules.ShelterAdoption.Domain.Application"),
+        // CancelApplicationsForRemovedListingHandler/
+        // WithdrawApplicationsOnAccountDeletionRequestedHandler each query
+        // "every OTHER Application referencing this listing/owner" before
+        // FetchForWriting-ing each affected id individually - same
+        // population-then-mutate-each shape as the queue read models.
+        ("K9Crush.Modules.ShelterAdoption.Api.Automations.CancelApplicationsForRemovedListing.CancelApplicationsForRemovedListingHandler", "K9Crush.Modules.ShelterAdoption.Domain.Application"),
+        ("K9Crush.Modules.ShelterAdoption.Api.Automations.WithdrawApplicationsOnAccountDeletionRequested.WithdrawApplicationsOnAccountDeletionRequestedHandler", "K9Crush.Modules.ShelterAdoption.Domain.Application"),
     };
 
     [Fact]

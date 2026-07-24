@@ -33,7 +33,8 @@ public static class RejectApplicationHandler
     {
         var callerOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var application = await session.LoadAsync<Application>(applicationId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<Application>(applicationId, cancellationToken);
+        var application = stream.Aggregate;
         if (application is null)
             return (TypedResults.NotFound(), null);
 
@@ -44,8 +45,8 @@ public static class RejectApplicationHandler
         if (application.Status != ApplicationStatus.UnderReview)
             return (TypedResults.Conflict($"Cannot reject an application in status {application.Status}."), null);
 
-        application.Reject(request.Reason);
-        session.Store(application);
+        var domainEvent = application.Reject(request.Reason);
+        stream.AppendOne(domainEvent);
         await session.SaveChangesAsync(cancellationToken);
 
         var dogListing = await session.LoadAsync<DogListing>(application.DogListingId, cancellationToken);

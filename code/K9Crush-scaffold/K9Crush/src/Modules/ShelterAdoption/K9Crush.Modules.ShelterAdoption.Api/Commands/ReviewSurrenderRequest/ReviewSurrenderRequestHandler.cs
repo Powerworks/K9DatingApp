@@ -23,15 +23,16 @@ public static class ReviewSurrenderRequestHandler
         IDocumentSession session,
         CancellationToken cancellationToken)
     {
-        var surrenderRequest = await session.LoadAsync<DogSurrenderRequest>(surrenderRequestId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<DogSurrenderRequest>(surrenderRequestId, cancellationToken);
+        var surrenderRequest = stream.Aggregate;
         if (surrenderRequest is null)
             return TypedResults.NotFound();
 
         if (surrenderRequest.Status != SurrenderRequestStatus.Requested)
             return TypedResults.Conflict($"Cannot review a surrender request in status {surrenderRequest.Status}.");
 
-        surrenderRequest.Review();
-        session.Store(surrenderRequest);
+        var @event = surrenderRequest.Review();
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new ReviewSurrenderRequestResponse(surrenderRequest.Id, surrenderRequest.Status.ToString()));

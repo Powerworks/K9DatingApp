@@ -42,7 +42,8 @@ public static class RequestAdditionalDetailsHandler
     {
         var callerOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var application = await session.LoadAsync<Application>(applicationId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<Application>(applicationId, cancellationToken);
+        var application = stream.Aggregate;
         if (application is null)
             return TypedResults.NotFound();
 
@@ -53,8 +54,8 @@ public static class RequestAdditionalDetailsHandler
         if (application.Status != ApplicationStatus.UnderReview)
             return TypedResults.Conflict($"Cannot request additional details on an application in status {application.Status}.");
 
-        application.RequestAdditionalDetails(request.Reason);
-        session.Store(application);
+        var @event = application.RequestAdditionalDetails(request.Reason);
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         await bus.ScheduleAsync(new CheckApplicationStale(application.Id), StaleAfter);

@@ -7,4 +7,12 @@
     <ProjectReference Include="..\..\..\BuildingBlocks\K9Crush.BuildingBlocks.Domain\K9Crush.BuildingBlocks.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- ADR-031: Marten's self-aggregating Create/Apply dispatch is a
+         compile-time source generator that only runs in an assembly
+         referencing the Marten package directly - see the other
+         retrofitted modules' Domain.csproj for the same addition. -->
+    <PackageReference Include="Marten" />
+  </ItemGroup>
+
 </Project>

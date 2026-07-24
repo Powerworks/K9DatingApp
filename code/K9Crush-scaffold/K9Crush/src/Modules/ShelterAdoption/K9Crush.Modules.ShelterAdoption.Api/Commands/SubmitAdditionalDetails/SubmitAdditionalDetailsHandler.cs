@@ -40,7 +40,8 @@ public static class SubmitAdditionalDetailsHandler
     {
         var callerOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var application = await session.LoadAsync<Application>(applicationId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<Application>(applicationId, cancellationToken);
+        var application = stream.Aggregate;
         if (application is null)
             return TypedResults.NotFound();
 
@@ -50,8 +51,8 @@ public static class SubmitAdditionalDetailsHandler
         if (application.Status != ApplicationStatus.ReturnedForAlteration)
             return TypedResults.Conflict($"Cannot submit additional details on an application in status {application.Status}.");
 
-        application.SubmitAdditionalDetails();
-        session.Store(application);
+        var @event = application.SubmitAdditionalDetails();
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new SubmitAdditionalDetailsResponse(application.Id, application.Status.ToString()));

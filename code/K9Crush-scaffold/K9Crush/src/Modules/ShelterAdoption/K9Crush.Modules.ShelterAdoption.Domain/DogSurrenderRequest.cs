@@ -1,13 +1,18 @@
 using System.Text.Json.Serialization;
 using K9Crush.BuildingBlocks.Domain;
+using K9Crush.Modules.ShelterAdoption.Domain.Events;
 
 namespace K9Crush.Modules.ShelterAdoption.Domain;
 
 /// <summary>
-/// [PLANNED -> BUILT] Spec/K9CRUSH.emlang.v3.yaml's SurrenderingYourDog
-/// chapter - a member surrendering their OWN dog into a shelter's care,
-/// distinct from Application (an applicant applying to ADOPT a shelter's
-/// existing listing).
+/// Spec/K9CRUSH.emlang.v3.yaml's SurrenderingYourDog chapter - a member
+/// surrendering their OWN dog into a shelter's care, distinct from
+/// Application (an applicant applying to ADOPT a shelter's existing
+/// listing).
+///
+/// Self-aggregating event-sourced entity (ADR-031, Phase 5/5). Registered
+/// as its own Inline snapshot - GetSurrenderReviewQueueHandler genuinely
+/// queries it.
 /// </summary>
 public enum SurrenderRequestStatus
 {
@@ -35,38 +40,66 @@ public class DogSurrenderRequest : Entity
     [JsonConstructor]
     private DogSurrenderRequest() { }
 
+    public static DogSurrenderRequest Create(DogSurrenderRequestedV1 e) => new()
+    {
+        RequestedByOwnerId = e.RequestedByOwnerId,
+        DogName = e.DogName,
+        Breed = e.Breed,
+        AgeInMonths = e.AgeInMonths,
+        ReasonForSurrender = e.ReasonForSurrender,
+        TemperamentNotes = e.TemperamentNotes,
+        HealthNotes = e.HealthNotes,
+        Status = SurrenderRequestStatus.Requested,
+        RequestedAt = e.RequestedAt
+    };
+
+    public void Apply(SurrenderRequestReviewedV1 e) => Status = SurrenderRequestStatus.UnderReview;
+
+    public void Apply(AdditionalSurrenderDetailsRequestedV1 e)
+    {
+        AdditionalDetailsRequestReason = e.Reason;
+        Status = SurrenderRequestStatus.AdditionalDetailsRequested;
+    }
+
+    public void Apply(AdditionalSurrenderDetailsSubmittedV1 e) => Status = SurrenderRequestStatus.UnderReview;
+    public void Apply(DogSurrenderAcceptedV1 e) => Status = SurrenderRequestStatus.Accepted;
+
+    public void Apply(DogSurrenderDeclinedV1 e)
+    {
+        DeclineReason = e.Reason;
+        Status = SurrenderRequestStatus.Declined;
+    }
+
     /// <summary>The emlang yaml's "Request Dog Surrender" -> "Dog
     /// Surrender Requested".</summary>
-    public static DogSurrenderRequest Request(
+    public static (DogSurrenderRequest DogSurrenderRequest, DogSurrenderRequestedV1 Event) RequestNew(
         Guid requestedByOwnerId, string dogName, string breed, int ageInMonths,
         string reasonForSurrender, string temperamentNotes, string healthNotes)
     {
-        return new DogSurrenderRequest
-        {
-            RequestedByOwnerId = requestedByOwnerId,
-            DogName = dogName.Trim(),
-            Breed = breed.Trim(),
-            AgeInMonths = ageInMonths,
-            ReasonForSurrender = reasonForSurrender.Trim(),
-            TemperamentNotes = temperamentNotes.Trim(),
-            HealthNotes = healthNotes.Trim(),
-            Status = SurrenderRequestStatus.Requested,
-            RequestedAt = DateTimeOffset.UtcNow
-        };
+        var @event = new DogSurrenderRequestedV1(
+            requestedByOwnerId, dogName.Trim(), breed.Trim(), ageInMonths,
+            reasonForSurrender.Trim(), temperamentNotes.Trim(), healthNotes.Trim(), DateTimeOffset.UtcNow);
+        return (Create(@event), @event);
     }
 
     /// <summary>The emlang yaml's "Review Surrender Request" -> "Surrender
     /// Request Reviewed". State-guard (only valid from Requested) lives
     /// in the handler.</summary>
-    public void Review() => Status = SurrenderRequestStatus.UnderReview;
+    public SurrenderRequestReviewedV1 Review()
+    {
+        var @event = new SurrenderRequestReviewedV1();
+        Apply(@event);
+        return @event;
+    }
 
     /// <summary>The emlang yaml's "Request Additional Surrender Details"
     /// -> "Additional Surrender Details Requested". State-guard (only
     /// valid from UnderReview) lives in the handler.</summary>
-    public void RequestAdditionalDetails(string reason)
+    public AdditionalSurrenderDetailsRequestedV1 RequestAdditionalDetails(string reason)
     {
-        AdditionalDetailsRequestReason = reason.Trim();
-        Status = SurrenderRequestStatus.AdditionalDetailsRequested;
+        var @event = new AdditionalSurrenderDetailsRequestedV1(reason.Trim());
+        Apply(@event);
+        return @event;
     }
 
     /// <summary>The emlang yaml's "Submit Additional Surrender Details" ->
@@ -76,19 +109,30 @@ public class DogSurrenderRequest : Entity
     /// doesn't specify a form field beyond the reason text already
     /// captured on the request side. State-guard (only valid from
     /// AdditionalDetailsRequested) lives in the handler.</summary>
-    public void SubmitAdditionalDetails() => Status = SurrenderRequestStatus.UnderReview;
+    public AdditionalSurrenderDetailsSubmittedV1 SubmitAdditionalDetails()
+    {
+        var @event = new AdditionalSurrenderDetailsSubmittedV1();
+        Apply(@event);
+        return @event;
+    }
 
     /// <summary>The emlang yaml's "Accept Dog Surrender" -> "Dog Surrender
     /// Accepted". State-guard (only valid from UnderReview) lives in the
     /// handler.</summary>
-    public void Accept() => Status = SurrenderRequestStatus.Accepted;
+    public DogSurrenderAcceptedV1 Accept()
+    {
+        var @event = new DogSurrenderAcceptedV1();
+        Apply(@event);
+        return @event;
+    }
 
     /// <summary>The emlang yaml's "Decline Dog Surrender" -> "Dog
     /// Surrender Declined". State-guard (only valid from UnderReview)
     /// lives in the handler.</summary>
-    public void Decline(string reason)
+    public DogSurrenderDeclinedV1 Decline(string reason)
     {
-        DeclineReason = reason.Trim();
-        Status = SurrenderRequestStatus.Declined;
+        var @event = new DogSurrenderDeclinedV1(reason.Trim());
+        Apply(@event);
+        return @event;
     }
 }

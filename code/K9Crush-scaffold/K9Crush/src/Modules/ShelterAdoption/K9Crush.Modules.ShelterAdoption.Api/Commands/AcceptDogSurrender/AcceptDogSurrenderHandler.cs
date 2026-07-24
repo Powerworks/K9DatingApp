@@ -33,7 +33,8 @@ public static class AcceptDogSurrenderHandler
         IDocumentSession session,
         CancellationToken cancellationToken)
     {
-        var surrenderRequest = await session.LoadAsync<DogSurrenderRequest>(surrenderRequestId, cancellationToken);
+        var surrenderStream = await session.Events.FetchForWriting<DogSurrenderRequest>(surrenderRequestId, cancellationToken);
+        var surrenderRequest = surrenderStream.Aggregate;
         if (surrenderRequest is null)
             return TypedResults.NotFound();
 
@@ -47,13 +48,13 @@ public static class AcceptDogSurrenderHandler
         if (shelterAccount.Status != ShelterAccountStatus.Created)
             return TypedResults.Conflict($"Cannot add a dog listing to a shelter account in status {shelterAccount.Status}.");
 
-        surrenderRequest.Accept();
-        session.Store(surrenderRequest);
+        var acceptedEvent = surrenderRequest.Accept();
+        surrenderStream.AppendOne(acceptedEvent);
 
-        var dogListing = DogListing.Create(
+        var (dogListing, dogListingAddedEvent) = DogListing.AddNew(
             request.ShelterAccountId, surrenderRequest.DogName, surrenderRequest.Breed,
             surrenderRequest.AgeInMonths, surrenderRequest.TemperamentNotes);
-        session.Store(dogListing);
+        session.Events.StartStream<DogListing>(dogListing.Id, dogListingAddedEvent);
 
         await session.SaveChangesAsync(cancellationToken);
 

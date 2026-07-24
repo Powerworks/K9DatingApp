@@ -1,3 +1,4 @@
+using JasperFx.Events.Projections;
 using Marten;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,37 +45,23 @@ public sealed class ShelterAdoptionModule : IModule
 
         public void Configure(StoreOptions options)
         {
-            options.Schema.For<ShelterAccount>()
-                .DatabaseSchemaName(SchemaName)
-                .Identity(x => x.Id)
-                .Index(x => x.RequestedByOwnerId);
+            // ADR-031 event-sourcing retrofit, Phase 5/5 - every entity in
+            // this module is now an event stream, self-aggregating via
+            // Create/Apply and registered as its own Inline snapshot (dual
+            // use for the read models that genuinely query current state -
+            // GetShelterDogListings/GetDogListingDetails/GetAdoptionListings/
+            // GetPendingApplicationsQueue/GetApplicationStatus/
+            // GetDraftApplications/GetSurrenderReviewQueue/
+            // GetFosterApplicationsQueue/GetVolunteerApplicationsQueue, plus
+            // every ownership-check LoadAsync<ShelterAccount>).
+            options.Events.DatabaseSchemaName = SchemaName;
 
-            options.Schema.For<DogListing>()
-                .DatabaseSchemaName(SchemaName)
-                .Identity(x => x.Id)
-                .Index(x => x.ShelterAccountId);
-
-            options.Schema.For<Application>()
-                .DatabaseSchemaName(SchemaName)
-                .Identity(x => x.Id)
-                .Index(x => x.ApplicantOwnerId)
-                .Index(x => x.DogListingId)
-                .Index(x => x.ShelterAccountId);
-
-            options.Schema.For<DogSurrenderRequest>()
-                .DatabaseSchemaName(SchemaName)
-                .Identity(x => x.Id)
-                .Index(x => x.RequestedByOwnerId);
-
-            options.Schema.For<FosterApplication>()
-                .DatabaseSchemaName(SchemaName)
-                .Identity(x => x.Id)
-                .Index(x => x.ApplicantOwnerId);
-
-            options.Schema.For<VolunteerApplication>()
-                .DatabaseSchemaName(SchemaName)
-                .Identity(x => x.Id)
-                .Index(x => x.ApplicantOwnerId);
+            options.Projections.Snapshot<ShelterAccount>(SnapshotLifecycle.Inline);
+            options.Projections.Snapshot<DogListing>(SnapshotLifecycle.Inline);
+            options.Projections.Snapshot<Application>(SnapshotLifecycle.Inline);
+            options.Projections.Snapshot<DogSurrenderRequest>(SnapshotLifecycle.Inline);
+            options.Projections.Snapshot<FosterApplication>(SnapshotLifecycle.Inline);
+            options.Projections.Snapshot<VolunteerApplication>(SnapshotLifecycle.Inline);
         }
     }
 }

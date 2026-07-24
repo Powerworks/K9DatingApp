@@ -34,7 +34,8 @@ public static class AddDogListingPhotoHandler
     {
         var callerOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var dogListing = await session.LoadAsync<DogListing>(dogListingId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<DogListing>(dogListingId, cancellationToken);
+        var dogListing = stream.Aggregate;
         if (dogListing is null)
             return TypedResults.NotFound();
 
@@ -42,8 +43,8 @@ public static class AddDogListingPhotoHandler
         if (shelterAccount is null || shelterAccount.RequestedByOwnerId != callerOwnerId)
             return TypedResults.Forbid();
 
-        dogListing.AttachPhoto(request.MediaAssetId);
-        session.Store(dogListing);
+        var @event = dogListing.AttachPhoto(request.MediaAssetId);
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new AddDogListingPhotoResponse(dogListing.Id, dogListing.PhotoIds));

@@ -24,15 +24,16 @@ public static class ReviewFosterApplicationHandler
         IDocumentSession session,
         CancellationToken cancellationToken)
     {
-        var fosterApplication = await session.LoadAsync<FosterApplication>(fosterApplicationId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<FosterApplication>(fosterApplicationId, cancellationToken);
+        var fosterApplication = stream.Aggregate;
         if (fosterApplication is null)
             return TypedResults.NotFound();
 
         if (fosterApplication.Status != FosterApplicationStatus.Submitted)
             return TypedResults.Conflict($"Cannot review a foster application in status {fosterApplication.Status}.");
 
-        fosterApplication.Review();
-        session.Store(fosterApplication);
+        var @event = fosterApplication.Review();
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new ReviewFosterApplicationResponse(fosterApplication.Id, fosterApplication.Status.ToString()));

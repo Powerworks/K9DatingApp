@@ -38,7 +38,8 @@ public static class GetDraftApplicationsHandler
         foreach (var draft in drafts)
         {
             var dogListing = await session.LoadAsync<DogListing>(draft.DogListingId, cancellationToken);
-            items.Add(new DraftApplicationSummary(draft.Id, draft.DogListingId, dogListing?.Name ?? "(listing removed)", draft.LastEditedAt));
+            var dogName = dogListing is null || dogListing.IsRemoved ? "(listing removed)" : dogListing.Name;
+            items.Add(new DraftApplicationSummary(draft.Id, draft.DogListingId, dogName, draft.LastEditedAt));
         }
 
         return new DraftApplicationsResponse(items);

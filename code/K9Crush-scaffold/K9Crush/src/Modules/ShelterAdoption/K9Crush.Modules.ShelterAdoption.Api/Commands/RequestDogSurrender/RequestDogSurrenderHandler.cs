@@ -27,10 +27,10 @@ public static class RequestDogSurrenderHandler
     {
         var requestedByOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var surrenderRequest = DogSurrenderRequest.Request(
+        var (surrenderRequest, @event) = DogSurrenderRequest.RequestNew(
             requestedByOwnerId, request.DogName, request.Breed, request.AgeInMonths,
             request.ReasonForSurrender, request.TemperamentNotes, request.HealthNotes);
-        session.Store(surrenderRequest);
+        session.Events.StartStream<DogSurrenderRequest>(surrenderRequest.Id, @event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new RequestDogSurrenderResponse(surrenderRequest.Id));
