@@ -39,7 +39,13 @@ public class CommandStateFitnessTests
     /// isn't even possible; the risk this test guards against is specific to
     /// dual-use self-aggregating types.
     /// </summary>
-    private static readonly HashSet<string> SnapshotRegisteredTypeFullNames = new();
+    private static readonly HashSet<string> SnapshotRegisteredTypeFullNames = new()
+    {
+        // Phase 2 (Admin): FeedbackInboxItem is genuinely queried by
+        // ReadModels/** (GetFeedbackInboxHandler/GetFeedbackDetailHandler),
+        // so it's registered as its own Inline snapshot in AdminModule.cs.
+        "K9Crush.Modules.Admin.Domain.FeedbackInboxItem",
+    };
 
     private static readonly Assembly[] ApiAssembliesToScan =
     [

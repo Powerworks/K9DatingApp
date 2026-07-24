@@ -47,10 +47,16 @@ public sealed class AdminModule : IModule
 
         public void Configure(StoreOptions options)
         {
-            options.Schema.For<FeedbackInboxItem>()
-                .DatabaseSchemaName(SchemaName)
-                .Identity(x => x.Id)
-                .Index(x => x.OwnerId);
+            options.Events.DatabaseSchemaName = SchemaName;
+
+            // ADR-031 dual-use pattern: FeedbackInboxItem is event-sourced
+            // (FetchForWriting, used by RespondToFeedback/ResolveFeedback)
+            // AND registered as its own Inline snapshot, since
+            // GetFeedbackInboxHandler/GetFeedbackDetailHandler genuinely
+            // query it (Query<T>/LoadAsync) - unlike Media's MediaAsset
+            // (Phase 1), which has no ReadModels/** consumer and so has no
+            // snapshot registration at all.
+            options.Projections.Snapshot<FeedbackInboxItem>(JasperFx.Events.Projections.SnapshotLifecycle.Inline);
         }
     }
 }

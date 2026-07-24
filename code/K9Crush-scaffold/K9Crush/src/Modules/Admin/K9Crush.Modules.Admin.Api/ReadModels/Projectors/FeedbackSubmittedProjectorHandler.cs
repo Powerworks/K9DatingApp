@@ -12,21 +12,29 @@ namespace K9Crush.Modules.Admin.Api.ReadModels.Projectors;
 /// Triggered by Identity's cross-module FeedbackSubmittedV1 over
 /// RabbitMQ, same mechanism as Discovery's DogProfileCreatedProjectorHandler.
 ///
-/// Store() is an upsert keyed by Id (set to FeedbackId), so at-least-once
-/// redelivery is safe - explicitly calls SaveChangesAsync (easy to forget,
-/// see that handler's own doc comment for the bug this caused once
-/// elsewhere in this codebase).
+/// ADR-031: this used to be a Store() upsert keyed by Id, safe against
+/// at-least-once redelivery for free. Event streams don't upsert -
+/// StartStream on an id that already has a stream throws
+/// ExistingStreamIdCollisionException - so redelivery safety now needs an
+/// explicit existence check first. AggregateStreamAsync (not
+/// FetchForWriting) is enough here since this handler only decides
+/// "does a stream already exist," never appends to one that does.
 /// </summary>
 public static class FeedbackSubmittedProjectorHandler
 {
     public static async Task Handle(FeedbackSubmittedV1 integrationEvent, IDocumentSession session, CancellationToken cancellationToken)
     {
-        session.Store(FeedbackInboxItem.Create(
+        var existing = await session.Events.AggregateStreamAsync<FeedbackInboxItem>(integrationEvent.FeedbackId, token: cancellationToken);
+        if (existing is not null)
+            return;
+
+        var (_, @event) = FeedbackInboxItem.CreateNew(
             integrationEvent.FeedbackId,
             integrationEvent.OwnerId,
             integrationEvent.Message,
-            integrationEvent.SubmittedAt));
+            integrationEvent.SubmittedAt);
 
+        session.Events.StartStream<FeedbackInboxItem>(integrationEvent.FeedbackId, @event);
         await session.SaveChangesAsync(cancellationToken);
     }
 }

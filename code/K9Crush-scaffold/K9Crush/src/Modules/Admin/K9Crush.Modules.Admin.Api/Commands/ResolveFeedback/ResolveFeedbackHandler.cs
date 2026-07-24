@@ -21,15 +21,16 @@ public static class ResolveFeedbackHandler
     public static async Task<Results<Ok<ResolveFeedbackResponse>, NotFound, Conflict<string>>> Handle(
         Guid feedbackId, IDocumentSession session, CancellationToken cancellationToken)
     {
-        var item = await session.LoadAsync<FeedbackInboxItem>(feedbackId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<FeedbackInboxItem>(feedbackId, cancellationToken);
+        var item = stream.Aggregate;
         if (item is null)
             return TypedResults.NotFound();
 
         if (item.Status != FeedbackStatus.Responded)
             return TypedResults.Conflict($"Cannot resolve feedback in status {item.Status} - it must be responded to first.");
 
-        item.Resolve();
-        session.Store(item);
+        var @event = item.Resolve();
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new ResolveFeedbackResponse(item.Id, item.Status.ToString()));
