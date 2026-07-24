@@ -14,6 +14,14 @@ namespace K9Crush.Modules.Media.Api;
 ///
 /// Covers the emlang yaml's UploadShareRemovePhotosAndVideos chapter:
 /// Upload/Share/Remove Media, plus Report Media -> Content Flagged.
+///
+/// ADR-031 (Phase 1/5, this module's own retrofit): MediaAsset is now
+/// event-sourced - no Schema.For&lt;T&gt; document registration, since Marten
+/// discovers the event stream from FetchForWriting/StartStream/
+/// AggregateStreamAsync calls at runtime. No Inline snapshot is registered
+/// either - nothing under ReadModels/** queries MediaAsset today, so
+/// there's no read side to persist yet (see MediaAsset.cs's own doc
+/// comment for how to add one later if that changes).
 /// </summary>
 public sealed class MediaModule : IModule
 {
@@ -33,10 +41,7 @@ public sealed class MediaModule : IModule
 
         public void Configure(StoreOptions options)
         {
-            options.Schema.For<MediaAsset>()
-                .DatabaseSchemaName(SchemaName)
-                .Identity(x => x.Id)
-                .Index(x => x.OwnerId);
+            options.Events.DatabaseSchemaName = SchemaName;
         }
     }
 }

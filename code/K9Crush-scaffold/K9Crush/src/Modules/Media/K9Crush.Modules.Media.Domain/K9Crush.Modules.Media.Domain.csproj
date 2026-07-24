@@ -3,8 +3,23 @@
   <ItemGroup>
     <!-- A Domain project may ONLY reference BuildingBlocks.Domain. Never
          another module's Domain/Infrastructure/Api project. Enforced by
-         K9Crush.ArchitectureTests. -->
+         K9Crush.ArchitectureTests. Third-party package references (below)
+         are unaffected by that rule - it only restricts cross-module
+         dependencies. -->
     <ProjectReference Include="..\..\..\BuildingBlocks\K9Crush.BuildingBlocks.Domain\K9Crush.BuildingBlocks.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ADR-031: self-aggregating event-sourced entities (Create/Apply
+         convention methods) need Marten's Roslyn source generator to run
+         in the assembly that DEFINES the entity, not just wherever it's
+         consumed - confirmed live (JasperFx.Events.Projections.
+         InvalidProjectionException: "No source-generated dispatcher
+         found... there is no runtime fallback") the first time
+         FetchForWriting<MediaAsset> actually ran against real Postgres,
+         before this reference existed. Every retrofitted module's Domain
+         project needs this now, not just Api. -->
+    <PackageReference Include="Marten" />
   </ItemGroup>
 
 </Project>

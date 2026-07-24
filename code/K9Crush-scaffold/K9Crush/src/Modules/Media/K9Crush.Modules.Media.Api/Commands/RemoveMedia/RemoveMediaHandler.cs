@@ -10,11 +10,15 @@ namespace K9Crush.Modules.Media.Api.Commands.RemoveMedia;
 
 /// <summary>
 /// State-change slice: the emlang yaml's UploadShareRemovePhotosAndVideos
-/// chapter's "Remove Media" -> "Media Removed" - a genuine document
-/// delete (same reasoning as RemoveDogListingHandler - nothing reads a
-/// removed asset, no history needed). Ownership-gated - only the
+/// chapter's "Remove Media" -> "Media Removed". Ownership-gated - only the
 /// uploader can remove their own media. See RemoveMediaRequest's doc
 /// comment for why CascadeDeletesEngagement is accepted but unused.
+///
+/// ADR-031: used to be a genuine session.Delete(mediaAsset) - event streams
+/// don't support that, so this now appends MediaAssetRemovedV1 (a flag,
+/// see that event's own doc comment) instead. Removing an already-removed
+/// asset 404s, same observable behavior as the old hard-delete (a second
+/// LoadAsync would have returned null).
 /// </summary>
 public static class RemoveMediaHandler
 {
@@ -29,14 +33,16 @@ public static class RemoveMediaHandler
     {
         var callerOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var mediaAsset = await session.LoadAsync<MediaAsset>(mediaAssetId, cancellationToken);
-        if (mediaAsset is null)
+        var stream = await session.Events.FetchForWriting<MediaAsset>(mediaAssetId, cancellationToken);
+        var mediaAsset = stream.Aggregate;
+        if (mediaAsset is null || mediaAsset.IsRemoved)
             return TypedResults.NotFound();
 
         if (mediaAsset.OwnerId != callerOwnerId)
             return TypedResults.Forbid();
 
-        session.Delete(mediaAsset);
+        var @event = mediaAsset.Remove();
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok();

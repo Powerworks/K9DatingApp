@@ -16,6 +16,12 @@ namespace K9Crush.Modules.Media.Api.Commands.ReportMedia;
 /// any other member does about someone else's media, not the uploader's
 /// own action. Cascades MediaContentFlaggedV1 - see that contract's own
 /// doc comment for why nothing consumes it yet.
+///
+/// ADR-031: this handler never mutates MediaAsset (no Store/AppendOne
+/// anywhere - reporting doesn't change the asset itself), so it reads via
+/// the ADR-019-compliant ReportMediaState instead of FetchForWriting -
+/// AggregateStreamAsync is the live, minimal, never-persisted read this
+/// command actually needs (just OwnerId), not a shared snapshot.
 /// </summary>
 public static class ReportMediaHandler
 {
@@ -29,17 +35,17 @@ public static class ReportMediaHandler
     {
         var reporterOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var mediaAsset = await session.LoadAsync<MediaAsset>(mediaAssetId, cancellationToken);
-        if (mediaAsset is null)
+        var state = await session.Events.AggregateStreamAsync<ReportMediaState>(mediaAssetId, token: cancellationToken);
+        if (state is null)
             return (TypedResults.NotFound(), null);
 
         var integrationEvent = new MediaContentFlaggedV1(
             EventId: Guid.NewGuid(),
             OccurredAt: DateTimeOffset.UtcNow,
-            MediaAssetId: mediaAsset.Id,
-            ContentOwnerId: mediaAsset.OwnerId,
+            MediaAssetId: mediaAssetId,
+            ContentOwnerId: state.OwnerId,
             ReporterOwnerId: reporterOwnerId);
 
-        return (TypedResults.Ok(new ReportMediaResponse(mediaAsset.Id)), integrationEvent);
+        return (TypedResults.Ok(new ReportMediaResponse(mediaAssetId)), integrationEvent);
     }
 }

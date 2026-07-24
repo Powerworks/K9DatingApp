@@ -11,12 +11,12 @@ namespace K9Crush.Modules.Media.Tests.Domain;
 public class MediaAssetTests
 {
     [Fact]
-    public void Upload_WhenCalled_CreatesAssetWithNoVisibilityYet()
+    public void Upload_WhenCalled_CreatesAssetWithNoVisibilityYetAndReturnsTheEvent()
     {
         var ownerId = Guid.NewGuid();
         var before = DateTimeOffset.UtcNow;
 
-        var asset = MediaAsset.Upload(ownerId, MediaType.Photo, "https://storage.example/photo.jpg");
+        var (asset, @event) = MediaAsset.Upload(ownerId, MediaType.Photo, "https://storage.example/photo.jpg");
 
         var after = DateTimeOffset.UtcNow;
         asset.OwnerId.Should().Be(ownerId);
@@ -26,21 +26,40 @@ public class MediaAssetTests
         asset.Visibility.Should().BeNull();
         asset.SharedWithOwnerIds.Should().BeEmpty();
         asset.SharedAt.Should().BeNull();
+        asset.IsRemoved.Should().BeFalse();
+
+        @event.MediaAssetId.Should().Be(asset.Id);
+        @event.OwnerId.Should().Be(ownerId);
+        @event.StorageUrl.Should().Be("https://storage.example/photo.jpg");
     }
 
     [Fact]
     public void Share_WhenCalled_SetsVisibilityAndSharedWithOwnerIdsAndSharedAt()
     {
-        var asset = MediaAsset.Upload(Guid.NewGuid(), MediaType.Video, "https://storage.example/clip.mp4");
+        var (asset, _) = MediaAsset.Upload(Guid.NewGuid(), MediaType.Video, "https://storage.example/clip.mp4");
         var sharedWith = new[] { Guid.NewGuid(), Guid.NewGuid() };
         var before = DateTimeOffset.UtcNow;
 
-        asset.Share(MediaVisibility.SpecificPeople, sharedWith);
+        var @event = asset.Share(MediaVisibility.SpecificPeople, sharedWith);
 
         var after = DateTimeOffset.UtcNow;
         asset.Visibility.Should().Be(MediaVisibility.SpecificPeople);
         asset.SharedWithOwnerIds.Should().BeEquivalentTo(sharedWith);
         asset.SharedAt.Should().NotBeNull();
         asset.SharedAt!.Value.Should().BeOnOrAfter(before).And.BeOnOrBefore(after);
+
+        @event.Visibility.Should().Be(MediaVisibility.SpecificPeople);
+        @event.SharedWithOwnerIds.Should().BeEquivalentTo(sharedWith);
+    }
+
+    [Fact]
+    public void Remove_WhenCalled_SetsIsRemoved()
+    {
+        var (asset, _) = MediaAsset.Upload(Guid.NewGuid(), MediaType.Photo, "https://storage.example/photo.jpg");
+
+        var @event = asset.Remove();
+
+        asset.IsRemoved.Should().BeTrue();
+        @event.OccurredAt.Should().BeOnOrBefore(DateTimeOffset.UtcNow);
     }
 }

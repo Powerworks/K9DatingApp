@@ -12,6 +12,10 @@ namespace K9Crush.Modules.Media.Api.Commands.ShareMedia;
 /// State-change slice: the emlang yaml's UploadShareRemovePhotosAndVideos
 /// chapter's "Share Media" -> "Media Shared". Ownership-gated - only the
 /// uploader can share their own media.
+///
+/// ADR-031: FetchForWriting replaces LoadAsync/Store - fetches the current
+/// aggregate and stages the append in one call, with optimistic-concurrency
+/// checked at SaveChangesAsync.
 /// </summary>
 public static class ShareMediaHandler
 {
@@ -26,15 +30,16 @@ public static class ShareMediaHandler
     {
         var callerOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var mediaAsset = await session.LoadAsync<MediaAsset>(mediaAssetId, cancellationToken);
-        if (mediaAsset is null)
+        var stream = await session.Events.FetchForWriting<MediaAsset>(mediaAssetId, cancellationToken);
+        var mediaAsset = stream.Aggregate;
+        if (mediaAsset is null || mediaAsset.IsRemoved)
             return TypedResults.NotFound();
 
         if (mediaAsset.OwnerId != callerOwnerId)
             return TypedResults.Forbid();
 
-        mediaAsset.Share(request.Visibility, request.SharedWithOwnerIds ?? []);
-        session.Store(mediaAsset);
+        var @event = mediaAsset.Share(request.Visibility, request.SharedWithOwnerIds ?? []);
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new ShareMediaResponse(mediaAsset.Id, mediaAsset.Visibility!.Value.ToString(), mediaAsset.SharedAt!.Value));

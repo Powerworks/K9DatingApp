@@ -259,21 +259,28 @@ if (app.Environment.IsDevelopment())
 }
 
 // ADR-031: FetchForWriting/FetchForExclusiveWriting are optimistic by
-// default - SaveChangesAsync throws Marten.Exceptions.ConcurrentUpdateException
-// on a stale fetch (confirmed via reflection against the installed Marten
-// 9.17.1 - not Marten.Exceptions.ConcurrencyException, an earlier guess that
-// isn't the real type name). Nothing in this codebase handled this before
-// the event-sourcing retrofit (no document-version checks existed under the
-// old LoadAsync/Store pattern), so this is a genuinely new failure mode.
-// Mapped globally, once, here - not per-handler - since every event-sourced
-// command handler across every module hits the same failure the same way.
+// default - SaveChangesAsync throws on a stale fetch. Confirmed LIVE
+// (Phase 1's Media Testcontainers spike, two sessions racing a
+// FetchForWriting+AppendOne+SaveChangesAsync against the same stream):
+// the real exception is JasperFx.Events.EventStreamUnexpectedMaxEventIdException,
+// whose base is JasperFx.ConcurrencyException - a completely separate
+// hierarchy from Marten.Exceptions.ConcurrentUpdateException (base:
+// Marten.Exceptions.MartenException), which is Marten's *document*-level
+// optimistic-concurrency exception, not the event-stream one. Two earlier
+// guesses at this type name were both wrong (ConcurrencyException, then
+// ConcurrentUpdateException) before this was verified against a real
+// concurrent-write race, not just reflection. Catching both hierarchies
+// here since this codebase could plausibly hit either one someday (a
+// versioned document Store() doesn't exist today, but nothing rules it
+// out later) - mapped globally, once, since every event-sourced command
+// handler across every module hits the same failure the same way.
 app.Use(async (context, next) =>
 {
     try
     {
         await next(context);
     }
-    catch (Marten.Exceptions.ConcurrentUpdateException)
+    catch (Exception ex) when (ex is JasperFx.ConcurrencyException or Marten.Exceptions.ConcurrentUpdateException)
     {
         context.Response.Clear();
         await Microsoft.AspNetCore.Http.Results.Conflict(
