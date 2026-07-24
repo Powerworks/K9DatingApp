@@ -258,6 +258,30 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// ADR-031: FetchForWriting/FetchForExclusiveWriting are optimistic by
+// default - SaveChangesAsync throws Marten.Exceptions.ConcurrentUpdateException
+// on a stale fetch (confirmed via reflection against the installed Marten
+// 9.17.1 - not Marten.Exceptions.ConcurrencyException, an earlier guess that
+// isn't the real type name). Nothing in this codebase handled this before
+// the event-sourcing retrofit (no document-version checks existed under the
+// old LoadAsync/Store pattern), so this is a genuinely new failure mode.
+// Mapped globally, once, here - not per-handler - since every event-sourced
+// command handler across every module hits the same failure the same way.
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next(context);
+    }
+    catch (Marten.Exceptions.ConcurrentUpdateException)
+    {
+        context.Response.Clear();
+        await Microsoft.AspNetCore.Http.Results.Conflict(
+            "This resource was modified by someone else since you last loaded it. Reload and try again."
+        ).ExecuteAsync(context);
+    }
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 

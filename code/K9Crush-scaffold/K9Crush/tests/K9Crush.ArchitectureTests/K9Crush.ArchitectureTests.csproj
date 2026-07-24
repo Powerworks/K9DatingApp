@@ -14,6 +14,10 @@
     </PackageReference>
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="NetArchTest.Rules" />
+    <!-- Direct reference (ADR-031) - see Directory.Packages.props for why
+         CommandStateFitnessTests.cs needs Mono.Cecil's IL-scanning API
+         directly rather than NetArchTest's declarative surface. -->
+    <PackageReference Include="Mono.Cecil" />
   </ItemGroup>
 
   <ItemGroup>
