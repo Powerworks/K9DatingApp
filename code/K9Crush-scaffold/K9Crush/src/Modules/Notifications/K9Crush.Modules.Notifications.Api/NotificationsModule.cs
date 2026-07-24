@@ -36,22 +36,26 @@ public sealed class NotificationsModule : IModule
 
         public void Configure(StoreOptions options)
         {
-            options.Schema.For<NotificationPreference>()
-                .DatabaseSchemaName(SchemaName)
-                .Identity(x => x.Id)
-                .Index(x => x.OwnerId);
+            options.Events.DatabaseSchemaName = SchemaName;
 
-            options.Schema.For<NotificationLog>()
-                .DatabaseSchemaName(SchemaName)
-                .Identity(x => x.Id)
-                .Index(x => x.OwnerId);
+            // ADR-031 (Phase 3/5): NotificationPreference and
+            // NotificationTemplate are event-sourced AND registered as
+            // their own Inline snapshots - both are genuinely queried by
+            // a ReadModels/** handler (ViewNotificationPreferences/
+            // ViewNotificationTemplates). NotificationLog is event-sourced
+            // with no snapshot at all (no query consumer exists, same as
+            // Media's MediaAsset in Phase 1).
+            options.Projections.Snapshot<NotificationPreference>(JasperFx.Events.Projections.SnapshotLifecycle.Inline);
+            options.Projections.Snapshot<NotificationTemplate>(JasperFx.Events.Projections.SnapshotLifecycle.Inline);
 
+            // OwnerContact deliberately stays a plain document, not
+            // event-sourced - it's a pure cross-module denormalized cache
+            // (Identity's OwnerRegisteredV1 projected into "current email
+            // for this owner"), no domain transitions of its own to
+            // capture as events, same class of judgment call as ADR-031's
+            // per-entity carve-outs elsewhere in this phase.
             options.Schema.For<OwnerContact>()
                 .DatabaseSchemaName(SchemaName);
-
-            options.Schema.For<NotificationTemplate>()
-                .DatabaseSchemaName(SchemaName)
-                .Identity(x => x.Id);
         }
     }
 }

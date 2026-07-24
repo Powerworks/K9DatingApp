@@ -1,13 +1,13 @@
 using System.Text.Json.Serialization;
 using K9Crush.BuildingBlocks.Domain;
+using K9Crush.Modules.Notifications.Domain.Events;
 
 namespace K9Crush.Modules.Notifications.Domain;
 
 /// <summary>
-/// Current-state Marten document. The emlang yaml's
-/// ShelterConfiguresNotificationTemplates chapter ("View/Edit/Save
-/// Notification Template", with pessimistic locking - "Template Edit
-/// Blocked" when someone else is already editing).
+/// The emlang yaml's ShelterConfiguresNotificationTemplates chapter
+/// ("View/Edit/Save Notification Template", with pessimistic locking -
+/// "Template Edit Blocked" when someone else is already editing).
 ///
 /// The yaml has no "create a template" step at all - only View/Edit/Save
 /// exist, and its props (templateId/name/locked/lockedBy) never show an
@@ -23,6 +23,13 @@ namespace K9Crush.Modules.Notifications.Domain;
 /// subject/body) - that would be a separate, larger change touching every
 /// existing Notify* automation, not specified by this chapter, and
 /// deliberately deferred.
+///
+/// Self-aggregating event-sourced entity (ADR-031, Phase 3/5). Locked/
+/// LockedByOwnerId stay genuine domain state fused into the Edit event
+/// (see NotificationTemplateEditedV1's own doc comment for why this
+/// couldn't be replaced by Marten's session-level exclusive-writing lock).
+/// Registered as its own Inline snapshot in NotificationsModule.cs, since
+/// ViewNotificationTemplatesHandler genuinely queries it.
 /// </summary>
 public class NotificationTemplate : Entity
 {
@@ -36,12 +43,12 @@ public class NotificationTemplate : Entity
     [JsonConstructor]
     private NotificationTemplate() { }
 
-    public static NotificationTemplate Create(string key, string name, string subject, string body) => new()
+    public static NotificationTemplate Create(NotificationTemplateCreatedV1 e) => new()
     {
-        Key = key.Trim(),
-        Name = name.Trim(),
-        Subject = subject.Trim(),
-        Body = body.Trim(),
+        Key = e.Key.Trim(),
+        Name = e.Name.Trim(),
+        Subject = e.Subject.Trim(),
+        Body = e.Body.Trim(),
         Locked = false
     };
 
@@ -52,12 +59,12 @@ public class NotificationTemplate : Entity
     /// editing, then submit" pair). State-guard (blocked if already
     /// locked by someone else) lives in the handler.
     /// </summary>
-    public void Edit(Guid editingOwnerId, string subject, string body)
+    public void Apply(NotificationTemplateEditedV1 e)
     {
-        Subject = subject.Trim();
-        Body = body.Trim();
+        Subject = e.Subject.Trim();
+        Body = e.Body.Trim();
         Locked = true;
-        LockedByOwnerId = editingOwnerId;
+        LockedByOwnerId = e.EditingOwnerId;
     }
 
     /// <summary>
@@ -66,9 +73,23 @@ public class NotificationTemplate : Entity
     /// applied by Edit() above; Save is the "I'm done" step. State-guard
     /// (only the current lock holder can save) lives in the handler.
     /// </summary>
-    public void Save()
+    public void Apply(NotificationTemplateSavedV1 e)
     {
         Locked = false;
         LockedByOwnerId = null;
+    }
+
+    public NotificationTemplateEditedV1 Edit(Guid editingOwnerId, string subject, string body)
+    {
+        var @event = new NotificationTemplateEditedV1(editingOwnerId, subject, body);
+        Apply(@event);
+        return @event;
+    }
+
+    public NotificationTemplateSavedV1 Save()
+    {
+        var @event = new NotificationTemplateSavedV1();
+        Apply(@event);
+        return @event;
     }
 }

@@ -45,6 +45,10 @@ public class CommandStateFitnessTests
         // ReadModels/** (GetFeedbackInboxHandler/GetFeedbackDetailHandler),
         // so it's registered as its own Inline snapshot in AdminModule.cs.
         "K9Crush.Modules.Admin.Domain.FeedbackInboxItem",
+        // Phase 3 (Notifications): both queried by a ReadModels/** handler
+        // (ViewNotificationPreferences/ViewNotificationTemplates).
+        "K9Crush.Modules.Notifications.Domain.NotificationPreference",
+        "K9Crush.Modules.Notifications.Domain.NotificationTemplate",
     };
 
     private static readonly Assembly[] ApiAssembliesToScan =

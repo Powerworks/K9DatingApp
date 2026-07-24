@@ -27,7 +27,8 @@ public static class SaveNotificationTemplateHandler
     {
         var callerOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var template = await session.LoadAsync<NotificationTemplate>(templateId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<NotificationTemplate>(templateId, cancellationToken);
+        var template = stream.Aggregate;
         if (template is null)
             return TypedResults.NotFound();
 
@@ -37,8 +38,8 @@ public static class SaveNotificationTemplateHandler
         if (template.LockedByOwnerId != callerOwnerId)
             return TypedResults.Forbid();
 
-        template.Save();
-        session.Store(template);
+        var @event = template.Save();
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new SaveNotificationTemplateResponse(template.Id, request.AppliesToAlreadyQueuedNotifications));

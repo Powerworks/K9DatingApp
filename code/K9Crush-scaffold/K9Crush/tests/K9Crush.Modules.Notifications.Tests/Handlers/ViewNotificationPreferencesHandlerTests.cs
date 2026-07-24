@@ -34,7 +34,7 @@ public class ViewNotificationPreferencesHandlerTests
     public async Task Handle_WhenAPreferenceHasBeenDisabled_ReflectsIt()
     {
         var ownerId = Guid.NewGuid();
-        var preference = NotificationPreference.CreateDefault(ownerId);
+        var (preference, _) = NotificationPreference.CreateDefaultNew(ownerId);
         preference.SetEnabled(NotificationType.Matches, false);
 
         var session = Substitute.For<IQuerySession>();

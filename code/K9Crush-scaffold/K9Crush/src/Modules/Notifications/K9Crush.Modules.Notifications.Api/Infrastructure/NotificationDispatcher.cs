@@ -11,6 +11,13 @@ namespace K9Crush.Modules.Notifications.Api.Infrastructure;
 /// differ per trigger event. Extracted once a third call site needed it
 /// (see docs/04-high-level-design.md Section 1.5's "checks
 /// NotificationPreference... before deciding email vs push vs suppress").
+///
+/// ADR-031: NotificationPreference/OwnerContact stay plain LoadAsync reads
+/// (see NotificationPreference.cs's own doc comment for why this isn't the
+/// ADR-019 MatchAggregate pattern - this dispatcher never mutates either
+/// entity). NotificationLog becomes a fresh event stream per call
+/// (StartStream with a new Guid) instead of a Store() upsert - it never
+/// had an identity worth reusing, same as before.
 /// </summary>
 public static class NotificationDispatcher
 {
@@ -28,16 +35,16 @@ public static class NotificationDispatcher
 
         var shouldSend = (preference?.IsEnabled(type) ?? true) && contact is not null;
 
+        var (log, logEvent) = shouldSend
+            ? NotificationLog.Record(ownerId, type, NotificationChannel.Email, subject)
+            : NotificationLog.Record(ownerId, type, NotificationChannel.Suppressed, subject);
+
         if (shouldSend)
         {
             await sender.SendAsync(contact!.Email, subject, body, cancellationToken);
-            session.Store(NotificationLog.Record(ownerId, type, NotificationChannel.Email, subject));
-        }
-        else
-        {
-            session.Store(NotificationLog.Record(ownerId, type, NotificationChannel.Suppressed, subject));
         }
 
+        session.Events.StartStream<NotificationLog>(log.Id, logEvent);
         await session.SaveChangesAsync(cancellationToken);
     }
 }

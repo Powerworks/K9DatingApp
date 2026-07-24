@@ -31,15 +31,16 @@ public static class EditNotificationTemplateHandler
     {
         var callerOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var template = await session.LoadAsync<NotificationTemplate>(templateId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<NotificationTemplate>(templateId, cancellationToken);
+        var template = stream.Aggregate;
         if (template is null)
             return TypedResults.NotFound();
 
         if (template.Locked && template.LockedByOwnerId != callerOwnerId)
             return TypedResults.Conflict("Template Edit Blocked.");
 
-        template.Edit(callerOwnerId, request.Subject, request.Body);
-        session.Store(template);
+        var @event = template.Edit(callerOwnerId, request.Subject, request.Body);
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new EditNotificationTemplateResponse(template.Id, template.Locked));
