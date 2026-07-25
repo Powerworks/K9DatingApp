@@ -11,7 +11,9 @@ namespace K9Crush.IntegrationTests.ShelterAdoption;
 /// filter at all - a genuinely global, unscoped query, same class of check
 /// that forced GetFosterApplicationsQueueIntegrationTests onto its own
 /// dedicated per-instance IAsyncLifetime container instead of sharing one
-/// via [Collection(...)]. Same fix applied here up front.
+/// via [Collection(...)]. Same fix applied here up front. Seeding now
+/// goes through Events.StartStream (ADR-031) rather than session.Store,
+/// since VolunteerApplication is event-sourced.
 /// </summary>
 public class GetVolunteerApplicationsQueueIntegrationTests : IAsyncLifetime
 {
@@ -33,12 +35,13 @@ public class GetVolunteerApplicationsQueueIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task Handle_ReturnsEveryVolunteerApplication()
     {
-        var homeChecks = VolunteerApplication.Apply(Guid.NewGuid(), VolunteerAreaOfInterest.HomeChecks);
-        var transport = VolunteerApplication.Apply(Guid.NewGuid(), VolunteerAreaOfInterest.Transport);
+        var (homeChecks, homeChecksEvent) = VolunteerApplication.ApplyNew(Guid.NewGuid(), VolunteerAreaOfInterest.HomeChecks);
+        var (transport, transportEvent) = VolunteerApplication.ApplyNew(Guid.NewGuid(), VolunteerAreaOfInterest.Transport);
 
         await using (var seedSession = _fixture.Store.LightweightSession())
         {
-            seedSession.Store(homeChecks, transport);
+            seedSession.Events.StartStream<VolunteerApplication>(homeChecks.Id, homeChecksEvent);
+            seedSession.Events.StartStream<VolunteerApplication>(transport.Id, transportEvent);
             await seedSession.SaveChangesAsync();
         }
 

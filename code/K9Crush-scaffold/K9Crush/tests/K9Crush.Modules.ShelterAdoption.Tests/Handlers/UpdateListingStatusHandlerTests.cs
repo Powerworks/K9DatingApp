@@ -10,9 +10,10 @@ using Xunit;
 namespace K9Crush.Modules.ShelterAdoption.Tests.Handlers;
 
 /// <summary>
-/// Layer 2 (TestingApproach.md) - UpdateListingStatusHandler only calls
-/// LoadAsync/Store/SaveChangesAsync, so IDocumentSession mocks cleanly
-/// here.
+/// Layer 2 (TestingApproach.md) - UpdateListingStatusHandler calls
+/// FetchForWriting/AppendOne/SaveChangesAsync against DogListing plus a
+/// plain LoadAsync against ShelterAccount for the ownership check
+/// (read-only, not a self-load - ADR-031).
 /// </summary>
 public class UpdateListingStatusHandlerTests
 {
@@ -23,18 +24,23 @@ public class UpdateListingStatusHandlerTests
 
     private static (ShelterAccount shelterAccount, DogListing dogListing) SeedListing()
     {
-        var shelterAccount = ShelterAccount.Create(ShelterOwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
-        var dogListing = DogListing.Create(shelterAccount.Id, "Biscuit", "Beagle mix", 24, "Friendly");
+        var shelterAccount = ShelterAccount.RequestNew(ShelterOwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid()).ShelterAccount;
+        var dogListing = DogListing.AddNew(shelterAccount.Id, "Biscuit", "Beagle mix", 24, "Friendly").DogListing;
         return (shelterAccount, dogListing);
+    }
+
+    private static IDocumentSession BuildSession(ShelterAccount shelterAccount, DogListing? dogListing, out JasperFx.Events.IEventStream<DogListing> stream)
+    {
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(dogListing?.Id ?? Guid.NewGuid(), dogListing, out stream);
+        session.LoadAsync<ShelterAccount>(shelterAccount.Id, Arg.Any<CancellationToken>()).Returns(shelterAccount);
+        return session;
     }
 
     [Fact]
     public async Task Handle_WhenCallerOwnsTheListing_UpdatesStatusAndPersists()
     {
         var (shelterAccount, dogListing) = SeedListing();
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<DogListing>(dogListing.Id, Arg.Any<CancellationToken>()).Returns(dogListing);
-        session.LoadAsync<ShelterAccount>(shelterAccount.Id, Arg.Any<CancellationToken>()).Returns(shelterAccount);
+        var session = BuildSession(shelterAccount, dogListing, out var stream);
 
         var result = await UpdateListingStatusHandler.Handle(
             dogListing.Id, new UpdateListingStatusRequest(DogListingStatus.Available), BuildUser(ShelterOwnerId), session, CancellationToken.None);
@@ -42,17 +48,15 @@ public class UpdateListingStatusHandlerTests
         result.Result.Should().BeOfType<Ok<UpdateListingStatusResponse>>();
         ((Ok<UpdateListingStatusResponse>)result.Result).Value!.Status.Should().Be(DogListingStatus.Available);
 
-        session.Received(1).Store(Arg.Is<DogListing[]>(arr =>
-            arr != null && arr.Length == 1 && arr[0].Id == dogListing.Id && arr[0].Status == DogListingStatus.Available));
+        stream.Received(1).AppendOne(Arg.Is<object>(o => o != null && o.GetType() == typeof(K9Crush.Modules.ShelterAdoption.Domain.Events.DogListingStatusUpdatedV1)));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Handle_WhenListingDoesNotExist_ReturnsNotFound()
     {
-        var session = Substitute.For<IDocumentSession>();
         var dogListingId = Guid.NewGuid();
-        session.LoadAsync<DogListing>(dogListingId, Arg.Any<CancellationToken>()).Returns((DogListing?)null);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting<DogListing>(dogListingId, null, out _);
 
         var result = await UpdateListingStatusHandler.Handle(
             dogListingId, new UpdateListingStatusRequest(DogListingStatus.Available), BuildUser(ShelterOwnerId), session, CancellationToken.None);
@@ -64,9 +68,7 @@ public class UpdateListingStatusHandlerTests
     public async Task Handle_WhenCallerDoesNotOwnTheListing_ReturnsForbid()
     {
         var (shelterAccount, dogListing) = SeedListing();
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<DogListing>(dogListing.Id, Arg.Any<CancellationToken>()).Returns(dogListing);
-        session.LoadAsync<ShelterAccount>(shelterAccount.Id, Arg.Any<CancellationToken>()).Returns(shelterAccount);
+        var session = BuildSession(shelterAccount, dogListing, out _);
 
         var result = await UpdateListingStatusHandler.Handle(
             dogListing.Id, new UpdateListingStatusRequest(DogListingStatus.Available), BuildUser(Guid.NewGuid()), session, CancellationToken.None);
@@ -78,16 +80,14 @@ public class UpdateListingStatusHandlerTests
     public async Task Handle_WhenTargetStatusIsAdopted_ReturnsConflictAndDoesNotPersist()
     {
         var (shelterAccount, dogListing) = SeedListing();
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<DogListing>(dogListing.Id, Arg.Any<CancellationToken>()).Returns(dogListing);
-        session.LoadAsync<ShelterAccount>(shelterAccount.Id, Arg.Any<CancellationToken>()).Returns(shelterAccount);
+        var session = BuildSession(shelterAccount, dogListing, out var stream);
 
         var result = await UpdateListingStatusHandler.Handle(
             dogListing.Id, new UpdateListingStatusRequest(DogListingStatus.Adopted), BuildUser(ShelterOwnerId), session, CancellationToken.None);
 
         result.Result.Should().BeOfType<Conflict<string>>();
         dogListing.Status.Should().Be(DogListingStatus.NotReadyYet, "the guard must run before UpdateStatus is called");
-        session.DidNotReceive().Store(Arg.Any<DogListing>());
+        stream.DidNotReceiveWithAnyArgs().AppendOne(default!);
     }
 
     [Fact]
@@ -95,15 +95,13 @@ public class UpdateListingStatusHandlerTests
     {
         var (shelterAccount, dogListing) = SeedListing();
         dogListing.UpdateStatus(DogListingStatus.Adopted);
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<DogListing>(dogListing.Id, Arg.Any<CancellationToken>()).Returns(dogListing);
-        session.LoadAsync<ShelterAccount>(shelterAccount.Id, Arg.Any<CancellationToken>()).Returns(shelterAccount);
+        var session = BuildSession(shelterAccount, dogListing, out var stream);
 
         var result = await UpdateListingStatusHandler.Handle(
             dogListing.Id, new UpdateListingStatusRequest(DogListingStatus.Available), BuildUser(ShelterOwnerId), session, CancellationToken.None);
 
         result.Result.Should().BeOfType<Conflict<string>>();
-        session.DidNotReceive().Store(Arg.Any<DogListing>());
+        stream.DidNotReceiveWithAnyArgs().AppendOne(default!);
     }
 
     [Fact]
@@ -111,14 +109,12 @@ public class UpdateListingStatusHandlerTests
     {
         var (shelterAccount, dogListing) = SeedListing();
         dogListing.PlaceInFoster(Guid.NewGuid());
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<DogListing>(dogListing.Id, Arg.Any<CancellationToken>()).Returns(dogListing);
-        session.LoadAsync<ShelterAccount>(shelterAccount.Id, Arg.Any<CancellationToken>()).Returns(shelterAccount);
+        var session = BuildSession(shelterAccount, dogListing, out var stream);
 
         var result = await UpdateListingStatusHandler.Handle(
             dogListing.Id, new UpdateListingStatusRequest(DogListingStatus.NotReadyYet), BuildUser(ShelterOwnerId), session, CancellationToken.None);
 
         result.Result.Should().BeOfType<Conflict<string>>();
-        session.DidNotReceive().Store(Arg.Any<DogListing>());
+        stream.DidNotReceiveWithAnyArgs().AppendOne(default!);
     }
 }

@@ -1,5 +1,4 @@
 using FluentAssertions;
-using Marten;
 using Microsoft.AspNetCore.Http.HttpResults;
 using NSubstitute;
 using K9Crush.Modules.ShelterAdoption.Api.Commands.ApproveVolunteer;
@@ -10,14 +9,14 @@ namespace K9Crush.Modules.ShelterAdoption.Tests.Handlers;
 
 /// <summary>
 /// Layer 2 (TestingApproach.md) - ApproveVolunteerHandler only calls
-/// LoadAsync/Store/SaveChangesAsync, so IDocumentSession mocks cleanly
-/// here.
+/// FetchForWriting/AppendOne/SaveChangesAsync, so IDocumentSession mocks
+/// cleanly here (ADR-031).
 /// </summary>
 public class ApproveVolunteerHandlerTests
 {
     private static VolunteerApplication BuildUnderReview()
     {
-        var application = VolunteerApplication.Apply(Guid.NewGuid(), VolunteerAreaOfInterest.HomeChecks);
+        var application = VolunteerApplication.ApplyNew(Guid.NewGuid(), VolunteerAreaOfInterest.HomeChecks).VolunteerApplication;
         application.Review();
         return application;
     }
@@ -26,23 +25,21 @@ public class ApproveVolunteerHandlerTests
     public async Task Handle_WhenUnderReview_ApprovesAndPersists()
     {
         var application = BuildUnderReview();
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<VolunteerApplication>(application.Id, Arg.Any<CancellationToken>()).Returns(application);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(application.Id, application, out var stream);
 
         var result = await ApproveVolunteerHandler.Handle(application.Id, session, CancellationToken.None);
 
         result.Result.Should().BeOfType<Ok<ApproveVolunteerResponse>>();
-        session.Received(1).Store(Arg.Is<VolunteerApplication[]>(arr =>
-            arr != null && arr.Length == 1 && arr[0].Status == VolunteerApplicationStatus.Approved));
+        application.Status.Should().Be(VolunteerApplicationStatus.Approved);
+        stream.Received(1).AppendOne(Arg.Is<object>(o => o != null && o.GetType() == typeof(K9Crush.Modules.ShelterAdoption.Domain.Events.VolunteerApprovedV1)));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Handle_WhenApplicationDoesNotExist_ReturnsNotFound()
     {
-        var session = Substitute.For<IDocumentSession>();
         var applicationId = Guid.NewGuid();
-        session.LoadAsync<VolunteerApplication>(applicationId, Arg.Any<CancellationToken>()).Returns((VolunteerApplication?)null);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting<VolunteerApplication>(applicationId, null, out _);
 
         var result = await ApproveVolunteerHandler.Handle(applicationId, session, CancellationToken.None);
 
@@ -52,9 +49,8 @@ public class ApproveVolunteerHandlerTests
     [Fact]
     public async Task Handle_WhenNotUnderReview_ReturnsConflict()
     {
-        var application = VolunteerApplication.Apply(Guid.NewGuid(), VolunteerAreaOfInterest.HomeChecks);
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<VolunteerApplication>(application.Id, Arg.Any<CancellationToken>()).Returns(application);
+        var application = VolunteerApplication.ApplyNew(Guid.NewGuid(), VolunteerAreaOfInterest.HomeChecks).VolunteerApplication;
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(application.Id, application, out _);
 
         var result = await ApproveVolunteerHandler.Handle(application.Id, session, CancellationToken.None);
 

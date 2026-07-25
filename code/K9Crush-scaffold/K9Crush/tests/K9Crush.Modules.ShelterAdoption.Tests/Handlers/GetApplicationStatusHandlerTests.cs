@@ -11,7 +11,8 @@ namespace K9Crush.Modules.ShelterAdoption.Tests.Handlers;
 
 /// <summary>
 /// Layer 2 (TestingApproach.md) - GetApplicationStatusHandler only calls
-/// IQuerySession.LoadAsync (no Query&lt;T&gt;() LINQ), so mocks cleanly here.
+/// IQuerySession.LoadAsync against Application's Inline snapshot (no
+/// Query&lt;T&gt;() LINQ), so mocks cleanly here (ADR-031).
 /// </summary>
 public class GetApplicationStatusHandlerTests
 {
@@ -37,7 +38,7 @@ public class GetApplicationStatusHandlerTests
     [Fact]
     public async Task Handle_WhenCallerIsNotTheApplicant_ReturnsForbid()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default);
+        var application = Application.SubmitNew(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default).Application;
         var session = Substitute.For<IQuerySession>();
         session.LoadAsync<Application>(application.Id, Arg.Any<CancellationToken>()).Returns(application);
 
@@ -49,7 +50,7 @@ public class GetApplicationStatusHandlerTests
     [Fact]
     public async Task Handle_WhenCallerIsTheApplicant_ReturnsStatusDetails()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default);
+        var application = Application.SubmitNew(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default).Application;
         application.Review();
         application.RequestAdditionalDetails("Please provide vet references");
         var session = Substitute.For<IQuerySession>();

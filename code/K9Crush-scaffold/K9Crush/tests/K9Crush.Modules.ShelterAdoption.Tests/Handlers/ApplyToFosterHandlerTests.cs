@@ -10,7 +10,8 @@ namespace K9Crush.Modules.ShelterAdoption.Tests.Handlers;
 
 /// <summary>
 /// Layer 2 (TestingApproach.md) - ApplyToFosterHandler only calls
-/// Store/SaveChangesAsync, so IDocumentSession mocks cleanly here.
+/// Events.StartStream/SaveChangesAsync, so IDocumentSession mocks cleanly
+/// here (ADR-031).
 /// </summary>
 public class ApplyToFosterHandlerTests
 {
@@ -28,11 +29,15 @@ public class ApplyToFosterHandlerTests
 
         var result = await ApplyToFosterHandler.Handle(request, BuildUser(OwnerId), session, CancellationToken.None);
 
-        result.Value!.FosterApplicationId.Should().NotBeEmpty();
-        session.Received(1).Store(Arg.Is<FosterApplication[]>(arr =>
-            arr != null && arr.Length == 1 && arr[0].ApplicantOwnerId == OwnerId &&
-            arr[0].HomeType == HomeType.House && arr[0].AvailableFrom == availableFrom &&
-            arr[0].Status == FosterApplicationStatus.Submitted));
+        var fosterApplicationId = result.Value!.FosterApplicationId;
+        fosterApplicationId.Should().NotBeEmpty();
+
+        session.Events.Received(1).StartStream<FosterApplication>(
+            fosterApplicationId,
+            Arg.Is<object[]>(events => events != null && events.Length == 1 && events[0] != null
+                && ((K9Crush.Modules.ShelterAdoption.Domain.Events.FosterApplicationSubmittedV1)events[0]).ApplicantOwnerId == OwnerId
+                && ((K9Crush.Modules.ShelterAdoption.Domain.Events.FosterApplicationSubmittedV1)events[0]).HomeType == HomeType.House
+                && ((K9Crush.Modules.ShelterAdoption.Domain.Events.FosterApplicationSubmittedV1)events[0]).AvailableFrom == availableFrom));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

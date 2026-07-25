@@ -1,5 +1,4 @@
 using FluentAssertions;
-using Marten;
 using Microsoft.AspNetCore.Http.HttpResults;
 using NSubstitute;
 using K9Crush.Modules.ShelterAdoption.Api.Commands.EndFosterPlacement;
@@ -10,8 +9,8 @@ namespace K9Crush.Modules.ShelterAdoption.Tests.Handlers;
 
 /// <summary>
 /// Layer 2 (TestingApproach.md) - EndFosterPlacementHandler only calls
-/// LoadAsync/Store/SaveChangesAsync, so IDocumentSession mocks cleanly
-/// here.
+/// FetchForWriting/AppendOne/SaveChangesAsync, so IDocumentSession mocks
+/// cleanly here (ADR-031).
 /// </summary>
 public class EndFosterPlacementHandlerTests
 {
@@ -19,7 +18,7 @@ public class EndFosterPlacementHandlerTests
 
     private static DogListing BuildInFosterListing()
     {
-        var dogListing = DogListing.Create(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly");
+        var dogListing = DogListing.AddNew(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly").DogListing;
         dogListing.PlaceInFoster(Guid.NewGuid());
         return dogListing;
     }
@@ -28,25 +27,23 @@ public class EndFosterPlacementHandlerTests
     public async Task Handle_WhenPlacementIsActive_EndsItAndPersists()
     {
         var dogListing = BuildInFosterListing();
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<DogListing>(dogListing.Id, Arg.Any<CancellationToken>()).Returns(dogListing);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(dogListing.Id, dogListing, out var stream);
 
         var result = await EndFosterPlacementHandler.Handle(
             dogListing.Id, new EndFosterPlacementRequest(FosterPlacementEndReason.ReturnedToShelter), session, CancellationToken.None);
 
         result.Result.Should().BeOfType<Ok<EndFosterPlacementResponse>>();
-        session.Received(1).Store(Arg.Is<DogListing[]>(arr =>
-            arr != null && arr.Length == 1 && arr[0].Status == DogListingStatus.Available &&
-            arr[0].CurrentFosterCaregiverOwnerId == null));
+        dogListing.Status.Should().Be(DogListingStatus.Available);
+        dogListing.CurrentFosterCaregiverOwnerId.Should().BeNull();
+        stream.Received(1).AppendOne(Arg.Is<object>(o => o != null && o.GetType() == typeof(K9Crush.Modules.ShelterAdoption.Domain.Events.FosterPlacementEndedV1)));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Handle_WhenListingDoesNotExist_ReturnsNotFound()
     {
-        var session = Substitute.For<IDocumentSession>();
         var dogListingId = Guid.NewGuid();
-        session.LoadAsync<DogListing>(dogListingId, Arg.Any<CancellationToken>()).Returns((DogListing?)null);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting<DogListing>(dogListingId, null, out _);
 
         var result = await EndFosterPlacementHandler.Handle(
             dogListingId, new EndFosterPlacementRequest(FosterPlacementEndReason.ReturnedToShelter), session, CancellationToken.None);
@@ -57,9 +54,8 @@ public class EndFosterPlacementHandlerTests
     [Fact]
     public async Task Handle_WhenNoActivePlacement_ReturnsConflict()
     {
-        var dogListing = DogListing.Create(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly");
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<DogListing>(dogListing.Id, Arg.Any<CancellationToken>()).Returns(dogListing);
+        var dogListing = DogListing.AddNew(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly").DogListing;
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(dogListing.Id, dogListing, out _);
 
         var result = await EndFosterPlacementHandler.Handle(
             dogListing.Id, new EndFosterPlacementRequest(FosterPlacementEndReason.ReturnedToShelter), session, CancellationToken.None);

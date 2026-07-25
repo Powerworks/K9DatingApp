@@ -109,6 +109,65 @@ public class CommandStateFitnessTests
         // population-then-mutate-each shape as the queue read models.
         ("K9Crush.Modules.ShelterAdoption.Api.Automations.CancelApplicationsForRemovedListing.CancelApplicationsForRemovedListingHandler", "K9Crush.Modules.ShelterAdoption.Domain.Application"),
         ("K9Crush.Modules.ShelterAdoption.Api.Automations.WithdrawApplicationsOnAccountDeletionRequested.WithdrawApplicationsOnAccountDeletionRequestedHandler", "K9Crush.Modules.ShelterAdoption.Domain.Application"),
+        // NotifyApplicantsOfListingChangeHandler queries "every OTHER
+        // Application referencing this listing" (to notify each open
+        // applicant), same population-check shape as the two automations
+        // above - no mutation happens here at all, purely informational.
+        ("K9Crush.Modules.ShelterAdoption.Api.Automations.NotifyApplicantsOfListingChange.NotifyApplicantsOfListingChangeHandler", "K9Crush.Modules.ShelterAdoption.Domain.Application"),
+    };
+
+    /// <summary>
+    /// Reviewed, deliberate exceptions for `LoadAsync&lt;T&gt;()` calls - ONLY
+    /// for genuine cross-entity reads, where T is a DIFFERENT aggregate
+    /// than the one the same handler mutates via
+    /// FetchForWriting/StartStream (e.g. an ownership check against the
+    /// owning ShelterAccount, or a reference/approval check against a
+    /// different FosterApplication). This is distinct from a self-load
+    /// (LoadAsync of the exact same type the handler is about to decide
+    /// about) - that's still always the accidental MatchAggregate-shaped
+    /// mistake, never allowlisted; the scanner just can't tell "different
+    /// instance of type T" from "same instance" by id, only by type, so
+    /// this carve-out exists because ShelterAdoption's 6 entities are
+    /// densely cross-referenced (unlike earlier phases' more isolated
+    /// modules, where this kind of cross-entity read stayed on a
+    /// deliberately non-event-sourced plain document instead - see
+    /// Notifications' OwnerContact) and every one of them is itself
+    /// Inline-snapshotted, so a legitimate read of a DIFFERENT entity
+    /// unavoidably also hits the watchlist. Each entry documents which
+    /// entity the handler mutates vs. which different entity it reads.
+    /// </summary>
+    private static readonly HashSet<(string CallingType, string SnapshotType)> ReviewedCrossEntityLoadExceptions = new()
+    {
+        // Ownership checks: the handler mutates its own entity (DogListing
+        // or Application), then LoadAsyncs the owning ShelterAccount (a
+        // different aggregate, a different id) purely to compare
+        // RequestedByOwnerId against the caller.
+        ("K9Crush.Modules.ShelterAdoption.Api.Commands.UpdateListingStatus.UpdateListingStatusHandler", "K9Crush.Modules.ShelterAdoption.Domain.ShelterAccount"),
+        ("K9Crush.Modules.ShelterAdoption.Api.Commands.ReviewApplication.ReviewApplicationHandler", "K9Crush.Modules.ShelterAdoption.Domain.ShelterAccount"),
+        ("K9Crush.Modules.ShelterAdoption.Api.Commands.RequestAdditionalDetails.RequestAdditionalDetailsHandler", "K9Crush.Modules.ShelterAdoption.Domain.ShelterAccount"),
+        ("K9Crush.Modules.ShelterAdoption.Api.Commands.RemoveDogListing.RemoveDogListingHandler", "K9Crush.Modules.ShelterAdoption.Domain.ShelterAccount"),
+        ("K9Crush.Modules.ShelterAdoption.Api.Commands.RejectApplication.RejectApplicationHandler", "K9Crush.Modules.ShelterAdoption.Domain.ShelterAccount"),
+        ("K9Crush.Modules.ShelterAdoption.Api.Commands.EditDogListing.EditDogListingHandler", "K9Crush.Modules.ShelterAdoption.Domain.ShelterAccount"),
+        ("K9Crush.Modules.ShelterAdoption.Api.Commands.ApproveApplication.ApproveApplicationHandler", "K9Crush.Modules.ShelterAdoption.Domain.ShelterAccount"),
+        ("K9Crush.Modules.ShelterAdoption.Api.Commands.AddDogListingPhoto.AddDogListingPhotoHandler", "K9Crush.Modules.ShelterAdoption.Domain.ShelterAccount"),
+        ("K9Crush.Modules.ShelterAdoption.Api.Commands.AddDogListing.AddDogListingHandler", "K9Crush.Modules.ShelterAdoption.Domain.ShelterAccount"),
+        // Activation/status check against the accepting shelter, distinct
+        // from the DogSurrenderRequest this handler appends to and the new
+        // DogListing stream it starts.
+        ("K9Crush.Modules.ShelterAdoption.Api.Commands.AcceptDogSurrender.AcceptDogSurrenderHandler", "K9Crush.Modules.ShelterAdoption.Domain.ShelterAccount"),
+        // Availability checks: the handler mutates/creates an Application
+        // but reads the referenced DogListing (read-only) to confirm it
+        // still exists/isn't withdrawn.
+        ("K9Crush.Modules.ShelterAdoption.Api.Commands.SubmitApplication.SubmitApplicationHandler", "K9Crush.Modules.ShelterAdoption.Domain.DogListing"),
+        ("K9Crush.Modules.ShelterAdoption.Api.Commands.StartDraftApplication.StartDraftApplicationHandler", "K9Crush.Modules.ShelterAdoption.Domain.DogListing"),
+        ("K9Crush.Modules.ShelterAdoption.Api.Commands.ResumeDraftApplication.ResumeDraftApplicationHandler", "K9Crush.Modules.ShelterAdoption.Domain.DogListing"),
+        // RejectApplicationHandler also reads the (different) DogListing
+        // read-only, purely for the cascaded integration event's DogName.
+        ("K9Crush.Modules.ShelterAdoption.Api.Commands.RejectApplication.RejectApplicationHandler", "K9Crush.Modules.ShelterAdoption.Domain.DogListing"),
+        // PlaceDogInFosterHandler mutates DogListing but reads the
+        // referenced FosterApplication (a different aggregate) read-only
+        // to confirm it's Approved.
+        ("K9Crush.Modules.ShelterAdoption.Api.Commands.PlaceDogInFoster.PlaceDogInFosterHandler", "K9Crush.Modules.ShelterAdoption.Domain.FosterApplication"),
     };
 
     [Fact]
@@ -119,7 +178,12 @@ public class CommandStateFitnessTests
 
         var violations = ApiAssembliesToScan
             .SelectMany(a => FindSnapshotSessionCalls(a.Location, SnapshotRegisteredTypeFullNames))
-            .Where(v => v.CalledMethod != "Query" || !ReviewedCrossPopulationQueryExceptions.Contains((v.CallingType, v.GenericArgument)))
+            .Where(v => v.CalledMethod switch
+            {
+                "Query" => !ReviewedCrossPopulationQueryExceptions.Contains((v.CallingType, v.GenericArgument)),
+                "LoadAsync" => !ReviewedCrossEntityLoadExceptions.Contains((v.CallingType, v.GenericArgument)),
+                _ => true
+            })
             .ToList();
 
         violations.Should().BeEmpty(

@@ -1,5 +1,4 @@
 using FluentAssertions;
-using Marten;
 using Microsoft.AspNetCore.Http.HttpResults;
 using NSubstitute;
 using K9Crush.Modules.ShelterAdoption.Api.Commands.ApproveFosterCaregiver;
@@ -10,14 +9,14 @@ namespace K9Crush.Modules.ShelterAdoption.Tests.Handlers;
 
 /// <summary>
 /// Layer 2 (TestingApproach.md) - ApproveFosterCaregiverHandler only
-/// calls LoadAsync/Store/SaveChangesAsync, so IDocumentSession mocks
-/// cleanly here.
+/// calls FetchForWriting/AppendOne/SaveChangesAsync, so IDocumentSession
+/// mocks cleanly here (ADR-031).
 /// </summary>
 public class ApproveFosterCaregiverHandlerTests
 {
     private static FosterApplication BuildUnderReview()
     {
-        var application = FosterApplication.Apply(Guid.NewGuid(), HomeType.House, hasGarden: true, hasOtherPets: false, new DateOnly(2026, 8, 1));
+        var application = FosterApplication.ApplyNew(Guid.NewGuid(), HomeType.House, hasGarden: true, hasOtherPets: false, new DateOnly(2026, 8, 1)).FosterApplication;
         application.Review();
         return application;
     }
@@ -26,23 +25,21 @@ public class ApproveFosterCaregiverHandlerTests
     public async Task Handle_WhenUnderReview_ApprovesAndPersists()
     {
         var application = BuildUnderReview();
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<FosterApplication>(application.Id, Arg.Any<CancellationToken>()).Returns(application);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(application.Id, application, out var stream);
 
         var result = await ApproveFosterCaregiverHandler.Handle(application.Id, session, CancellationToken.None);
 
         result.Result.Should().BeOfType<Ok<ApproveFosterCaregiverResponse>>();
-        session.Received(1).Store(Arg.Is<FosterApplication[]>(arr =>
-            arr != null && arr.Length == 1 && arr[0].Status == FosterApplicationStatus.Approved));
+        application.Status.Should().Be(FosterApplicationStatus.Approved);
+        stream.Received(1).AppendOne(Arg.Is<object>(o => o != null && o.GetType() == typeof(K9Crush.Modules.ShelterAdoption.Domain.Events.FosterCaregiverApprovedV1)));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Handle_WhenApplicationDoesNotExist_ReturnsNotFound()
     {
-        var session = Substitute.For<IDocumentSession>();
         var applicationId = Guid.NewGuid();
-        session.LoadAsync<FosterApplication>(applicationId, Arg.Any<CancellationToken>()).Returns((FosterApplication?)null);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting<FosterApplication>(applicationId, null, out _);
 
         var result = await ApproveFosterCaregiverHandler.Handle(applicationId, session, CancellationToken.None);
 
@@ -52,9 +49,8 @@ public class ApproveFosterCaregiverHandlerTests
     [Fact]
     public async Task Handle_WhenNotUnderReview_ReturnsConflict()
     {
-        var application = FosterApplication.Apply(Guid.NewGuid(), HomeType.House, hasGarden: true, hasOtherPets: false, new DateOnly(2026, 8, 1));
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<FosterApplication>(application.Id, Arg.Any<CancellationToken>()).Returns(application);
+        var application = FosterApplication.ApplyNew(Guid.NewGuid(), HomeType.House, hasGarden: true, hasOtherPets: false, new DateOnly(2026, 8, 1)).FosterApplication;
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(application.Id, application, out _);
 
         var result = await ApproveFosterCaregiverHandler.Handle(application.Id, session, CancellationToken.None);
 

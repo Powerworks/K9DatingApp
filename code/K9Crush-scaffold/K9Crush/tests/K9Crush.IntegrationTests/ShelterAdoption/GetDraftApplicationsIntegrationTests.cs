@@ -12,7 +12,9 @@ namespace K9Crush.IntegrationTests.ShelterAdoption;
 /// per-draft LoadAsync&lt;DogListing&gt;() to resolve DogName, the LINQ path
 /// Layer 2's IQuerySession mocks can't reach. Scoped to a per-test random
 /// applicantOwnerId (from the caller's own JWT), so safe to share
-/// ShelterAdoptionPostgresFixture.
+/// ShelterAdoptionPostgresFixture. Seeding now goes through
+/// Events.StartStream (ADR-031) rather than session.Store, since both
+/// DogListing and Application are event-sourced.
 /// </summary>
 [Collection(ShelterAdoptionPostgresCollection.Name)]
 public class GetDraftApplicationsIntegrationTests(ShelterAdoptionPostgresFixture fixture)
@@ -35,15 +37,17 @@ public class GetDraftApplicationsIntegrationTests(ShelterAdoptionPostgresFixture
     {
         var applicantOwnerId = Guid.NewGuid();
         var shelterAccountId = Guid.NewGuid();
-        var dogListing = DogListing.Create(shelterAccountId, "Biscuit", "Labrador", 36, "Friendly");
-        var ownDraft = Application.StartDraft(applicantOwnerId, dogListing.Id, shelterAccountId);
-        var submittedApplication = Application.Submit(applicantOwnerId, dogListing.Id, shelterAccountId, TestIntake.Default); // not a Draft - must be excluded
-        var otherOwnersDraft = Application.StartDraft(Guid.NewGuid(), dogListing.Id, shelterAccountId); // different owner - must be excluded
+        var (dogListing, dogListingAdded) = DogListing.AddNew(shelterAccountId, "Biscuit", "Labrador", 36, "Friendly");
+        var (ownDraft, ownDraftStarted) = Application.StartDraftNew(applicantOwnerId, dogListing.Id, shelterAccountId);
+        var (submittedApplication, submittedEvent) = Application.SubmitNew(applicantOwnerId, dogListing.Id, shelterAccountId, TestIntake.Default); // not a Draft - must be excluded
+        var (otherOwnersDraft, otherDraftStarted) = Application.StartDraftNew(Guid.NewGuid(), dogListing.Id, shelterAccountId); // different owner - must be excluded
 
         await using (var seedSession = fixture.Store.LightweightSession())
         {
-            seedSession.Store(dogListing);
-            seedSession.Store(ownDraft, submittedApplication, otherOwnersDraft);
+            seedSession.Events.StartStream<DogListing>(dogListing.Id, dogListingAdded);
+            seedSession.Events.StartStream<Application>(ownDraft.Id, ownDraftStarted);
+            seedSession.Events.StartStream<Application>(submittedApplication.Id, submittedEvent);
+            seedSession.Events.StartStream<Application>(otherOwnersDraft.Id, otherDraftStarted);
             await seedSession.SaveChangesAsync();
         }
 
@@ -61,11 +65,11 @@ public class GetDraftApplicationsIntegrationTests(ShelterAdoptionPostgresFixture
     {
         var applicantOwnerId = Guid.NewGuid();
         var removedDogListingId = Guid.NewGuid();
-        var draft = Application.StartDraft(applicantOwnerId, removedDogListingId, Guid.NewGuid());
+        var (draft, draftStarted) = Application.StartDraftNew(applicantOwnerId, removedDogListingId, Guid.NewGuid());
 
         await using (var seedSession = fixture.Store.LightweightSession())
         {
-            seedSession.Store(draft); // no DogListing document exists for removedDogListingId
+            seedSession.Events.StartStream<Application>(draft.Id, draftStarted); // no DogListing stream exists for removedDogListingId
             await seedSession.SaveChangesAsync();
         }
 

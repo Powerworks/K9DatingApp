@@ -10,8 +10,10 @@ using Xunit;
 namespace K9Crush.Modules.ShelterAdoption.Tests.Handlers;
 
 /// <summary>
-/// Layer 2 (TestingApproach.md) - AddDogListingHandler only calls
-/// LoadAsync/Store/SaveChangesAsync, so IDocumentSession mocks cleanly here.
+/// Layer 2 (TestingApproach.md) - AddDogListingHandler calls
+/// Events.StartStream/SaveChangesAsync against a new DogListing plus a
+/// plain LoadAsync against ShelterAccount for the ownership check
+/// (ADR-031).
 /// </summary>
 public class AddDogListingHandlerTests
 {
@@ -37,7 +39,7 @@ public class AddDogListingHandlerTests
     [Fact]
     public async Task Handle_WhenCallerDoesNotOwnTheShelterAccount_ReturnsForbid()
     {
-        var shelterAccount = ShelterAccount.Create(OwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
+        var shelterAccount = ShelterAccount.RequestNew(OwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid()).ShelterAccount;
         shelterAccount.Verify();
         shelterAccount.Activate();
         var session = Substitute.For<IDocumentSession>();
@@ -51,7 +53,7 @@ public class AddDogListingHandlerTests
     [Fact]
     public async Task Handle_WhenShelterAccountIsNotActivated_ReturnsConflict()
     {
-        var shelterAccount = ShelterAccount.Create(OwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid()); // Requested, not Created
+        var shelterAccount = ShelterAccount.RequestNew(OwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid()).ShelterAccount; // Requested, not Created
         var session = Substitute.For<IDocumentSession>();
         session.LoadAsync<ShelterAccount>(shelterAccount.Id, Arg.Any<CancellationToken>()).Returns(shelterAccount);
 
@@ -63,7 +65,7 @@ public class AddDogListingHandlerTests
     [Fact]
     public async Task Handle_WhenActivatedAndCallerOwnsIt_AddsListingAndPersists()
     {
-        var shelterAccount = ShelterAccount.Create(OwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
+        var shelterAccount = ShelterAccount.RequestNew(OwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid()).ShelterAccount;
         shelterAccount.Verify();
         shelterAccount.Activate();
         var session = Substitute.For<IDocumentSession>();
@@ -72,11 +74,14 @@ public class AddDogListingHandlerTests
         var result = await AddDogListingHandler.Handle(shelterAccount.Id, BuildRequest(), BuildUser(OwnerId), session, CancellationToken.None);
 
         result.Result.Should().BeOfType<Ok<AddDogListingResponse>>();
-        ((Ok<AddDogListingResponse>)result.Result).Value!.DogListingId.Should().NotBeEmpty();
+        var dogListingId = ((Ok<AddDogListingResponse>)result.Result).Value!.DogListingId;
+        dogListingId.Should().NotBeEmpty();
 
-        session.Received(1).Store(Arg.Is<DogListing[]>(arr =>
-            arr != null && arr.Length == 1 && arr[0].ShelterAccountId == shelterAccount.Id && arr[0].Name == "Biscuit" &&
-            arr[0].Status == DogListingStatus.NotReadyYet));
+        session.Events.Received(1).StartStream<DogListing>(
+            dogListingId,
+            Arg.Is<object[]>(events => events != null && events.Length == 1 && events[0] != null
+                && ((K9Crush.Modules.ShelterAdoption.Domain.Events.DogListingAddedV1)events[0]).ShelterAccountId == shelterAccount.Id
+                && ((K9Crush.Modules.ShelterAdoption.Domain.Events.DogListingAddedV1)events[0]).Name == "Biscuit"));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

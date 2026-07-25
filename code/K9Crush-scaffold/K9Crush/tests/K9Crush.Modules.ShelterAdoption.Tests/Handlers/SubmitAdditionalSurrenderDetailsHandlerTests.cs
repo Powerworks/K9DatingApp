@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using FluentAssertions;
-using Marten;
 using Microsoft.AspNetCore.Http.HttpResults;
 using NSubstitute;
 using K9Crush.Modules.ShelterAdoption.Api.Commands.SubmitAdditionalSurrenderDetails;
@@ -11,8 +10,8 @@ namespace K9Crush.Modules.ShelterAdoption.Tests.Handlers;
 
 /// <summary>
 /// Layer 2 (TestingApproach.md) - SubmitAdditionalSurrenderDetailsHandler
-/// only calls LoadAsync/Store/SaveChangesAsync, so IDocumentSession mocks
-/// cleanly here.
+/// only calls FetchForWriting/AppendOne/SaveChangesAsync, so
+/// IDocumentSession mocks cleanly here (ADR-031).
 /// </summary>
 public class SubmitAdditionalSurrenderDetailsHandlerTests
 {
@@ -23,8 +22,8 @@ public class SubmitAdditionalSurrenderDetailsHandlerTests
 
     private static DogSurrenderRequest BuildAdditionalDetailsRequested()
     {
-        var request = DogSurrenderRequest.Request(
-            RequestedByOwnerId, "Cooper", "Terrier mix", 48, "Relocating for work", "Gentle", "Healthy");
+        var request = DogSurrenderRequest.RequestNew(
+            RequestedByOwnerId, "Cooper", "Terrier mix", 48, "Relocating for work", "Gentle", "Healthy").DogSurrenderRequest;
         request.Review();
         request.RequestAdditionalDetails("Please confirm vaccination records");
         return request;
@@ -34,24 +33,22 @@ public class SubmitAdditionalSurrenderDetailsHandlerTests
     public async Task Handle_WhenAdditionalDetailsRequestedAndCallerOwnsIt_SubmitsAndPersists()
     {
         var surrenderRequest = BuildAdditionalDetailsRequested();
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<DogSurrenderRequest>(surrenderRequest.Id, Arg.Any<CancellationToken>()).Returns(surrenderRequest);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(surrenderRequest.Id, surrenderRequest, out var stream);
 
         var result = await SubmitAdditionalSurrenderDetailsHandler.Handle(
             surrenderRequest.Id, BuildUser(RequestedByOwnerId), session, CancellationToken.None);
 
         result.Result.Should().BeOfType<Ok<SubmitAdditionalSurrenderDetailsResponse>>();
-        session.Received(1).Store(Arg.Is<DogSurrenderRequest[]>(arr =>
-            arr != null && arr.Length == 1 && arr[0].Status == SurrenderRequestStatus.UnderReview));
+        surrenderRequest.Status.Should().Be(SurrenderRequestStatus.UnderReview);
+        stream.Received(1).AppendOne(Arg.Is<object>(o => o != null && o.GetType() == typeof(K9Crush.Modules.ShelterAdoption.Domain.Events.AdditionalSurrenderDetailsSubmittedV1)));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Handle_WhenRequestDoesNotExist_ReturnsNotFound()
     {
-        var session = Substitute.For<IDocumentSession>();
         var surrenderRequestId = Guid.NewGuid();
-        session.LoadAsync<DogSurrenderRequest>(surrenderRequestId, Arg.Any<CancellationToken>()).Returns((DogSurrenderRequest?)null);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting<DogSurrenderRequest>(surrenderRequestId, null, out _);
 
         var result = await SubmitAdditionalSurrenderDetailsHandler.Handle(
             surrenderRequestId, BuildUser(RequestedByOwnerId), session, CancellationToken.None);
@@ -63,8 +60,7 @@ public class SubmitAdditionalSurrenderDetailsHandlerTests
     public async Task Handle_WhenCallerDidNotRequestTheSurrender_ReturnsForbid()
     {
         var surrenderRequest = BuildAdditionalDetailsRequested();
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<DogSurrenderRequest>(surrenderRequest.Id, Arg.Any<CancellationToken>()).Returns(surrenderRequest);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(surrenderRequest.Id, surrenderRequest, out _);
 
         var result = await SubmitAdditionalSurrenderDetailsHandler.Handle(
             surrenderRequest.Id, BuildUser(Guid.NewGuid()), session, CancellationToken.None);
@@ -75,10 +71,9 @@ public class SubmitAdditionalSurrenderDetailsHandlerTests
     [Fact]
     public async Task Handle_WhenNotInAdditionalDetailsRequestedStatus_ReturnsConflict()
     {
-        var surrenderRequest = DogSurrenderRequest.Request(
-            RequestedByOwnerId, "Cooper", "Terrier mix", 48, "Relocating for work", "Gentle", "Healthy"); // Requested
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<DogSurrenderRequest>(surrenderRequest.Id, Arg.Any<CancellationToken>()).Returns(surrenderRequest);
+        var surrenderRequest = DogSurrenderRequest.RequestNew(
+            RequestedByOwnerId, "Cooper", "Terrier mix", 48, "Relocating for work", "Gentle", "Healthy").DogSurrenderRequest; // Requested
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(surrenderRequest.Id, surrenderRequest, out _);
 
         var result = await SubmitAdditionalSurrenderDetailsHandler.Handle(
             surrenderRequest.Id, BuildUser(RequestedByOwnerId), session, CancellationToken.None);

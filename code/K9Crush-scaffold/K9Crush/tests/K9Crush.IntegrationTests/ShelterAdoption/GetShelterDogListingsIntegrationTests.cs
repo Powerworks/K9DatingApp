@@ -14,7 +14,9 @@ namespace K9Crush.IntegrationTests.ShelterAdoption;
 /// shelterAccountId, so safe to share ShelterAdoptionPostgresFixture via
 /// [Collection(...)] - not the global "every row" class of check that
 /// forced GetAdoptionListingsIntegrationTests onto its own dedicated
-/// container instead.
+/// container instead. Seeding now goes through Events.StartStream
+/// (ADR-031) rather than session.Store, since both ShelterAccount and
+/// DogListing are event-sourced.
 /// </summary>
 [Collection(ShelterAdoptionPostgresCollection.Name)]
 public class GetShelterDogListingsIntegrationTests(ShelterAdoptionPostgresFixture fixture)
@@ -37,10 +39,10 @@ public class GetShelterDogListingsIntegrationTests(ShelterAdoptionPostgresFixtur
     public async Task Handle_WhenCallerDoesNotOwnTheShelterAccount_ReturnsForbid()
     {
         var ownerId = Guid.NewGuid();
-        var shelterAccount = ShelterAccount.Create(ownerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
+        var (shelterAccount, shelterAccountRequested) = ShelterAccount.RequestNew(ownerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
         await using (var seedSession = fixture.Store.LightweightSession())
         {
-            seedSession.Store(shelterAccount);
+            seedSession.Events.StartStream<ShelterAccount>(shelterAccount.Id, shelterAccountRequested);
             await seedSession.SaveChangesAsync();
         }
 
@@ -54,14 +56,15 @@ public class GetShelterDogListingsIntegrationTests(ShelterAdoptionPostgresFixtur
     public async Task Handle_ReturnsOnlyListingsForThatShelter()
     {
         var ownerId = Guid.NewGuid();
-        var shelterAccount = ShelterAccount.Create(ownerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
-        var ownListing = DogListing.Create(shelterAccount.Id, "Biscuit", "Labrador", 36, "Friendly");
-        var otherShelterListing = DogListing.Create(Guid.NewGuid(), "Max", "Beagle", 24, "Playful");
+        var (shelterAccount, shelterAccountRequested) = ShelterAccount.RequestNew(ownerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
+        var (ownListing, ownListingAdded) = DogListing.AddNew(shelterAccount.Id, "Biscuit", "Labrador", 36, "Friendly");
+        var (otherShelterListing, otherListingAdded) = DogListing.AddNew(Guid.NewGuid(), "Max", "Beagle", 24, "Playful");
 
         await using (var seedSession = fixture.Store.LightweightSession())
         {
-            seedSession.Store(shelterAccount);
-            seedSession.Store(ownListing, otherShelterListing);
+            seedSession.Events.StartStream<ShelterAccount>(shelterAccount.Id, shelterAccountRequested);
+            seedSession.Events.StartStream<DogListing>(ownListing.Id, ownListingAdded);
+            seedSession.Events.StartStream<DogListing>(otherShelterListing.Id, otherListingAdded);
             await seedSession.SaveChangesAsync();
         }
 

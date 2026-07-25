@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Marten;
 using K9Crush.Modules.ShelterAdoption.Api.ReadModels.GetAdoptionListings;
 using K9Crush.Modules.ShelterAdoption.Domain;
 using Xunit;
@@ -14,7 +15,8 @@ namespace K9Crush.IntegrationTests.ShelterAdoption;
 /// GetFeedbackInboxIntegrationTests onto their own dedicated per-instance
 /// IAsyncLifetime container instead of sharing one via [Collection(...)] -
 /// see those test classes' doc comments for the full writeup of why. Same
-/// fix applied here up front.
+/// fix applied here up front. Seeding now goes through Events.StartStream
+/// (ADR-031) rather than session.Store, since DogListing is event-sourced.
 /// </summary>
 public class GetAdoptionListingsIntegrationTests : IAsyncLifetime
 {
@@ -22,6 +24,12 @@ public class GetAdoptionListingsIntegrationTests : IAsyncLifetime
 
     public Task InitializeAsync() => _fixture.InitializeAsync();
     public Task DisposeAsync() => _fixture.DisposeAsync();
+
+    private static void SeedAvailable(IDocumentSession session, DogListing dogListing, K9Crush.Modules.ShelterAdoption.Domain.Events.DogListingAddedV1 addedEvent)
+    {
+        var statusEvent = dogListing.UpdateStatus(DogListingStatus.Available);
+        session.Events.StartStream<DogListing>(dogListing.Id, addedEvent, statusEvent);
+    }
 
     [Fact]
     public async Task Handle_WhenNoListingsExist_ReturnsEmptyList()
@@ -36,14 +44,13 @@ public class GetAdoptionListingsIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task Handle_ReturnsEveryAvailableListingAcrossEveryShelter()
     {
-        var listingA = DogListing.Create(Guid.NewGuid(), "Biscuit", "Labrador", 36, "Friendly");
-        listingA.UpdateStatus(DogListingStatus.Available);
-        var listingB = DogListing.Create(Guid.NewGuid(), "Max", "Beagle", 24, "Playful");
-        listingB.UpdateStatus(DogListingStatus.Available);
+        var (listingA, addedA) = DogListing.AddNew(Guid.NewGuid(), "Biscuit", "Labrador", 36, "Friendly");
+        var (listingB, addedB) = DogListing.AddNew(Guid.NewGuid(), "Max", "Beagle", 24, "Playful");
 
         await using (var seedSession = _fixture.Store.LightweightSession())
         {
-            seedSession.Store(listingA, listingB);
+            SeedAvailable(seedSession, listingA, addedA);
+            SeedAvailable(seedSession, listingB, addedB);
             await seedSession.SaveChangesAsync();
         }
 
@@ -62,17 +69,17 @@ public class GetAdoptionListingsIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task Handle_ExcludesListingsThatAreNotAvailable()
     {
-        var available = DogListing.Create(Guid.NewGuid(), "Biscuit", "Labrador", 36, "Friendly");
-        available.UpdateStatus(DogListingStatus.Available);
-        var notReadyYet = DogListing.Create(Guid.NewGuid(), "Max", "Beagle", 24, "Playful"); // default status
-        var inFoster = DogListing.Create(Guid.NewGuid(), "Rex", "Terrier", 12, "Energetic");
-        inFoster.UpdateStatus(DogListingStatus.InFoster);
-        var adopted = DogListing.Create(Guid.NewGuid(), "Luna", "Poodle", 48, "Calm");
-        adopted.UpdateStatus(DogListingStatus.Adopted);
+        var (available, addedAvailable) = DogListing.AddNew(Guid.NewGuid(), "Biscuit", "Labrador", 36, "Friendly");
+        var (notReadyYet, addedNotReadyYet) = DogListing.AddNew(Guid.NewGuid(), "Max", "Beagle", 24, "Playful"); // default status
+        var (inFoster, addedInFoster) = DogListing.AddNew(Guid.NewGuid(), "Rex", "Terrier", 12, "Energetic");
+        var (adopted, addedAdopted) = DogListing.AddNew(Guid.NewGuid(), "Luna", "Poodle", 48, "Calm");
 
         await using (var seedSession = _fixture.Store.LightweightSession())
         {
-            seedSession.Store(available, notReadyYet, inFoster, adopted);
+            SeedAvailable(seedSession, available, addedAvailable);
+            seedSession.Events.StartStream<DogListing>(notReadyYet.Id, addedNotReadyYet);
+            seedSession.Events.StartStream<DogListing>(inFoster.Id, addedInFoster, inFoster.UpdateStatus(DogListingStatus.InFoster));
+            seedSession.Events.StartStream<DogListing>(adopted.Id, addedAdopted, adopted.UpdateStatus(DogListingStatus.Adopted));
             await seedSession.SaveChangesAsync();
         }
 

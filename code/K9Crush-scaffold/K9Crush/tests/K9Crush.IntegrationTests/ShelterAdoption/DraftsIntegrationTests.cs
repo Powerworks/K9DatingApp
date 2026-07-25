@@ -35,8 +35,8 @@ public class DraftsIntegrationTests(ShelterAdoptionPostgresFixture fixture)
     private async Task<Guid> CreateDogListingAsync(Guid shelterAccountId, string name)
     {
         await using var session = fixture.Store.LightweightSession();
-        var dogListing = DogListing.Create(shelterAccountId, name, "Mixed", 12, "A good dog");
-        session.Store(dogListing);
+        var (dogListing, @event) = DogListing.AddNew(shelterAccountId, name, "Mixed", 12, "A good dog");
+        session.Events.StartStream<DogListing>(dogListing.Id, @event);
         await session.SaveChangesAsync();
         return dogListing.Id;
     }

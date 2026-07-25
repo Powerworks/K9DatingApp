@@ -15,7 +15,7 @@ public class FosterApplicationTests
     private static readonly DateOnly AvailableFrom = new(2026, 8, 1);
 
     private static FosterApplication BuildApplication() =>
-        FosterApplication.Apply(ApplicantOwnerId, HomeType.House, hasGarden: true, hasOtherPets: false, AvailableFrom);
+        FosterApplication.ApplyNew(ApplicantOwnerId, HomeType.House, hasGarden: true, hasOtherPets: false, AvailableFrom).FosterApplication;
 
     [Fact]
     public void Apply_WhenCalled_SetsFieldsAndStatusToSubmitted()

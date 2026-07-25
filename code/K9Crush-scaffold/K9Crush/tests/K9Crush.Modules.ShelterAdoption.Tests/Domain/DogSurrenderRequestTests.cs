@@ -15,9 +15,9 @@ public class DogSurrenderRequestTests
 {
     private static readonly Guid RequestedByOwnerId = Guid.NewGuid();
 
-    private static DogSurrenderRequest BuildRequest() => DogSurrenderRequest.Request(
+    private static DogSurrenderRequest BuildRequest() => DogSurrenderRequest.RequestNew(
         RequestedByOwnerId, "  Cooper  ", "  Terrier mix  ", 48,
-        "  Relocating for work  ", "  Gentle, a little shy  ", "  Up to date on vaccinations  ");
+        "  Relocating for work  ", "  Gentle, a little shy  ", "  Up to date on vaccinations  ").DogSurrenderRequest;
 
     [Fact]
     public void Request_WhenCalled_SetsFieldsTrimmedAndStatusToRequested()

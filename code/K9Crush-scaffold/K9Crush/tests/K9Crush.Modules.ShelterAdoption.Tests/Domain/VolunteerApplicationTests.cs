@@ -14,7 +14,7 @@ public class VolunteerApplicationTests
     private static readonly Guid ApplicantOwnerId = Guid.NewGuid();
 
     private static VolunteerApplication BuildApplication() =>
-        VolunteerApplication.Apply(ApplicantOwnerId, VolunteerAreaOfInterest.HomeChecks);
+        VolunteerApplication.ApplyNew(ApplicantOwnerId, VolunteerAreaOfInterest.HomeChecks).VolunteerApplication;
 
     [Fact]
     public void Apply_WhenCalled_SetsFieldsAndStatusToSubmitted()

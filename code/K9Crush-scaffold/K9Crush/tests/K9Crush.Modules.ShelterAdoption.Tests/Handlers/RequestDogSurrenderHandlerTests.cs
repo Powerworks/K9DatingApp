@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using FluentAssertions;
 using Marten;
-using Microsoft.AspNetCore.Http.HttpResults;
 using NSubstitute;
 using K9Crush.Modules.ShelterAdoption.Api.Commands.RequestDogSurrender;
 using K9Crush.Modules.ShelterAdoption.Domain;
@@ -11,7 +10,8 @@ namespace K9Crush.Modules.ShelterAdoption.Tests.Handlers;
 
 /// <summary>
 /// Layer 2 (TestingApproach.md) - RequestDogSurrenderHandler only calls
-/// Store/SaveChangesAsync, so IDocumentSession mocks cleanly here.
+/// Events.StartStream/SaveChangesAsync, so IDocumentSession mocks cleanly
+/// here (ADR-031).
 /// </summary>
 public class RequestDogSurrenderHandlerTests
 {
@@ -30,10 +30,14 @@ public class RequestDogSurrenderHandlerTests
 
         var result = await RequestDogSurrenderHandler.Handle(BuildRequest(), BuildUser(OwnerId), session, CancellationToken.None);
 
-        result.Value!.SurrenderRequestId.Should().NotBeEmpty();
-        session.Received(1).Store(Arg.Is<DogSurrenderRequest[]>(arr =>
-            arr != null && arr.Length == 1 && arr[0].RequestedByOwnerId == OwnerId && arr[0].DogName == "Cooper" &&
-            arr[0].Status == SurrenderRequestStatus.Requested));
+        var surrenderRequestId = result.Value!.SurrenderRequestId;
+        surrenderRequestId.Should().NotBeEmpty();
+
+        session.Events.Received(1).StartStream<DogSurrenderRequest>(
+            surrenderRequestId,
+            Arg.Is<object[]>(events => events != null && events.Length == 1 && events[0] != null
+                && ((K9Crush.Modules.ShelterAdoption.Domain.Events.DogSurrenderRequestedV1)events[0]).RequestedByOwnerId == OwnerId
+                && ((K9Crush.Modules.ShelterAdoption.Domain.Events.DogSurrenderRequestedV1)events[0]).DogName == "Cooper"));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

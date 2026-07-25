@@ -9,9 +9,10 @@ using Xunit;
 namespace K9Crush.Modules.ShelterAdoption.Tests.Handlers;
 
 /// <summary>
-/// Layer 2 (TestingApproach.md) - PlaceDogInFosterHandler only calls
-/// LoadAsync/Store/SaveChangesAsync, so IDocumentSession mocks cleanly
-/// here.
+/// Layer 2 (TestingApproach.md) - PlaceDogInFosterHandler calls
+/// FetchForWriting/AppendOne/SaveChangesAsync against DogListing plus a
+/// plain LoadAsync against FosterApplication (read-only reference check,
+/// not a self-load - ADR-031).
 /// </summary>
 public class PlaceDogInFosterHandlerTests
 {
@@ -20,14 +21,14 @@ public class PlaceDogInFosterHandlerTests
 
     private static DogListing BuildAvailableListing()
     {
-        var dogListing = DogListing.Create(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly");
+        var dogListing = DogListing.AddNew(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly").DogListing;
         dogListing.UpdateStatus(DogListingStatus.Available);
         return dogListing;
     }
 
     private static FosterApplication BuildApprovedFosterApplication()
     {
-        var application = FosterApplication.Apply(CaregiverOwnerId, HomeType.House, hasGarden: true, hasOtherPets: false, new DateOnly(2026, 8, 1));
+        var application = FosterApplication.ApplyNew(CaregiverOwnerId, HomeType.House, hasGarden: true, hasOtherPets: false, new DateOnly(2026, 8, 1)).FosterApplication;
         application.Review();
         application.Approve();
         return application;
@@ -38,8 +39,7 @@ public class PlaceDogInFosterHandlerTests
     {
         var dogListing = BuildAvailableListing();
         var fosterApplication = BuildApprovedFosterApplication();
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<DogListing>(dogListing.Id, Arg.Any<CancellationToken>()).Returns(dogListing);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(dogListing.Id, dogListing, out var stream);
         session.LoadAsync<FosterApplication>(fosterApplication.Id, Arg.Any<CancellationToken>()).Returns(fosterApplication);
 
         var result = await PlaceDogInFosterHandler.Handle(
@@ -50,18 +50,17 @@ public class PlaceDogInFosterHandlerTests
         response.Status.Should().Be(nameof(DogListingStatus.InFoster));
         response.FosterCaregiverOwnerId.Should().Be(CaregiverOwnerId);
 
-        session.Received(1).Store(Arg.Is<DogListing[]>(arr =>
-            arr != null && arr.Length == 1 && arr[0].Status == DogListingStatus.InFoster &&
-            arr[0].CurrentFosterCaregiverOwnerId == CaregiverOwnerId));
+        dogListing.Status.Should().Be(DogListingStatus.InFoster);
+        dogListing.CurrentFosterCaregiverOwnerId.Should().Be(CaregiverOwnerId);
+        stream.Received(1).AppendOne(Arg.Is<object>(o => o != null && o.GetType() == typeof(K9Crush.Modules.ShelterAdoption.Domain.Events.DogListingPlacedInFosterV1)));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Handle_WhenListingDoesNotExist_ReturnsNotFound()
     {
-        var session = Substitute.For<IDocumentSession>();
         var dogListingId = Guid.NewGuid();
-        session.LoadAsync<DogListing>(dogListingId, Arg.Any<CancellationToken>()).Returns((DogListing?)null);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting<DogListing>(dogListingId, null, out _);
 
         var result = await PlaceDogInFosterHandler.Handle(
             dogListingId, new PlaceDogInFosterRequest(Guid.NewGuid()), session, CancellationToken.None);
@@ -74,8 +73,7 @@ public class PlaceDogInFosterHandlerTests
     {
         var dogListing = BuildAvailableListing();
         dogListing.PlaceInFoster(Guid.NewGuid());
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<DogListing>(dogListing.Id, Arg.Any<CancellationToken>()).Returns(dogListing);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(dogListing.Id, dogListing, out _);
 
         var result = await PlaceDogInFosterHandler.Handle(
             dogListing.Id, new PlaceDogInFosterRequest(Guid.NewGuid()), session, CancellationToken.None);
@@ -87,8 +85,7 @@ public class PlaceDogInFosterHandlerTests
     public async Task Handle_WhenFosterApplicationDoesNotExist_ReturnsNotFound()
     {
         var dogListing = BuildAvailableListing();
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<DogListing>(dogListing.Id, Arg.Any<CancellationToken>()).Returns(dogListing);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(dogListing.Id, dogListing, out _);
         session.LoadAsync<FosterApplication>(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((FosterApplication?)null);
 
         var result = await PlaceDogInFosterHandler.Handle(
@@ -101,9 +98,8 @@ public class PlaceDogInFosterHandlerTests
     public async Task Handle_WhenFosterApplicationIsNotApproved_ReturnsConflict()
     {
         var dogListing = BuildAvailableListing();
-        var fosterApplication = FosterApplication.Apply(CaregiverOwnerId, HomeType.House, hasGarden: true, hasOtherPets: false, new DateOnly(2026, 8, 1)); // Submitted
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<DogListing>(dogListing.Id, Arg.Any<CancellationToken>()).Returns(dogListing);
+        var fosterApplication = FosterApplication.ApplyNew(CaregiverOwnerId, HomeType.House, hasGarden: true, hasOtherPets: false, new DateOnly(2026, 8, 1)).FosterApplication; // Submitted
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(dogListing.Id, dogListing, out _);
         session.LoadAsync<FosterApplication>(fosterApplication.Id, Arg.Any<CancellationToken>()).Returns(fosterApplication);
 
         var result = await PlaceDogInFosterHandler.Handle(

@@ -19,7 +19,7 @@ public class DogListingTests
     {
         var before = DateTimeOffset.UtcNow;
 
-        var dogListing = DogListing.Create(ShelterAccountId, "  Biscuit  ", "  Beagle mix  ", 24, "  Friendly, good with kids  ");
+        var dogListing = DogListing.AddNew(ShelterAccountId, "  Biscuit  ", "  Beagle mix  ", 24, "  Friendly, good with kids  ").DogListing;
 
         var after = DateTimeOffset.UtcNow;
 
@@ -36,7 +36,7 @@ public class DogListingTests
     [Fact]
     public void Create_WhenNameIsBlank_Throws()
     {
-        var act = () => DogListing.Create(ShelterAccountId, "   ", "Beagle mix", 24, "Bio");
+        var act = () => DogListing.AddNew(ShelterAccountId, "   ", "Beagle mix", 24, "Bio");
 
         act.Should().Throw<ArgumentException>();
     }
@@ -44,7 +44,7 @@ public class DogListingTests
     [Fact]
     public void Edit_WhenCalled_SetsFieldsTrimmedAndLeavesStatusUnchanged()
     {
-        var dogListing = DogListing.Create(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly");
+        var dogListing = DogListing.AddNew(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly").DogListing;
         dogListing.UpdateStatus(DogListingStatus.Available);
 
         dogListing.Edit("  Biscuit II  ", "  Beagle  ", 30, "  Still friendly  ");
@@ -64,7 +64,7 @@ public class DogListingTests
     [InlineData(DogListingStatus.Adopted)]
     public void UpdateStatus_WhenCalled_SetsStatusToTheGivenValue(DogListingStatus status)
     {
-        var dogListing = DogListing.Create(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly");
+        var dogListing = DogListing.AddNew(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly").DogListing;
 
         dogListing.UpdateStatus(status);
 
@@ -74,7 +74,7 @@ public class DogListingTests
     [Fact]
     public void PlaceInFoster_WhenCalled_SetsCaregiverAndStatusToInFoster()
     {
-        var dogListing = DogListing.Create(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly");
+        var dogListing = DogListing.AddNew(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly").DogListing;
         var caregiverOwnerId = Guid.NewGuid();
 
         dogListing.PlaceInFoster(caregiverOwnerId);
@@ -86,7 +86,7 @@ public class DogListingTests
     [Fact]
     public void MarkFosterDogReadyForAdoption_WhenCalled_SetsStatusToAvailableAndKeepsCaregiver()
     {
-        var dogListing = DogListing.Create(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly");
+        var dogListing = DogListing.AddNew(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly").DogListing;
         var caregiverOwnerId = Guid.NewGuid();
         dogListing.PlaceInFoster(caregiverOwnerId);
 
@@ -100,7 +100,7 @@ public class DogListingTests
     [Fact]
     public void EndFosterPlacement_WhenNotAdopted_ClearsCaregiverAndSetsStatusToAvailable()
     {
-        var dogListing = DogListing.Create(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly");
+        var dogListing = DogListing.AddNew(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly").DogListing;
         dogListing.PlaceInFoster(Guid.NewGuid());
 
         dogListing.EndFosterPlacement();
@@ -112,7 +112,7 @@ public class DogListingTests
     [Fact]
     public void EndFosterPlacement_WhenAlreadyAdopted_ClearsCaregiverButLeavesStatusAsAdopted()
     {
-        var dogListing = DogListing.Create(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly");
+        var dogListing = DogListing.AddNew(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly").DogListing;
         dogListing.PlaceInFoster(Guid.NewGuid());
         dogListing.UpdateStatus(DogListingStatus.Adopted); // e.g. approved via a different applicant while still fostering
 
@@ -125,7 +125,7 @@ public class DogListingTests
     [Fact]
     public void AttachPhoto_WhenCalled_AddsToPhotoIds()
     {
-        var dogListing = DogListing.Create(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly");
+        var dogListing = DogListing.AddNew(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly").DogListing;
         var mediaAssetId = Guid.NewGuid();
 
         dogListing.AttachPhoto(mediaAssetId);
@@ -136,7 +136,7 @@ public class DogListingTests
     [Fact]
     public void AttachPhoto_WhenSameMediaAssetIdAttachedTwice_IsANoOp()
     {
-        var dogListing = DogListing.Create(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly");
+        var dogListing = DogListing.AddNew(ShelterAccountId, "Biscuit", "Beagle mix", 24, "Friendly").DogListing;
         var mediaAssetId = Guid.NewGuid();
 
         dogListing.AttachPhoto(mediaAssetId);

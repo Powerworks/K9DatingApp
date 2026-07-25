@@ -11,7 +11,9 @@ namespace K9Crush.IntegrationTests.ShelterAdoption;
 /// <summary>
 /// Layer 3 (TestingApproach.md) - NotifyApplicantsOfListingChangeHandler
 /// calls session.Query&lt;Application&gt;().Where(...).ToListAsync(), the
-/// LINQ path Layer 2's IDocumentSession mocks can't reach.
+/// LINQ path Layer 2's IDocumentSession mocks can't reach. Seeding now
+/// goes through Events.StartStream (ADR-031) rather than session.Store,
+/// since Application is event-sourced.
 /// </summary>
 [Collection(ShelterAdoptionPostgresCollection.Name)]
 public class NotifyApplicantsOfListingChangeIntegrationTests(ShelterAdoptionPostgresFixture fixture)
@@ -28,14 +30,15 @@ public class NotifyApplicantsOfListingChangeIntegrationTests(ShelterAdoptionPost
         var applicantA = Guid.NewGuid();
         var withdrawnApplicant = Guid.NewGuid();
 
-        var openApplication = Application.Submit(applicantA, dogListingId, shelterAccountId, TestIntake.Default);
-        openApplication.Review();
-        var withdrawnApplication = Application.Submit(withdrawnApplicant, dogListingId, shelterAccountId, TestIntake.Default);
-        withdrawnApplication.Withdraw();
+        var (openApplication, openSubmitted) = Application.SubmitNew(applicantA, dogListingId, shelterAccountId, TestIntake.Default);
+        var reviewedEvent = openApplication.Review();
+        var (withdrawnApplication, withdrawnSubmitted) = Application.SubmitNew(withdrawnApplicant, dogListingId, shelterAccountId, TestIntake.Default);
+        var withdrawnEvent = withdrawnApplication.Withdraw();
 
         await using (var seedSession = fixture.Store.LightweightSession())
         {
-            seedSession.Store(openApplication, withdrawnApplication);
+            seedSession.Events.StartStream<Application>(openApplication.Id, openSubmitted, reviewedEvent);
+            seedSession.Events.StartStream<Application>(withdrawnApplication.Id, withdrawnSubmitted, withdrawnEvent);
             await seedSession.SaveChangesAsync();
         }
 

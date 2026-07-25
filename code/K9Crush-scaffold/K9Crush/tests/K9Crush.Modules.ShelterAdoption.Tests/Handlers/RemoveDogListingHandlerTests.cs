@@ -10,9 +10,11 @@ using Xunit;
 namespace K9Crush.Modules.ShelterAdoption.Tests.Handlers;
 
 /// <summary>
-/// Layer 2 (TestingApproach.md) - RemoveDogListingHandler only calls
-/// LoadAsync/Delete/SaveChangesAsync, so IDocumentSession mocks cleanly
-/// here.
+/// Layer 2 (TestingApproach.md) - RemoveDogListingHandler calls
+/// FetchForWriting/AppendOne/SaveChangesAsync against DogListing (no more
+/// session.Delete under ADR-031's no-hard-delete pattern - Remove() flags
+/// IsRemoved instead) plus a plain LoadAsync against ShelterAccount for
+/// the ownership check.
 /// </summary>
 public class RemoveDogListingHandlerTests
 {
@@ -24,9 +26,8 @@ public class RemoveDogListingHandlerTests
     [Fact]
     public async Task Handle_WhenListingDoesNotExist_ReturnsNotFoundAndNoIntegrationEvent()
     {
-        var session = Substitute.For<IDocumentSession>();
         var dogListingId = Guid.NewGuid();
-        session.LoadAsync<DogListing>(dogListingId, Arg.Any<CancellationToken>()).Returns((DogListing?)null);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting<DogListing>(dogListingId, null, out _);
 
         var (result, integrationEvent) = await RemoveDogListingHandler.Handle(dogListingId, BuildUser(ShelterOwnerId), session, CancellationToken.None);
 
@@ -35,19 +36,20 @@ public class RemoveDogListingHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenCallerOwnsTheListing_DeletesAndCascadesDogListingRemovedWithDogName()
+    public async Task Handle_WhenCallerOwnsTheListing_FlagsRemovedAndCascadesDogListingRemovedWithDogName()
     {
-        var shelterAccount = ShelterAccount.Create(ShelterOwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
-        var dogListing = DogListing.Create(shelterAccount.Id, "Biscuit", "Beagle mix", 24, "Friendly");
+        var shelterAccount = ShelterAccount.RequestNew(ShelterOwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid()).ShelterAccount;
+        var dogListing = DogListing.AddNew(shelterAccount.Id, "Biscuit", "Beagle mix", 24, "Friendly").DogListing;
 
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<DogListing>(dogListing.Id, Arg.Any<CancellationToken>()).Returns(dogListing);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(dogListing.Id, dogListing, out var stream);
         session.LoadAsync<ShelterAccount>(shelterAccount.Id, Arg.Any<CancellationToken>()).Returns(shelterAccount);
 
         var (result, integrationEvent) = await RemoveDogListingHandler.Handle(dogListing.Id, BuildUser(ShelterOwnerId), session, CancellationToken.None);
 
         result.Result.Should().BeOfType<Ok>();
-        session.Received(1).Delete(dogListing);
+        dogListing.IsRemoved.Should().BeTrue();
+        stream.Received(1).AppendOne(Arg.Is<object>(o => o != null && o.GetType() == typeof(K9Crush.Modules.ShelterAdoption.Domain.Events.DogListingWithdrawnV1)));
+        await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
 
         integrationEvent.Should().NotBeNull();
         integrationEvent!.DogListingId.Should().Be(dogListing.Id);

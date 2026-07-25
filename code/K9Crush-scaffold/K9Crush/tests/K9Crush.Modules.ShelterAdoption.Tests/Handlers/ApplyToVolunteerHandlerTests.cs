@@ -10,7 +10,8 @@ namespace K9Crush.Modules.ShelterAdoption.Tests.Handlers;
 
 /// <summary>
 /// Layer 2 (TestingApproach.md) - ApplyToVolunteerHandler only calls
-/// Store/SaveChangesAsync, so IDocumentSession mocks cleanly here.
+/// Events.StartStream/SaveChangesAsync, so IDocumentSession mocks cleanly
+/// here (ADR-031).
 /// </summary>
 public class ApplyToVolunteerHandlerTests
 {
@@ -27,11 +28,14 @@ public class ApplyToVolunteerHandlerTests
 
         var result = await ApplyToVolunteerHandler.Handle(request, BuildUser(OwnerId), session, CancellationToken.None);
 
-        result.Value!.VolunteerApplicationId.Should().NotBeEmpty();
-        session.Received(1).Store(Arg.Is<VolunteerApplication[]>(arr =>
-            arr != null && arr.Length == 1 && arr[0].ApplicantOwnerId == OwnerId &&
-            arr[0].AreaOfInterest == VolunteerAreaOfInterest.HomeChecks &&
-            arr[0].Status == VolunteerApplicationStatus.Submitted));
+        var volunteerApplicationId = result.Value!.VolunteerApplicationId;
+        volunteerApplicationId.Should().NotBeEmpty();
+
+        session.Events.Received(1).StartStream<VolunteerApplication>(
+            volunteerApplicationId,
+            Arg.Is<object[]>(events => events != null && events.Length == 1 && events[0] != null
+                && ((K9Crush.Modules.ShelterAdoption.Domain.Events.VolunteerApplicationSubmittedV1)events[0]).ApplicantOwnerId == OwnerId
+                && ((K9Crush.Modules.ShelterAdoption.Domain.Events.VolunteerApplicationSubmittedV1)events[0]).AreaOfInterest == VolunteerAreaOfInterest.HomeChecks));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

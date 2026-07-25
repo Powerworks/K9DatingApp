@@ -14,7 +14,9 @@ namespace K9Crush.IntegrationTests.ShelterAdoption;
 /// GetModerationQueueIntegrationTests onto their own dedicated
 /// per-instance IAsyncLifetime container instead of sharing one via
 /// [Collection(...)] - see those test classes' doc comments for the full
-/// writeup of why. Same fix applied here up front.
+/// writeup of why. Same fix applied here up front. Seeding now goes
+/// through Events.StartStream (ADR-031) rather than session.Store, since
+/// DogSurrenderRequest is event-sourced.
 /// </summary>
 public class GetSurrenderReviewQueueIntegrationTests : IAsyncLifetime
 {
@@ -36,16 +38,17 @@ public class GetSurrenderReviewQueueIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task Handle_ReturnsEverySurrenderRequestRegardlessOfStatus()
     {
-        var requested = DogSurrenderRequest.Request(
+        var (requested, requestedEvent) = DogSurrenderRequest.RequestNew(
             Guid.NewGuid(), "Cooper", "Terrier mix", 48, "Relocating for work", "Gentle", "Healthy");
-        var declined = DogSurrenderRequest.Request(
+        var (declined, declinedRequestedEvent) = DogSurrenderRequest.RequestNew(
             Guid.NewGuid(), "Max", "Beagle", 24, "Allergies in the household", "Playful", "Healthy");
-        declined.Review();
-        declined.Decline("Outside current intake capacity");
+        var reviewedEvent = declined.Review();
+        var declinedEvent = declined.Decline("Outside current intake capacity");
 
         await using (var seedSession = _fixture.Store.LightweightSession())
         {
-            seedSession.Store(requested, declined);
+            seedSession.Events.StartStream<DogSurrenderRequest>(requested.Id, requestedEvent);
+            seedSession.Events.StartStream<DogSurrenderRequest>(declined.Id, declinedRequestedEvent, reviewedEvent, declinedEvent);
             await seedSession.SaveChangesAsync();
         }
 
