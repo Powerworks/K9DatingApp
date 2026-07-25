@@ -69,3 +69,63 @@ that starting point.
 - No SQL/Flyway migration files for application schema — Marten auto-manages it (`AutoCreateSchemaObjects`). Testcontainers fixtures need `AutoCreate.All` set explicitly on the test `DocumentStore`, since that's not necessarily what the app's own `AddMarten()` call resolves to outside Development — check your project's `Program.cs` for what it currently relies on before assuming the default matches.
 - Concurrency: `FetchForWriting`/`FetchForExclusiveWriting` are optimistic by default. The exception on a stale fetch is `JasperFx.ConcurrencyException` — a different hierarchy from Marten's own *document*-level `Marten.Exceptions.ConcurrentUpdateException`. If your app also has any plain (non-event-sourced) documents with their own optimistic concurrency, map both exception types to a `409 Conflict`, once, centrally — not per-handler.
 - Before deploying anywhere beyond local development, confirm what your Marten version's schema-auto-creation config surface actually is (this has moved across major versions — check your installed package version's own API via your IDE's "go to definition" rather than assuming a specific enum/namespace) and set it explicitly rather than relying on whatever the library's current default happens to be.
+
+## Program.cs / Host wiring — validated baseline
+
+The skills (`build-state-change` Step 5, `build-state-view` Step 6, README setup step 5) all assume `Api.Host/Program.cs` and `IMartenModuleConfiguration` already exist and don't set them up. They didn't exist on this kit's first real run — the following was worked out by scaffolding a solution from scratch and fixing it against real `dotnet build` errors, not from docs alone. Reuse this rather than re-deriving it.
+
+- **Validated package combo** (net10.0, confirmed by an actual successful build): `WolverineFx`, `WolverineFx.Http`, `WolverineFx.Marten`, `WolverineFx.RabbitMQ` — all `6.22.0` — plus `Marten` `9.19.0`. Re-check for newer compatible versions on a much later date rather than assuming these still resolve, but this is a live-verified starting point, not a guess.
+- **`WolverineFx.Marten` is a separate, easy-to-forget package.** Installing only `WolverineFx` + `Marten` restores and compiles fine right up until you write `AddMarten(...).IntegrateWithWolverine()` — that extension method only exists once `WolverineFx.Marten` is also referenced. Add all four Wolverine packages up front, not incrementally as errors appear.
+- **`UseDataAnnotationsValidationProblemDetailMiddleware()` lives on `WolverineHttpOptions`, not `WebApplication`.** It is not an `app.Use(...)` middleware call. Wire it through `MapWolverineEndpoints`'s options callback:
+  ```csharp
+  app.MapWolverineEndpoints(opts => opts.UseDataAnnotationsValidationProblemDetailMiddleware());
+  ```
+  `builder.Services.AddWolverineHttp()` itself takes no options callback — don't look for one there.
+- **Minimal skeleton that builds**, given `IMartenModuleConfiguration[] modules` (empty until the first module is scaffolded):
+  ```csharp
+  builder.Host.UseWolverine(opts =>
+  {
+      foreach (var module in modules)
+          opts.Discovery.IncludeAssembly(module.GetType().Assembly);
+
+      opts.UseRabbitMq(new Uri(rabbitConnectionString)).AutoProvision();
+
+      foreach (var module in modules)
+          if (module.IntegrationEventQueueName is { } queueName)
+              opts.ListenToRabbitQueue(queueName).UseDurableInbox();
+  });
+
+  builder.Services.AddMarten(opts =>
+  {
+      opts.Connection(postgresConnectionString);
+      foreach (var module in modules) module.Configure(opts);
+  }).IntegrateWithWolverine();
+
+  builder.Services.AddWolverineHttp();
+
+  var app = builder.Build();
+
+  app.Use(async (context, next) =>
+  {
+      try { await next(context); }
+      catch (Exception ex) when (ex is JasperFx.ConcurrencyException or Marten.Exceptions.ConcurrentUpdateException)
+      {
+          context.Response.Clear();
+          await Results.Conflict("This resource was modified by someone else since you last loaded it. Reload and try again.")
+              .ExecuteAsync(context);
+      }
+  });
+
+  app.MapWolverineEndpoints(opts => opts.UseDataAnnotationsValidationProblemDetailMiddleware());
+  await app.RunJasperFxCommands(args);
+  ```
+- **`IMartenModuleConfiguration`** (the interface every `<Context>Module.cs` implements, referenced but never defined by the skills) lives in `<SolutionName>.BuildingBlocks.Domain`:
+  ```csharp
+  public interface IMartenModuleConfiguration
+  {
+      string SchemaName { get; }
+      void Configure(StoreOptions options);
+      string? IntegrationEventQueueName => null; // default-implemented — most modules never override this
+  }
+  ```
+- Live reference: `src/Host/<SolutionName>.Api.Host/Program.cs` and `src/BuildingBlocks/<SolutionName>.BuildingBlocks.Domain/` in your `<path-to-your-.NET-solution>/` solution.
