@@ -37,6 +37,10 @@ build-kit-dotnet/progress.txt
 node_modules/
 build-kit-dotnet/config.json
 
+## Scratch/experiment workspace brought in from outside the repo,
+## kept locally for convenience but not part of the tracked project
+agentic-modeling/
+
 ## OS
 .DS_Store
 Thumbs.db
