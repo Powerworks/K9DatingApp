@@ -31,11 +31,11 @@
          same version number across WolverineFx/.RabbitMQ/.Marten/.Http -
          this lockstep pattern is now confirmed real (Http/Marten both
          independently resolved to 6.17.2 in your restore log) -->
-    <PackageVersion Include="WolverineFx" Version="6.17.2" />                           <!-- [confirmed real - from your restore log, net9.0/net10.0 only] -->
+    <PackageVersion Include="WolverineFx" Version="6.23.1" />                           <!-- [confirmed real - from your restore log, net9.0/net10.0 only] -->
     <PackageVersion Include="WolverineFx.RabbitMQ" Version="6.17.2" />                  <!-- [good-faith, inferred lockstep - now well-supported by the pattern above] -->
     <PackageVersion Include="WolverineFx.Marten" Version="6.17.2" />                    <!-- [confirmed real - from your restore log] -->
     <PackageVersion Include="WolverineFx.Http" Version="6.17.2" />                      <!-- [confirmed real - from your restore log] -->
-    <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.17.2" />        <!-- [inferred lockstep] Dev-time only - see Program.cs comment; production should move to pre-generated static codegen instead of shipping this -->
+    <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.23.1" />        <!-- [inferred lockstep] Dev-time only - see Program.cs comment; production should move to pre-generated static codegen instead of shipping this -->
 
     <!-- Referenced directly (not just transitively via WolverineFx.RabbitMQ)
          because Program.cs registers RabbitMQ.Client.IConnection itself for
