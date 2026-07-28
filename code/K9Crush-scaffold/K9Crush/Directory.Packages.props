@@ -103,7 +103,7 @@
          FetchForWriting<T> call from an accidental LoadAsync<T> call against the same
          type, since both reference an identical generic type argument; this needs an
          actual instruction-level scan. -->
-    <PackageVersion Include="Mono.Cecil" Version="0.11.3" />                          <!-- [verified - matches NetArchTest.Rules' own transitive version] -->
+    <PackageVersion Include="Mono.Cecil" Version="0.11.6" />                          <!-- [verified - matches NetArchTest.Rules' own transitive version] -->
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.13.0" />             <!-- [good-faith] -->
     <PackageVersion Include="Testcontainers.RabbitMq" Version="3.10.0" />               <!-- [good-faith] -->
     <PackageVersion Include="Testcontainers.Redis" Version="3.10.0" />                  <!-- [good-faith] -->
