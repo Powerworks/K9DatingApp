@@ -77,6 +77,9 @@ build-kit-dotnet-es/
 ├── ralph.sh                 bash-only alternative loop
 ├── realtime-agent.js        standalone realtime agent (separate-terminal use)
 ├── code-export.mjs          local bridge server for the eventmodelers.ai web UI (port 3001 by default)
+├── orchestrate.mjs          picks a board chapter, retrofits SLICE_BORDER markers onto its
+│                            columns if missing, flips them Planned, then spawns N Ralph
+│                            instances in parallel git worktrees and watches them to completion
 ├── lib/
 │   ├── ralph.js             shared runtime: config resolution, realtime subscription, task queue, the loop itself
 │   ├── ollama-agent.js       Ollama executor, called by ralph-ollama.js
@@ -92,10 +95,18 @@ build-kit-dotnet-es/
 │       ├── build-state-change/SKILL.md   ← event-sourced only
 │       ├── build-state-view/SKILL.md     ← event-sourced only
 │       └── build-automation/SKILL.md     ← event-sourced only
+├── hooks/
+│   ├── quality-gate.sh      Pre-checkin quality gate (Phase 1 of quality-checks.md) — a
+│   │                        PreToolUse hook script; installs into the TARGET solution's
+│   │                        own .claude/settings.json, not this kit's — see hooks/README.md
+│   └── README.md            what it checks, how to install it, known Phase 1 limitations
 ├── .eventmodelers/          (gitignored — board credentials, see `connect`)
 ├── .slices/                 (gitignored — board slice cache, written by load-slice / Ralph)
 ├── tasks.json               (gitignored — Ralph's task queue)
 ├── progress.txt             (gitignored — Ralph's progress log)
+├── slice-timings.jsonl      (gitignored — per-slice InProgress→terminal wall-clock history, written by orchestrate.mjs)
+├── ralph-N.log              (gitignored — orchestrate.mjs's per-instance Ralph output)
+├── quality-checks.md        (tracked — the quality/guardrails plan; Phase 1 implemented, see hooks/)
 └── AGENT.md                  (tracked — accumulated cross-session learnings, event-sourcing-only lessons pre-seeded)
 ```
 
@@ -130,9 +141,17 @@ single unit and be immediately discoverable by Claude Code.
    `Marten.Exceptions.ConcurrentUpdateException` to `409 Conflict`. None of
    the skills set this up for you — they assume it's already there, the
    same way the source project's skills did.
-6. Start building slices — `build-state-change` for commands,
+6. Install the pre-checkin quality gate: create
+   `<target-solution-root>/.claude/settings.json` registering
+   `hooks/quality-gate.sh` as a `PreToolUse` hook on the `Bash` matcher,
+   and add `.claude/state/` to the target solution's own `.gitignore` —
+   see `hooks/README.md` for the exact config and why it has to live in
+   the *target solution's* `.claude/` folder, not this kit's.
+7. Start building slices — `build-state-change` for commands,
    `build-state-view` for read models, `build-automation` for event-triggered
-   reactions.
+   reactions. Once several slices exist as `Planned` on a chapter, use
+   `orchestrate.mjs` (below) to build a whole chapter unattended instead of
+   running one slice at a time through the skills manually.
 
 ## Running
 
@@ -154,6 +173,55 @@ OLLAMA_MODEL=qwen3:8b node ralph-ollama.js /path/to/your/solution   # run `ollam
 node code-export.mjs
 PORT=3002 WORKSPACE_PATH=/path/to/repo node code-export.mjs
 ```
+
+### Orchestrating a whole chapter
+
+Instead of running Ralph once and leaving it to poll one context at a time,
+`orchestrate.mjs` retrofits missing slices onto a chapter, flips everything
+in it to `Planned`, and starts N Ralph instances against it in parallel —
+each in its own git worktree, so concurrent instances never race each
+other's file writes in a shared working tree (a real, previously-confirmed
+failure mode — see `AGENT.md`'s "Concurrent Ralph agents" entries for what
+happens without this).
+
+```bash
+# Interactive — lists chapters on the board, prompts for a number
+node orchestrate.mjs /path/to/your/solution
+
+# Non-interactive — build a named chapter with 3 parallel instances,
+# give up watching (not stop) after 90 minutes if it's not done by then
+node orchestrate.mjs /path/to/your/solution "Shelter Reviews Application" --parallel 3 --timeout-minutes 90
+
+# Resume watching a chapter you already started in another terminal
+node orchestrate.mjs /path/to/your/solution "Shelter Reviews Application" --watch
+
+# After killing instances early (or a --watch timeout), merge+clean up
+# whatever worktree branches exist without needing the chapter name again
+node orchestrate.mjs /path/to/your/solution --merge --parallel 3
+```
+
+Each instance's git worktree lives as a sibling directory
+(`<solution-dir>-ralph-1`, `-ralph-2`, ...) on branch `ralph/instance-N`,
+off whatever branch you were on when you ran the command. Once every
+tracked slice in the chapter reaches `Done` or `Blocked`, each instance's
+branch is merged back automatically and its worktree removed. Per-instance
+output goes to `ralph-1.log`/`ralph-2.log`/... in this directory (not the
+terminal) — `orchestrate.mjs` itself only prints its own retrofit/flip/
+watch progress. Per-slice `InProgress`→terminal timing is appended to
+`slice-timings.jsonl` as it happens, plus a running average printed at the
+end of each watch.
+
+Two `.eventmodelers/config.json` fields (optional, read by `lib/ralph.js`,
+not by `orchestrate.mjs` itself) matter more once you're running several
+instances unattended:
+- `maxSlicesPerRun` — a Ralph instance exits cleanly after building this
+  many slices, instead of polling forever. Useful for bounding a single
+  `--parallel` run's blast radius.
+- `maxBudgetUsdPerSlice` — passed to `claude -p` as `--max-budget-usd`, a
+  per-slice spend cap (`ralph-claude.js` only).
+
+Both are absent by default (no cap) — set them in `.eventmodelers/config.json`
+alongside `token`/`boardId`/etc. if you want them.
 
 ## Config
 
