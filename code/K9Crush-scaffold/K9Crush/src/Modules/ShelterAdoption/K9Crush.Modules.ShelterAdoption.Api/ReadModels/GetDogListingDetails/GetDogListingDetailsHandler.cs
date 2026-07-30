@@ -24,7 +24,7 @@ public static class GetDogListingDetailsHandler
         CancellationToken cancellationToken)
     {
         var dogListing = await session.LoadAsync<DogListing>(dogListingId, cancellationToken);
-        if (dogListing is null)
+        if (dogListing is null || dogListing.IsRemoved)
             return TypedResults.NotFound();
 
         return TypedResults.Ok(new DogListingDetailsResponse(
@@ -33,6 +33,8 @@ public static class GetDogListingDetailsHandler
             dogListing.Breed,
             dogListing.AgeInMonths,
             dogListing.Bio,
-            dogListing.ShelterAccountId));
+            dogListing.ShelterAccountId,
+            dogListing.Status,
+            dogListing.PhotoIds));
     }
 }

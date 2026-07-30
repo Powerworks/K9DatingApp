@@ -3,6 +3,7 @@ using NSubstitute;
 using K9Crush.Modules.Notifications.Api.Automations.NotifyOnApplicationListingChanged;
 using K9Crush.Modules.Notifications.Api.Infrastructure;
 using K9Crush.Modules.Notifications.Domain;
+using K9Crush.Modules.Notifications.Domain.Events;
 using K9Crush.Modules.ShelterAdoption.Contracts;
 using Xunit;
 
@@ -10,8 +11,9 @@ namespace K9Crush.Modules.Notifications.Tests.Handlers;
 
 /// <summary>
 /// Layer 2 (TestingApproach.md) - NotifyOnApplicationListingChangedHandler
-/// only calls LoadAsync/Store/SaveChangesAsync (via NotificationDispatcher),
-/// so IDocumentSession mocks cleanly here.
+/// only calls LoadAsync/Events.StartStream/SaveChangesAsync (via
+/// NotificationDispatcher), so IDocumentSession mocks cleanly here
+/// (ADR-031).
 /// </summary>
 public class NotifyOnApplicationListingChangedHandlerTests
 {
@@ -28,6 +30,8 @@ public class NotifyOnApplicationListingChangedHandlerTests
     {
         var applicantOwnerId = Guid.NewGuid();
         var session = Substitute.For<IDocumentSession>();
+        var eventStore = Substitute.For<Marten.Events.IEventStoreOperations>();
+        session.Events.Returns(eventStore);
         session.LoadAsync<NotificationPreference>(applicantOwnerId, Arg.Any<CancellationToken>()).Returns((NotificationPreference?)null);
         session.LoadAsync<OwnerContact>(applicantOwnerId, Arg.Any<CancellationToken>()).Returns(new OwnerContact { Id = applicantOwnerId, Email = "applicant@example.com" });
         var sender = Substitute.For<ISmtpNotificationSender>();
@@ -39,18 +43,23 @@ public class NotifyOnApplicationListingChangedHandlerTests
             Arg.Is<string>(s => s != null && s.Contains("Biscuit")),
             Arg.Any<string>(),
             Arg.Any<CancellationToken>());
-        session.Received(1).Store(Arg.Is<NotificationLog[]>(arr =>
-arr != null &&             arr.Length == 1 && arr[0].Type == NotificationType.ApplicationStatus && arr[0].Channel == NotificationChannel.Email));
+        eventStore.Received(1).StartStream<NotificationLog>(
+            Arg.Any<Guid>(),
+            Arg.Is<object[]>(events => events != null && events.Length == 1 && events[0] != null
+                && ((NotificationLogRecordedV1)events[0]).Type == NotificationType.ApplicationStatus
+                && ((NotificationLogRecordedV1)events[0]).Channel == NotificationChannel.Email));
     }
 
     [Fact]
     public async Task Handle_WhenApplicantDisabledApplicationStatusNotifications_Suppresses()
     {
         var applicantOwnerId = Guid.NewGuid();
-        var preference = NotificationPreference.CreateDefault(applicantOwnerId);
+        var (preference, _) = NotificationPreference.CreateDefaultNew(applicantOwnerId);
         preference.SetEnabled(NotificationType.ApplicationStatus, false);
 
         var session = Substitute.For<IDocumentSession>();
+        var eventStore = Substitute.For<Marten.Events.IEventStoreOperations>();
+        session.Events.Returns(eventStore);
         session.LoadAsync<NotificationPreference>(applicantOwnerId, Arg.Any<CancellationToken>()).Returns(preference);
         session.LoadAsync<OwnerContact>(applicantOwnerId, Arg.Any<CancellationToken>()).Returns(new OwnerContact { Id = applicantOwnerId, Email = "applicant@example.com" });
         var sender = Substitute.For<ISmtpNotificationSender>();
@@ -58,6 +67,9 @@ arr != null &&             arr.Length == 1 && arr[0].Type == NotificationType.Ap
         await NotifyOnApplicationListingChangedHandler.Handle(BuildEvent(applicantOwnerId), session, sender, CancellationToken.None);
 
         await sender.DidNotReceiveWithAnyArgs().SendAsync(default!, default!, default!, default);
-        session.Received(1).Store(Arg.Is<NotificationLog[]>(arr => arr != null && arr.Length == 1 && arr[0].Channel == NotificationChannel.Suppressed));
+        eventStore.Received(1).StartStream<NotificationLog>(
+            Arg.Any<Guid>(),
+            Arg.Is<object[]>(events => events != null && events.Length == 1 && events[0] != null
+                && ((NotificationLogRecordedV1)events[0]).Channel == NotificationChannel.Suppressed));
     }
 }

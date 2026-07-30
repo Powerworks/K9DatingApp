@@ -20,6 +20,14 @@ namespace K9Crush.Modules.ShelterAdoption.Api.ReadModels.GetAdoptionListings;
 /// every DogListing in the store already belongs to an active shelter.
 ///
 /// VerifiedOwner only (any member can browse) - no Shelter role needed.
+///
+/// v3 ENRICHMENT (Spec/K9CRUSH.emlang.v3.yaml's ShelterManagingListings
+/// chapter): now filters to Status == Available. Before DogListing had a
+/// Status field, every listing was implicitly adoptable; now that new
+/// listings start NotReadyYet (see DogListing.Create) and approved ones
+/// move to Adopted (see ApproveApplicationHandler), showing every
+/// DogListing here regardless of status would surface dogs that aren't
+/// actually open for applications.
 /// </summary>
 public static class GetAdoptionListingsHandler
 {
@@ -29,10 +37,12 @@ public static class GetAdoptionListingsHandler
         IQuerySession session,
         CancellationToken cancellationToken)
     {
-        var listings = await session.Query<DogListing>().ToListAsync(cancellationToken);
+        var listings = await session.Query<DogListing>()
+            .Where(x => x.Status == DogListingStatus.Available && !x.IsRemoved)
+            .ToListAsync(cancellationToken);
 
         var items = listings
-            .Select(x => new AdoptionListingSummary(x.Id, x.Name, x.Breed, x.ShelterAccountId))
+            .Select(x => new AdoptionListingSummary(x.Id, x.Name, x.Breed, x.ShelterAccountId, x.PhotoIds))
             .ToList();
 
         return new AdoptionListingsResponse(items);

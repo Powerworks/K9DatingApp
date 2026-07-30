@@ -38,7 +38,8 @@ public static class EditDogListingHandler
     {
         var callerOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var dogListing = await session.LoadAsync<DogListing>(dogListingId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<DogListing>(dogListingId, cancellationToken);
+        var dogListing = stream.Aggregate;
         if (dogListing is null)
             return (TypedResults.NotFound(), null);
 
@@ -46,8 +47,8 @@ public static class EditDogListingHandler
         if (shelterAccount is null || shelterAccount.RequestedByOwnerId != callerOwnerId)
             return (TypedResults.Forbid(), null);
 
-        dogListing.Edit(request.Name, request.Breed, request.AgeInMonths, request.Bio);
-        session.Store(dogListing);
+        var editedEvent = dogListing.Edit(request.Name, request.Breed, request.AgeInMonths, request.Bio);
+        stream.AppendOne(editedEvent);
         await session.SaveChangesAsync(cancellationToken);
 
         var integrationEvent = request.SignificantChange

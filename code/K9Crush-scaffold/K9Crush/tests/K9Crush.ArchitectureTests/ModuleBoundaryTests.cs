@@ -2,14 +2,9 @@ using System.Reflection;
 using FluentAssertions;
 using NetArchTest.Rules;
 using K9Crush.Modules.Admin.Domain;
-using K9Crush.Modules.Chat.Domain;
-using K9Crush.Modules.Discovery.Domain;
 using K9Crush.Modules.Identity.Domain;
 using K9Crush.Modules.Media.Domain;
-using K9Crush.Modules.Moderation.Domain;
 using K9Crush.Modules.Notifications.Domain;
-using K9Crush.Modules.Places.Domain;
-using K9Crush.Modules.Profiles.Domain;
 using K9Crush.Modules.ShelterAdoption.Domain;
 using Xunit;
 
@@ -27,15 +22,10 @@ public class ModuleBoundaryTests
     private static readonly (string ModuleName, Assembly DomainAssembly)[] Modules =
     [
         ("Identity", typeof(OwnerAccount).Assembly),
-        ("Profiles", typeof(DogProfile).Assembly),
-        ("Discovery", typeof(DiscoveryFeedItem).Assembly),
         ("ShelterAdoption", typeof(Application).Assembly),
         ("Notifications", typeof(NotificationPreference).Assembly),
-        ("Chat", typeof(ConversationSummary).Assembly),
         ("Admin", typeof(FeedbackInboxItem).Assembly),
-        ("Media", typeof(MediaAsset).Assembly),
-        ("Moderation", typeof(FlaggedContent).Assembly),
-        ("Places", typeof(Place).Assembly)
+        ("Media", typeof(MediaAsset).Assembly)
     ];
 
     public static IEnumerable<object[]> ModuleCases() =>

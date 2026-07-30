@@ -26,7 +26,7 @@ public class ApplicationTests
     {
         var before = DateTimeOffset.UtcNow;
 
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.SubmitNew(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default).Application;
 
         var after = DateTimeOffset.UtcNow;
 
@@ -37,6 +37,7 @@ public class ApplicationTests
         application.StartedAt.Should().BeOnOrAfter(before).And.BeOnOrBefore(after);
         application.SubmittedAt.Should().Be(application.StartedAt);
         application.IsOpen.Should().BeTrue();
+        application.Intake.Should().Be(TestIntake.Default);
     }
 
     [Fact]
@@ -44,7 +45,7 @@ public class ApplicationTests
     {
         var before = DateTimeOffset.UtcNow;
 
-        var application = Application.StartDraft(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.StartDraftNew(ApplicantOwnerId, DogListingId, ShelterAccountId).Application;
 
         var after = DateTimeOffset.UtcNow;
 
@@ -52,6 +53,7 @@ public class ApplicationTests
         application.StartedAt.Should().BeOnOrAfter(before).And.BeOnOrBefore(after);
         application.SubmittedAt.Should().BeNull();
         application.IsOpen.Should().BeFalse("a Draft doesn't occupy a real application slot with the shelter yet");
+        application.Intake.Should().BeNull("a Draft hasn't answered the intake questionnaire yet - that happens at submission");
     }
 
     [Theory]
@@ -65,7 +67,7 @@ public class ApplicationTests
     [InlineData(ApplicationStatus.ClosedDogNoLongerAvailable, false)]
     public void IsOpen_ReflectsExactlyTheThreeStatusesThatOccupyAnApplicationSlot(ApplicationStatus status, bool expectedIsOpen)
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.SubmitNew(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default).Application;
         SetStatus(application, status);
 
         application.IsOpen.Should().Be(expectedIsOpen);
@@ -74,7 +76,7 @@ public class ApplicationTests
     [Fact]
     public void Withdraw_WhenCalled_SetsStatusToWithdrawn()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.SubmitNew(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default).Application;
 
         application.Withdraw();
 
@@ -84,7 +86,7 @@ public class ApplicationTests
     [Fact]
     public void Review_WhenCalled_SetsStatusToUnderReview()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.SubmitNew(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default).Application;
 
         application.Review();
 
@@ -94,7 +96,7 @@ public class ApplicationTests
     [Fact]
     public void RequestAdditionalDetails_WhenCalled_SetsReasonTrimmedAndStatusToReturnedForAlteration()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.SubmitNew(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default).Application;
 
         application.RequestAdditionalDetails("  please attach a photo of your yard  ");
 
@@ -105,7 +107,7 @@ public class ApplicationTests
     [Fact]
     public void SubmitAdditionalDetails_WhenCalled_SetsStatusBackToUnderReview()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.SubmitNew(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default).Application;
         application.RequestAdditionalDetails("more info please");
 
         application.SubmitAdditionalDetails();
@@ -116,7 +118,7 @@ public class ApplicationTests
     [Fact]
     public void Reject_WhenCalled_SetsReasonTrimmedAndStatusToRejected()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.SubmitNew(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default).Application;
 
         application.Reject("  not enough yard space  ");
 
@@ -127,7 +129,7 @@ public class ApplicationTests
     [Fact]
     public void Approve_WhenCalled_SetsStatusToApproved()
     {
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.SubmitNew(ApplicantOwnerId, DogListingId, ShelterAccountId, TestIntake.Default).Application;
 
         application.Approve();
 
@@ -137,7 +139,7 @@ public class ApplicationTests
     [Fact]
     public void EditDetails_WhenCalled_SetsDetailsTrimmedAndLastEditedAt()
     {
-        var application = Application.StartDraft(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.StartDraftNew(ApplicantOwnerId, DogListingId, ShelterAccountId).Application;
         var before = DateTimeOffset.UtcNow;
 
         application.EditDetails("  we have a fenced yard and two other dogs  ");
@@ -152,10 +154,10 @@ public class ApplicationTests
     [Fact]
     public void SubmitDraft_WhenCalled_SetsStatusToPendingAndSetsSubmittedAt()
     {
-        var application = Application.StartDraft(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.StartDraftNew(ApplicantOwnerId, DogListingId, ShelterAccountId).Application;
         var before = DateTimeOffset.UtcNow;
 
-        application.SubmitDraft();
+        application.SubmitDraft(TestIntake.Default);
 
         var after = DateTimeOffset.UtcNow;
 
@@ -163,12 +165,13 @@ public class ApplicationTests
         application.SubmittedAt.Should().NotBeNull();
         application.SubmittedAt!.Value.Should().BeOnOrAfter(before).And.BeOnOrBefore(after);
         application.IsOpen.Should().BeTrue();
+        application.Intake.Should().Be(TestIntake.Default);
     }
 
     [Fact]
     public void CloseDraftDogNoLongerAvailable_WhenCalled_SetsStatusToClosedDogNoLongerAvailable()
     {
-        var application = Application.StartDraft(ApplicantOwnerId, DogListingId, ShelterAccountId);
+        var application = Application.StartDraftNew(ApplicantOwnerId, DogListingId, ShelterAccountId).Application;
 
         application.CloseDraftDogNoLongerAvailable();
 

@@ -13,7 +13,7 @@ public class FeedbackTests
         var ownerId = Guid.NewGuid();
         var before = DateTimeOffset.UtcNow;
 
-        var feedback = Feedback.Submit(ownerId, "  This app is great!  ");
+        var (feedback, _) = Feedback.Submit(ownerId, "  This app is great!  ");
 
         var after = DateTimeOffset.UtcNow;
         feedback.OwnerId.Should().Be(ownerId);

@@ -1,6 +1,7 @@
 using FluentAssertions;
 using K9Crush.Modules.Notifications.Api.ReadModels.ViewNotificationTemplates;
 using K9Crush.Modules.Notifications.Domain;
+using K9Crush.Modules.Notifications.Domain.Events;
 using Xunit;
 
 namespace K9Crush.IntegrationTests.Notifications;
@@ -38,13 +39,17 @@ public class ViewNotificationTemplatesIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task Handle_ReturnsEveryTemplateWithItsLockState()
     {
-        var unlocked = NotificationTemplate.Create("application_approved", "Application Approved", "You're approved!", "Congrats!");
-        var locked = NotificationTemplate.Create("application_rejected", "Application Rejected", "Update on your application", "...");
-        locked.Edit(Guid.NewGuid(), "Updated subject", "Updated body");
+        var unlockedCreated = new NotificationTemplateCreatedV1("application_approved", "Application Approved", "You're approved!", "Congrats!");
+        var unlocked = NotificationTemplate.Create(unlockedCreated);
+
+        var lockedCreated = new NotificationTemplateCreatedV1("application_rejected", "Application Rejected", "Update on your application", "...");
+        var locked = NotificationTemplate.Create(lockedCreated);
+        var lockedEdited = locked.Edit(Guid.NewGuid(), "Updated subject", "Updated body");
 
         await using (var seedSession = _fixture.Store.LightweightSession())
         {
-            seedSession.Store(unlocked, locked);
+            seedSession.Events.StartStream<NotificationTemplate>(unlocked.Id, unlockedCreated);
+            seedSession.Events.StartStream<NotificationTemplate>(locked.Id, lockedCreated, lockedEdited);
             await seedSession.SaveChangesAsync();
         }
 

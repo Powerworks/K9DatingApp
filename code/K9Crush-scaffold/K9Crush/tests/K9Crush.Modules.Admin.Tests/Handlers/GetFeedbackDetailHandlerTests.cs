@@ -29,7 +29,7 @@ public class GetFeedbackDetailHandlerTests
     [Fact]
     public async Task Handle_WhenItemExists_ReturnsDetail()
     {
-        var item = FeedbackInboxItem.Create(Guid.NewGuid(), Guid.NewGuid(), "Great app!", DateTimeOffset.UtcNow);
+        var (item, _) = FeedbackInboxItem.CreateNew(Guid.NewGuid(), Guid.NewGuid(), "Great app!", DateTimeOffset.UtcNow);
         item.Respond("Thanks!");
         var session = Substitute.For<IQuerySession>();
         session.LoadAsync<FeedbackInboxItem>(item.Id, Arg.Any<CancellationToken>()).Returns(item);

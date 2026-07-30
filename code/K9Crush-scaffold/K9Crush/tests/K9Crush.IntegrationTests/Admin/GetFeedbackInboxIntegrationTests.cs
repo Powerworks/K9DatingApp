@@ -36,12 +36,13 @@ public class GetFeedbackInboxIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task Handle_ReturnsEveryItemNewestFirst()
     {
-        var older = FeedbackInboxItem.Create(Guid.NewGuid(), Guid.NewGuid(), "First submission", DateTimeOffset.UtcNow.AddMinutes(-10));
-        var newer = FeedbackInboxItem.Create(Guid.NewGuid(), Guid.NewGuid(), "Second submission", DateTimeOffset.UtcNow);
+        var (older, olderEvent) = FeedbackInboxItem.CreateNew(Guid.NewGuid(), Guid.NewGuid(), "First submission", DateTimeOffset.UtcNow.AddMinutes(-10));
+        var (newer, newerEvent) = FeedbackInboxItem.CreateNew(Guid.NewGuid(), Guid.NewGuid(), "Second submission", DateTimeOffset.UtcNow);
 
         await using (var seedSession = _fixture.Store.LightweightSession())
         {
-            seedSession.Store(older, newer);
+            seedSession.Events.StartStream<FeedbackInboxItem>(older.Id, olderEvent);
+            seedSession.Events.StartStream<FeedbackInboxItem>(newer.Id, newerEvent);
             await seedSession.SaveChangesAsync();
         }
 

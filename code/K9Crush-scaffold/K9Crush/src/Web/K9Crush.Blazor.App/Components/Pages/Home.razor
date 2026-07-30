@@ -1,44 +1,55 @@
 @page "/"
-@rendermode InteractiveServer
-@inject IHttpClientFactory HttpClientFactory
 
 <PageTitle>K9Crush</PageTitle>
 
-<h1>Discover</h1>
+<MudText Typo="Typo.h3" Class="mb-2">Welcome to K9Crush</MudText>
+<MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="mb-6">
+    Helping rescued and surrendered dogs find their way to a loving foster or forever home.
+</MudText>
 
-@if (_isLoading)
-{
-    <p>Loading nearby dogs...</p>
-}
-else if (_feed is { Items.Count: 0 })
-{
-    <p>No dogs nearby yet - check back soon!</p>
-}
-else if (_feed is not null)
-{
-    <ul>
-        @foreach (var item in _feed.Items)
-        {
-            <li>@item.Breed - @item.DistanceKm.ToString("0.0") km away</li>
-        }
-    </ul>
-}
-
-@code {
-    private bool _isLoading = true;
-    private DiscoveryFeedResponse? _feed;
-
-    protected override async Task OnInitializedAsync()
-    {
-        // Placeholder coordinates for scaffold purposes - a real
-        // implementation resolves this from the owner's stored location
-        // or a browser geolocation prompt.
-        var client = HttpClientFactory.CreateClient("K9CrushApi");
-        _feed = await client.GetFromJsonAsync<DiscoveryFeedResponse>(
-            "/api/v1/discovery/feed?latitude=53.3498&longitude=-6.2603&radiusKm=25");
-        _isLoading = false;
-    }
-
-    private sealed record DiscoveryFeedEntry(Guid DogProfileId, string Breed, double DistanceKm);
-    private sealed record DiscoveryFeedResponse(IReadOnlyList<DiscoveryFeedEntry> Items);
-}
+<MudGrid>
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard>
+            <MudCardContent>
+                <MudText Typo="Typo.h6">Adopt</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Browse dogs currently looking for their forever home.</MudText>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Href="/listings" Variant="Variant.Filled" Color="Color.Primary" FullWidth="true">Browse Adoptable Dogs</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard>
+            <MudCardContent>
+                <MudText Typo="Typo.h6">Foster</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Give a dog temporary care while they wait for adoption.</MudText>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Href="/foster/apply" Variant="Variant.Filled" Color="Color.Primary" FullWidth="true">Apply to Foster</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard>
+            <MudCardContent>
+                <MudText Typo="Typo.h6">Volunteer</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Lend your time to help dogs and the people who care for them.</MudText>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Href="/volunteer/apply" Variant="Variant.Filled" Color="Color.Primary" FullWidth="true">Apply to Volunteer</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard>
+            <MudCardContent>
+                <MudText Typo="Typo.h6">Surrender</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Need to give up a dog into our care? We're here to help.</MudText>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Href="/surrender/apply" Variant="Variant.Filled" Color="Color.Primary" FullWidth="true">Surrender a Dog</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
+</MudGrid>

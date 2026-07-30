@@ -22,6 +22,12 @@ public sealed record ApproveApplicationResponse(Guid ApplicationId, string Statu
 /// Approval Notification" -> "Approval Notification Sent", consumed by
 /// Notifications' NotifyOnApplicationApprovedHandler. Previously deferred
 /// pending a Notifications module to exist at all.
+///
+/// v3 ENRICHMENT (Spec/K9CRUSH.emlang.v3.yaml's ShelterManagingListings
+/// chapter comment): also cascades the DogListing's Status to Adopted -
+/// a same-module state change, not a cross-module integration event, so
+/// it's stored in the same session/SaveChangesAsync as the Application
+/// itself rather than routed through the message bus.
 /// </summary>
 public static class ApproveApplicationHandler
 {
@@ -35,7 +41,8 @@ public static class ApproveApplicationHandler
     {
         var callerOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var application = await session.LoadAsync<Application>(applicationId, cancellationToken);
+        var applicationStream = await session.Events.FetchForWriting<Application>(applicationId, cancellationToken);
+        var application = applicationStream.Aggregate;
         if (application is null)
             return (TypedResults.NotFound(), null);
 
@@ -46,11 +53,18 @@ public static class ApproveApplicationHandler
         if (application.Status != ApplicationStatus.UnderReview)
             return (TypedResults.Conflict($"Cannot approve an application in status {application.Status}."), null);
 
-        application.Approve();
-        session.Store(application);
-        await session.SaveChangesAsync(cancellationToken);
+        var approvedEvent = application.Approve();
+        applicationStream.AppendOne(approvedEvent);
 
-        var dogListing = await session.LoadAsync<DogListing>(application.DogListingId, cancellationToken);
+        var dogListingStream = await session.Events.FetchForWriting<DogListing>(application.DogListingId, cancellationToken);
+        var dogListing = dogListingStream.Aggregate;
+        if (dogListing is not null)
+        {
+            var statusEvent = dogListing.UpdateStatus(DogListingStatus.Adopted);
+            dogListingStream.AppendOne(statusEvent);
+        }
+
+        await session.SaveChangesAsync(cancellationToken);
 
         var integrationEvent = new ApplicationApprovedV1(
             EventId: Guid.NewGuid(),

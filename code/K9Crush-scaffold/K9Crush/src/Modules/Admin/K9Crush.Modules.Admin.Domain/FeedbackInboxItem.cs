@@ -1,18 +1,25 @@
 using System.Text.Json.Serialization;
 using K9Crush.BuildingBlocks.Domain;
+using K9Crush.Modules.Admin.Domain.Events;
 
 namespace K9Crush.Modules.Admin.Domain;
 
 /// <summary>
-/// Current-state Marten document. This module's own copy of a feedback
-/// submission, built from Identity's cross-module FeedbackSubmittedV1
-/// (see Api/ReadModels/Projectors/FeedbackSubmittedProjectorHandler) -
-/// never a direct read of Identity's own Feedback document (module
-/// isolation). Id is deliberately set to the originating FeedbackId, not
-/// a fresh Guid, so redelivery of the same event is a safe upsert.
+/// This module's own copy of a feedback submission, built from Identity's
+/// cross-module FeedbackSubmittedV1 (see
+/// Api/ReadModels/Projectors/FeedbackSubmittedProjectorHandler) - never a
+/// direct read of Identity's own Feedback document (module isolation). Id
+/// is deliberately set to the originating FeedbackId, not a fresh Guid -
+/// under ADR-031 this makes it the first entity in the retrofit whose
+/// stream id is externally supplied rather than freshly generated here
+/// (Identity's Phase 4 will do the same with a Supabase user id).
 ///
 /// The emlang yaml's HandlingGeneralFeedbackSupport chapter's "Feedback
-/// Inbox"/"Feedback Detail" state-views read this directly.
+/// Inbox"/"Feedback Detail" state-views read this directly - it's
+/// registered as its own Inline snapshot in AdminModule.cs (ADR-031's
+/// dual-use pattern: the same class serves FetchForWriting on the write
+/// side and Query&lt;T&gt;/LoadAsync on the read side), since those two
+/// ReadModels/** handlers genuinely need to query it.
 /// </summary>
 public enum FeedbackStatus
 {
@@ -34,24 +41,40 @@ public class FeedbackInboxItem : Entity
     [JsonConstructor]
     private FeedbackInboxItem() { }
 
-    public static FeedbackInboxItem Create(Guid feedbackId, Guid ownerId, string message, DateTimeOffset submittedAt)
+    public static FeedbackInboxItem Create(FeedbackInboxItemCreatedV1 e) => new()
     {
-        return new FeedbackInboxItem
-        {
-            Id = feedbackId,
-            OwnerId = ownerId,
-            Message = message,
-            SubmittedAt = submittedAt,
-            Status = FeedbackStatus.Open
-        };
+        Id = e.FeedbackId,
+        OwnerId = e.OwnerId,
+        Message = e.Message,
+        SubmittedAt = e.SubmittedAt,
+        Status = FeedbackStatus.Open
+    };
+
+    public static (FeedbackInboxItem Item, FeedbackInboxItemCreatedV1 Event) CreateNew(Guid feedbackId, Guid ownerId, string message, DateTimeOffset submittedAt)
+    {
+        var @event = new FeedbackInboxItemCreatedV1(feedbackId, ownerId, message, submittedAt);
+        return (Create(@event), @event);
+    }
+
+    public void Apply(FeedbackInboxItemRespondedV1 e)
+    {
+        ResponseMessage = e.ResponseMessage;
+        RespondedAt = e.RespondedAt;
+        Status = FeedbackStatus.Responded;
+    }
+
+    public void Apply(FeedbackInboxItemResolvedV1 e)
+    {
+        ResolvedAt = e.ResolvedAt;
+        Status = FeedbackStatus.Resolved;
     }
 
     /// <summary>The emlang yaml's "Respond To Feedback" -> "Feedback Responded". State-guard lives in the handler.</summary>
-    public void Respond(string responseMessage)
+    public FeedbackInboxItemRespondedV1 Respond(string responseMessage)
     {
-        ResponseMessage = responseMessage.Trim();
-        RespondedAt = DateTimeOffset.UtcNow;
-        Status = FeedbackStatus.Responded;
+        var @event = new FeedbackInboxItemRespondedV1(responseMessage.Trim(), DateTimeOffset.UtcNow);
+        Apply(@event);
+        return @event;
     }
 
     /// <summary>
@@ -60,9 +83,10 @@ public class FeedbackInboxItem : Entity
     /// "Feedback Responded", when "Resolve Feedback"). State-guard lives
     /// in the handler.
     /// </summary>
-    public void Resolve()
+    public FeedbackInboxItemResolvedV1 Resolve()
     {
-        ResolvedAt = DateTimeOffset.UtcNow;
-        Status = FeedbackStatus.Resolved;
+        var @event = new FeedbackInboxItemResolvedV1(DateTimeOffset.UtcNow);
+        Apply(@event);
+        return @event;
     }
 }

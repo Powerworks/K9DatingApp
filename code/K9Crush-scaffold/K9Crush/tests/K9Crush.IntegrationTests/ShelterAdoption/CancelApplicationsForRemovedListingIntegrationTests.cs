@@ -14,7 +14,9 @@ namespace K9Crush.IntegrationTests.ShelterAdoption;
 /// LINQ path Layer 2's IDocumentSession mocks can't reach. IMessageBus is
 /// still mocked (NSubstitute) even here - nothing about verifying which
 /// messages got cascaded needs a real broker, only the Application query/
-/// mutation needs real Postgres.
+/// mutation needs real Postgres. Seeding now goes through
+/// Events.StartStream (ADR-031) rather than session.Store, since
+/// Application is event-sourced.
 /// </summary>
 [Collection(ShelterAdoptionPostgresCollection.Name)]
 public class CancelApplicationsForRemovedListingIntegrationTests(ShelterAdoptionPostgresFixture fixture)
@@ -32,17 +34,20 @@ public class CancelApplicationsForRemovedListingIntegrationTests(ShelterAdoption
         var applicantB = Guid.NewGuid();
         var otherListingId = Guid.NewGuid();
 
-        var openApplicationA = Application.Submit(applicantA, dogListingId, shelterAccountId);
-        openApplicationA.Review(); // UnderReview - open
-        var openApplicationB = Application.Submit(applicantB, dogListingId, shelterAccountId); // Pending - open
-        var withdrawnApplication = Application.Submit(Guid.NewGuid(), dogListingId, shelterAccountId);
-        withdrawnApplication.Withdraw(); // not open - must be left alone
-        var unrelatedApplication = Application.Submit(Guid.NewGuid(), otherListingId, shelterAccountId);
-        unrelatedApplication.Review(); // open, but a different listing - must be left alone
+        var (openApplicationA, submittedA) = Application.SubmitNew(applicantA, dogListingId, shelterAccountId, TestIntake.Default);
+        var reviewedA = openApplicationA.Review(); // UnderReview - open
+        var (openApplicationB, submittedB) = Application.SubmitNew(applicantB, dogListingId, shelterAccountId, TestIntake.Default); // Pending - open
+        var (withdrawnApplication, submittedC) = Application.SubmitNew(Guid.NewGuid(), dogListingId, shelterAccountId, TestIntake.Default);
+        var withdrawnEvent = withdrawnApplication.Withdraw(); // not open - must be left alone
+        var (unrelatedApplication, submittedD) = Application.SubmitNew(Guid.NewGuid(), otherListingId, shelterAccountId, TestIntake.Default);
+        var reviewedD = unrelatedApplication.Review(); // open, but a different listing - must be left alone
 
         await using (var seedSession = fixture.Store.LightweightSession())
         {
-            seedSession.Store(openApplicationA, openApplicationB, withdrawnApplication, unrelatedApplication);
+            seedSession.Events.StartStream<Application>(openApplicationA.Id, submittedA, reviewedA);
+            seedSession.Events.StartStream<Application>(openApplicationB.Id, submittedB);
+            seedSession.Events.StartStream<Application>(withdrawnApplication.Id, submittedC, withdrawnEvent);
+            seedSession.Events.StartStream<Application>(unrelatedApplication.Id, submittedD, reviewedD);
             await seedSession.SaveChangesAsync();
         }
 

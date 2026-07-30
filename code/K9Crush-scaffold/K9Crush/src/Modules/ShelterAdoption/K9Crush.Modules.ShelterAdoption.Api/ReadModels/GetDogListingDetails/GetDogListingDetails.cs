@@ -1,3 +1,5 @@
+using K9Crush.Modules.ShelterAdoption.Domain;
+
 namespace K9Crush.Modules.ShelterAdoption.Api.ReadModels.GetDogListingDetails;
 
 /// <summary>What this slice hands back to the caller. Bio doubles as the
@@ -9,4 +11,6 @@ public sealed record DogListingDetailsResponse(
     string Breed,
     int AgeInMonths,
     string Bio,
-    Guid ShelterAccountId);
+    Guid ShelterAccountId,
+    DogListingStatus Status,
+    IReadOnlyList<Guid> PhotoIds);

@@ -14,13 +14,13 @@ namespace K9Crush.Modules.Admin.Tests.Domain;
 public class FeedbackInboxItemTests
 {
     [Fact]
-    public void Create_WhenCalled_CreatesOpenItemWithMatchingId()
+    public void CreateNew_WhenCalled_CreatesOpenItemWithMatchingIdAndReturnsTheEvent()
     {
         var feedbackId = Guid.NewGuid();
         var ownerId = Guid.NewGuid();
         var submittedAt = DateTimeOffset.UtcNow;
 
-        var item = FeedbackInboxItem.Create(feedbackId, ownerId, "Great app!", submittedAt);
+        var (item, @event) = FeedbackInboxItem.CreateNew(feedbackId, ownerId, "Great app!", submittedAt);
 
         item.Id.Should().Be(feedbackId);
         item.OwnerId.Should().Be(ownerId);
@@ -30,27 +30,32 @@ public class FeedbackInboxItemTests
         item.ResponseMessage.Should().BeNull();
         item.RespondedAt.Should().BeNull();
         item.ResolvedAt.Should().BeNull();
+
+        @event.FeedbackId.Should().Be(feedbackId);
+        @event.OwnerId.Should().Be(ownerId);
     }
 
     [Fact]
     public void Respond_WhenCalled_SetsResponseMessageAndRespondedAtAndMovesToResponded()
     {
-        var item = FeedbackInboxItem.Create(Guid.NewGuid(), Guid.NewGuid(), "Great app!", DateTimeOffset.UtcNow);
+        var (item, _) = FeedbackInboxItem.CreateNew(Guid.NewGuid(), Guid.NewGuid(), "Great app!", DateTimeOffset.UtcNow);
         var before = DateTimeOffset.UtcNow;
 
-        item.Respond("  Thanks for the kind words!  ");
+        var @event = item.Respond("  Thanks for the kind words!  ");
 
         var after = DateTimeOffset.UtcNow;
         item.ResponseMessage.Should().Be("Thanks for the kind words!");
         item.RespondedAt.Should().NotBeNull();
         item.RespondedAt!.Value.Should().BeOnOrAfter(before).And.BeOnOrBefore(after);
         item.Status.Should().Be(FeedbackStatus.Responded);
+
+        @event.ResponseMessage.Should().Be("Thanks for the kind words!");
     }
 
     [Fact]
     public void Resolve_WhenCalled_SetsResolvedAtAndMovesToResolved()
     {
-        var item = FeedbackInboxItem.Create(Guid.NewGuid(), Guid.NewGuid(), "Great app!", DateTimeOffset.UtcNow);
+        var (item, _) = FeedbackInboxItem.CreateNew(Guid.NewGuid(), Guid.NewGuid(), "Great app!", DateTimeOffset.UtcNow);
         item.Respond("Thanks!");
         var before = DateTimeOffset.UtcNow;
 

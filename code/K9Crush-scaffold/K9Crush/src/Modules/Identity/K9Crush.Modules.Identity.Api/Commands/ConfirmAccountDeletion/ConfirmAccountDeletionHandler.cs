@@ -38,7 +38,8 @@ public static class ConfirmAccountDeletionHandler
     {
         var ownerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var ownerAccount = await session.LoadAsync<OwnerAccount>(ownerId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<OwnerAccount>(ownerId, cancellationToken);
+        var ownerAccount = stream.Aggregate;
         if (ownerAccount is null)
             return TypedResults.NotFound();
 
@@ -48,8 +49,8 @@ public static class ConfirmAccountDeletionHandler
         if (ownerAccount.GracePeriodEndsAt is not null)
             return TypedResults.Conflict("Account deletion has already been confirmed.");
 
-        ownerAccount.ConfirmDeletion(GracePeriodDays);
-        session.Store(ownerAccount);
+        var @event = ownerAccount.ConfirmDeletion(GracePeriodDays);
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         await bus.ScheduleAsync(new CheckAccountGracePeriodExpired(ownerAccount.Id), TimeSpan.FromDays(GracePeriodDays));

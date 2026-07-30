@@ -1,0 +1,102 @@
+@page "/surrender/apply"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using System.Net
+@using System.Text.Json
+@using K9Crush.Blazor.App.Services
+@inject AuthorizedApiClient AuthorizedApiClient
+
+<PageTitle>Surrender My Dog</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Surrender My Dog</MudText>
+
+@if (_successMessage is not null)
+{
+    <MudAlert Severity="Severity.Success">@_successMessage</MudAlert>
+}
+else
+{
+    <EditForm Model="Input" OnValidSubmit="SubmitAsync">
+        <DataAnnotationsValidator />
+
+        @if (_errorMessage is not null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
+        }
+
+        <MudStack Spacing="4" Class="mb-4" Style="max-width: 600px;">
+            <MudTextField @bind-Value="Input.DogName" Label="Dog Name" For="@(() => Input.DogName)" />
+            <MudTextField @bind-Value="Input.Breed" Label="Breed" For="@(() => Input.Breed)" />
+            <MudNumericField @bind-Value="Input.AgeInMonths" Label="Age (months)" Min="0" Max="300" For="@(() => Input.AgeInMonths)" />
+            <MudTextField @bind-Value="Input.ReasonForSurrender" Label="Reason for Surrender" Lines="3" For="@(() => Input.ReasonForSurrender)" />
+            <MudTextField @bind-Value="Input.TemperamentNotes" Label="Temperament Notes" Lines="3" For="@(() => Input.TemperamentNotes)" />
+            <MudTextField @bind-Value="Input.HealthNotes" Label="Health Notes" Lines="3" For="@(() => Input.HealthNotes)" />
+        </MudStack>
+
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="_isSubmitting">Submit Request</MudButton>
+    </EditForm>
+}
+
+@code {
+    private readonly InputModel Input = new();
+    private bool _isSubmitting;
+    private string? _errorMessage;
+    private string? _successMessage;
+
+    private async Task SubmitAsync()
+    {
+        _isSubmitting = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var client = await AuthorizedApiClient.CreateAsync();
+            var response = await client.PostAsJsonAsync("/api/v1/shelter-adoption/surrender-requests", Input);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _errorMessage = response.StatusCode switch
+                {
+                    HttpStatusCode.Unauthorized => "Your session has expired - please log in again.",
+                    HttpStatusCode.Forbidden => "Your account needs to be verified before you can submit this.",
+                    HttpStatusCode.BadRequest => "Please check the form for errors and try again.",
+                    _ => "Couldn't submit your surrender request right now - please try again in a moment."
+                };
+                return;
+            }
+
+            _successMessage = "Your surrender request has been submitted - a shelter admin will review it soon.";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or JsonException)
+        {
+            _errorMessage = "Couldn't reach the server right now - please try again in a moment.";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private sealed class InputModel
+    {
+        [Required, MaxLength(50)]
+        public string DogName { get; set; } = "";
+
+        [Required, MaxLength(50)]
+        public string Breed { get; set; } = "";
+
+        [Range(0, 300)]
+        public int AgeInMonths { get; set; }
+
+        [Required, MaxLength(1000)]
+        public string ReasonForSurrender { get; set; } = "";
+
+        [Required, MaxLength(1000)]
+        public string TemperamentNotes { get; set; } = "";
+
+        [Required, MaxLength(1000)]
+        public string HealthNotes { get; set; } = "";
+    }
+}

@@ -14,7 +14,9 @@ namespace K9Crush.IntegrationTests.ShelterAdoption;
 /// per-test random ApplicantOwnerId, so this is safe to share
 /// ShelterAdoptionPostgresFixture via [Collection(...)] - not the global
 /// "does any X exist" class of check that forced BootstrapAdmin/Chat's
-/// tests onto per-instance IAsyncLifetime instead.
+/// tests onto per-instance IAsyncLifetime instead. Seeding now goes
+/// through Events.StartStream (ADR-031) rather than session.Store, since
+/// Application is event-sourced.
 /// </summary>
 [Collection(ShelterAdoptionPostgresCollection.Name)]
 public class WithdrawApplicationsOnAccountDeletionRequestedIntegrationTests(ShelterAdoptionPostgresFixture fixture)
@@ -30,17 +32,20 @@ public class WithdrawApplicationsOnAccountDeletionRequestedIntegrationTests(Shel
         var shelterAccountId = Guid.NewGuid();
         var dogListingId = Guid.NewGuid();
 
-        var openApplicationA = Application.Submit(deletedOwnerId, dogListingId, shelterAccountId);
-        openApplicationA.Review(); // UnderReview - open
-        var openApplicationB = Application.Submit(deletedOwnerId, Guid.NewGuid(), shelterAccountId); // Pending - open
-        var alreadyWithdrawnApplication = Application.Submit(deletedOwnerId, Guid.NewGuid(), shelterAccountId);
-        alreadyWithdrawnApplication.Withdraw(); // not open - must be left alone
-        var otherOwnersApplication = Application.Submit(otherOwnerId, dogListingId, shelterAccountId);
-        otherOwnersApplication.Review(); // open, but a different owner - must be left alone
+        var (openApplicationA, openASubmitted) = Application.SubmitNew(deletedOwnerId, dogListingId, shelterAccountId, TestIntake.Default);
+        var openAReviewed = openApplicationA.Review(); // UnderReview - open
+        var (openApplicationB, openBSubmitted) = Application.SubmitNew(deletedOwnerId, Guid.NewGuid(), shelterAccountId, TestIntake.Default); // Pending - open
+        var (alreadyWithdrawnApplication, alreadyWithdrawnSubmitted) = Application.SubmitNew(deletedOwnerId, Guid.NewGuid(), shelterAccountId, TestIntake.Default);
+        var alreadyWithdrawnEvent = alreadyWithdrawnApplication.Withdraw(); // not open - must be left alone
+        var (otherOwnersApplication, otherOwnersSubmitted) = Application.SubmitNew(otherOwnerId, dogListingId, shelterAccountId, TestIntake.Default);
+        var otherOwnersReviewed = otherOwnersApplication.Review(); // open, but a different owner - must be left alone
 
         await using (var seedSession = fixture.Store.LightweightSession())
         {
-            seedSession.Store(openApplicationA, openApplicationB, alreadyWithdrawnApplication, otherOwnersApplication);
+            seedSession.Events.StartStream<Application>(openApplicationA.Id, openASubmitted, openAReviewed);
+            seedSession.Events.StartStream<Application>(openApplicationB.Id, openBSubmitted);
+            seedSession.Events.StartStream<Application>(alreadyWithdrawnApplication.Id, alreadyWithdrawnSubmitted, alreadyWithdrawnEvent);
+            seedSession.Events.StartStream<Application>(otherOwnersApplication.Id, otherOwnersSubmitted, otherOwnersReviewed);
             await seedSession.SaveChangesAsync();
         }
 

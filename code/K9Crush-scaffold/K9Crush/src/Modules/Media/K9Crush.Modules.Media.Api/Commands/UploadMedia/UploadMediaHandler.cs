@@ -18,6 +18,10 @@ namespace K9Crush.Modules.Media.Api.Commands.UploadMedia;
 /// same "validation lives in the request record" convention as every
 /// other slice in this codebase (see CLAUDE.md's Code Standards) - no
 /// separate RejectUpload command exists.
+///
+/// ADR-031: starts a brand-new event stream (session.Events.StartStream)
+/// rather than session.Store - this is the one command in the module that
+/// creates a MediaAsset rather than fetching an existing one.
 /// </summary>
 public static class UploadMediaHandler
 {
@@ -31,8 +35,8 @@ public static class UploadMediaHandler
     {
         var ownerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var mediaAsset = MediaAsset.Upload(ownerId, request.MediaType, request.StorageUrl);
-        session.Store(mediaAsset);
+        var (mediaAsset, @event) = MediaAsset.Upload(ownerId, request.MediaType, request.StorageUrl);
+        session.Events.StartStream<MediaAsset>(mediaAsset.Id, @event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new UploadMediaResponse(mediaAsset.Id, mediaAsset.MediaType.ToString(), mediaAsset.UploadedAt));

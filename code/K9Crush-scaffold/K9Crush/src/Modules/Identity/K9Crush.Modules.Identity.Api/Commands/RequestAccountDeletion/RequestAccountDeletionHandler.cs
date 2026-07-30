@@ -44,7 +44,8 @@ public static class RequestAccountDeletionHandler
     {
         var ownerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var ownerAccount = await session.LoadAsync<OwnerAccount>(ownerId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<OwnerAccount>(ownerId, cancellationToken);
+        var ownerAccount = stream.Aggregate;
         if (ownerAccount is null)
             return (TypedResults.NotFound(), null);
 
@@ -54,8 +55,8 @@ public static class RequestAccountDeletionHandler
         if (ownerAccount.DeletionRequestedAt is not null)
             return (TypedResults.Conflict("Account deletion has already been requested."), null);
 
-        ownerAccount.RequestDeletion();
-        session.Store(ownerAccount);
+        var domainEvent = ownerAccount.RequestDeletion();
+        stream.AppendOne(domainEvent);
         await session.SaveChangesAsync(cancellationToken);
 
         var integrationEvent = new AccountDeletionRequestedV1(

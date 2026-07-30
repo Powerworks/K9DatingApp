@@ -12,11 +12,11 @@ namespace K9Crush.Modules.Identity.Tests.Handlers;
 
 /// <summary>
 /// Layer 2 (TestingApproach.md) - VerifyOwnerOnSupabaseConfirmationHandler
-/// only calls LoadAsync/Store/SaveChangesAsync, so IDocumentSession mocks
-/// cleanly here. Same HttpRequest/IConfiguration mocking approach as
-/// ProvisionOwnerOnSupabaseSignupHandlerTests - see that file's doc
-/// comment for why NSubstitute can proxy HttpRequest despite it being an
-/// abstract class, not an interface.
+/// only calls FetchForWriting/AppendOne/SaveChangesAsync, so
+/// IDocumentSession mocks cleanly here (ADR-031). Same HttpRequest/
+/// IConfiguration mocking approach as ProvisionOwnerOnSupabaseSignupHandlerTests -
+/// see that file's doc comment for why NSubstitute can proxy HttpRequest
+/// despite it being an abstract class, not an interface.
 /// </summary>
 public class VerifyOwnerOnSupabaseConfirmationHandlerTests
 {
@@ -79,8 +79,7 @@ public class VerifyOwnerOnSupabaseConfirmationHandlerTests
     {
         var (request, configuration) = BuildAuthenticatedContext();
         var ownerId = Guid.NewGuid();
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<OwnerAccount>(ownerId, Arg.Any<CancellationToken>()).Returns((OwnerAccount?)null);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting<OwnerAccount>(ownerId, null, out _);
 
         var (result, integrationEvent) = await VerifyOwnerOnSupabaseConfirmationHandler.Handle(
             BuildJustConfirmedPayload(ownerId, DateTimeOffset.UtcNow), request, configuration, session, CancellationToken.None);
@@ -93,9 +92,8 @@ public class VerifyOwnerOnSupabaseConfirmationHandlerTests
     public async Task Handle_WhenEmailJustConfirmed_MarksVerifiedAndCascadesOwnerVerified()
     {
         var (request, configuration) = BuildAuthenticatedContext();
-        var owner = OwnerAccount.Create(Guid.NewGuid(), "owner@example.com", DateTimeOffset.UtcNow);
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<OwnerAccount>(owner.Id, Arg.Any<CancellationToken>()).Returns(owner);
+        var (owner, _) = OwnerAccount.CreateNew(Guid.NewGuid(), "owner@example.com", DateTimeOffset.UtcNow);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(owner.Id, owner, out var stream);
 
         var (result, integrationEvent) = await VerifyOwnerOnSupabaseConfirmationHandler.Handle(
             BuildJustConfirmedPayload(owner.Id, DateTimeOffset.UtcNow), request, configuration, session, CancellationToken.None);
@@ -104,7 +102,7 @@ public class VerifyOwnerOnSupabaseConfirmationHandlerTests
         integrationEvent.Should().NotBeNull();
         integrationEvent!.OwnerId.Should().Be(owner.Id);
         owner.IsVerified.Should().BeTrue();
-        session.Received(1).Store(Arg.Is<OwnerAccount[]>(arr => arr != null && arr.Length == 1 && arr[0] == owner));
+        stream.Received(1).AppendOne(Arg.Any<object>());
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

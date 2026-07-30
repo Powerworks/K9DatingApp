@@ -1,5 +1,23 @@
 # Testing Approach
 
+> **Updated for ADR-031** (event sourcing adopted as the default persistence
+> model for every module - see `docs/03-solution-architecture.md` Section
+> 2.1/10). Layer 2 below was initially assumed to shrink drastically under
+> this retrofit (on the theory that `FetchForWriting` was an unmockable
+> extension method) - **that assumption was checked and found wrong**:
+> `FetchForWriting`/`FetchForExclusiveWriting`/`AppendOptimistic`/
+> `AppendExclusive` are confirmed (via direct reflection against the
+> installed Marten 9.17.1 + a working NSubstitute spike) to be genuine
+> interface members of `Marten.Events.IEventStoreOperations` (`session.Events`'s
+> actual property type), mockable exactly like `LoadAsync` today - a
+> `Marten.Events.Fetching.FetchForWritingExtensions` type does exist, but
+> it's an unrelated internal helper with a misleading name, not the actual
+> `FetchForWriting` implementation. Layer 2 stays the default for
+> `Commands/**`/`Automations/**` handlers whose write path is
+> `FetchForWriting`/`AppendOne`/`AppendOptimistic` - the existing hard limit
+> (`Query<T>()` doesn't mock) is what actually routes a handler to Layer 3,
+> unchanged from before this retrofit. Layers 1 and 4 are unaffected.
+
 Every slice built so far (Identity, Profiles, Discovery, ShelterAdoption) has
 been verified exactly once, by hand, with `curl` against a real running
 `Api.Host` and a real Postgres/RabbitMQ (see `docs/05-event-modeling-blueprint.md`
@@ -67,27 +85,59 @@ provider (`IMartenQueryable<T>`) is not something NSubstitute (or any mock
 library) can fake meaningfully; `Query<T>()` returning a bare `IQueryable<T>`
 substitute will not support Marten's async extension methods the way real
 Marten does. **Do not attempt to mock a handler that calls
-`session.Query<T>()`.** Check every handler before writing a Layer 2 test
-for it — if it only calls `LoadAsync`/`Store`/`SaveChangesAsync`, it belongs
-here (e.g. `EditApplicationDetailsHandler`, `ResumeDraftApplicationHandler`).
-If it calls `Query<T>()` (e.g. `SubmitApplicationHandler`,
-`StartDraftApplicationHandler`, every `GetX` read model), it belongs in
-Layer 3 instead.
+`session.Query<T>()`.**
+
+**Post-ADR-031, event-sourced write handlers mock the same way document-store
+ones always did.** `session.Events` is typed `Marten.Events.IEventStoreOperations`
+(confirmed via reflection against the installed Marten 9.17.1) — a genuine
+interface, so `session.Events.FetchForWriting<T>(id, ct)`,
+`FetchForExclusiveWriting<T>(...)`, `AppendOptimistic(...)`, and
+`Events.Append(...)` all mock exactly like `LoadAsync`/`Store` do: substitute
+`IDocumentSession`, have `.Events` return a substituted
+`IEventStoreOperations`, and stub `FetchForWriting<T>(...)` to return a
+`Task<IEventStream<T>>` wrapping a substituted `IEventStream<T>` whose
+`.Aggregate` is set to the test's entity instance — confirmed working via a
+real NSubstitute spike, not assumed. (An initial pass at this doc wrongly
+assumed `FetchForWriting` was an unmockable extension method, based on a
+type named `Marten.Events.Fetching.FetchForWritingExtensions` that turns out
+to be an unrelated internal helper, not the real implementation — corrected
+here.) `session.Events.AggregateStreamAsync<TState>(...)` (ADR-019 command
+state) is the same story — also a genuine `IEventStoreOperations` member,
+also mockable.
+
+The dividing line between Layer 2 and Layer 3 is therefore **unchanged by
+ADR-031**: `session.Query<T>()` still doesn't mock (Marten's LINQ provider,
+same reason as always) and is still the thing that routes a handler to
+Layer 3 instead. Check every handler the same way as before: if it only
+calls `LoadAsync`/`Store`/`SaveChangesAsync`/`Events.Append`/
+`FetchForWriting`/`FetchForExclusiveWriting`/`AggregateStreamAsync`, it
+belongs in Layer 2; if it calls `Query<T>()`, it belongs in Layer 3.
 
 **Where:** `tests/K9Crush.Modules.<Module>.Tests/Handlers/`, one test class
 per handler, mirroring `src/.../Api/Commands|ReadModels|Automations/`.
 
 ## Layer 3 — Integration tests against real Postgres (Testcontainers)
 
-**What:** for any handler that touches `session.Query<T>()`, or that needs
-to prove round-trip Marten serialization actually works (the exact class of
-bug `DogProfile`'s missing `[JsonConstructor]`/`[JsonInclude]` was — a mock
-would never have caught that, only a real `LoadAsync` against a real
-document store would), spin up a real disposable Postgres via
-`Testcontainers.PostgreSql` (already pinned in `Directory.Packages.props` —
-this was clearly the original scaffold's intent even though nothing used it
-yet), configure a real Marten `DocumentStore` against it the same way each
-module's `<Module>Module.cs` does, and call the handler for real.
+**What:** for any handler that touches `session.Query<T>()`, or needs to
+prove round-trip Marten serialization actually works (the exact class of bug
+`DogProfile`'s missing `[JsonConstructor]`/`[JsonInclude]` was — a mock would
+never have caught that, only a real `LoadAsync` against a real document
+store would), spin up a real disposable Postgres via `Testcontainers.PostgreSql`
+(already pinned in `Directory.Packages.props`), configure a real Marten
+`DocumentStore` against it the same way each module's `<Module>Module.cs`
+does, and call the handler for real. This is unchanged by ADR-031 —
+`FetchForWriting`/`AggregateStreamAsync`-based handlers mock fine at Layer 2
+(see Layer 2's note above), so ADR-031 does not by itself push more handlers
+into this layer.
+
+The existing `<Module>PostgresFixture.cs` pattern needs **no fixture-specific
+changes** once a module goes event-sourced: it already reuses
+`module.MartenConfiguration.Configure(opts)` verbatim from production, so
+once a module's `Module.cs` gains event/projection registrations, the
+fixture picks them up automatically — still useful for genuinely
+`Query<T>()`-driven read models (queue/list-shaped views) and for proving
+Marten's event/snapshot serialization round-trips for real, same role Layer
+3 always had.
 
 **Tooling:** xUnit + FluentAssertions + `Testcontainers.PostgreSql`. One
 container per test collection (`IAsyncLifetime` fixture), not per test —
@@ -175,15 +225,15 @@ tree too — a `ShelterAdoption.Tests` project should never reference
 `SubmitDraft_WhenCalled_SetsStatusToPendingAndSubmittedAt`,
 `Handle_WhenApplicationNotOwnedByCaller_ReturnsForbid`.
 
-## Current coverage (as of this doc's creation)
+## Current coverage (stale since this doc's creation — kept for history above, updated here)
 
-Only `ShelterAdoption`'s `Application` entity and its two simplest
-LoadAsync/Store-only handlers (`EditApplicationDetailsHandler`,
-`ResumeDraftApplicationHandler`) have Layer 1/2 tests, plus one Layer 3
-integration test covering the drafts feature's LINQ-query paths
-(`StartDraftApplicationHandler`, `SubmitApplicationHandler`'s
-graduation branch). Everything else built so far (Identity, Profiles,
-Discovery, and the rest of ShelterAdoption) has **no automated test
-coverage yet** — only the original one-time manual `curl` verification.
-Filling that in is follow-up work, one module at a time, same as the
-slices themselves were built.
+As of the 2026-07-24 product descope + Profiles merge, the live module set
+is Identity, ShelterAdoption, Notifications, Media, Admin (Discovery, Chat,
+Places, Moderation, and Profiles as a standalone module are gone). All 5
+have real Layer 1/2/3 coverage: 375 non-integration tests passing (116
+`K9Crush.ArchitectureTests` fitness tests + 259 across the 5 module test
+projects), plus Layer 3 integration coverage per module. Now entering the
+ADR-031 event-sourcing retrofit (Media → Admin → Notifications → Identity →
+ShelterAdoption) — expect the Layer 2/3 balance within each module's test
+project to shift substantially per Layer 2's updated limit above as each
+phase lands.

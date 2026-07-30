@@ -12,12 +12,13 @@ namespace K9Crush.Modules.Identity.Tests.Handlers;
 
 /// <summary>
 /// Layer 2 (TestingApproach.md) - ProvisionOwnerOnSupabaseSignupHandler
-/// only calls LoadAsync/Store/SaveChangesAsync, so IDocumentSession mocks
-/// cleanly here. Also the first test in this codebase to mock
-/// HttpRequest/IConfiguration - HttpRequest is an abstract class (not an
-/// interface) but NSubstitute can still proxy it since every member used
-/// here (Headers) is virtual/abstract; IConfiguration's string indexer is
-/// a plain interface member.
+/// only calls Events.AggregateStreamAsync/Events.StartStream/
+/// SaveChangesAsync, so IDocumentSession mocks cleanly here (ADR-031).
+/// Also the first test in this codebase to mock HttpRequest/IConfiguration -
+/// HttpRequest is an abstract class (not an interface) but NSubstitute can
+/// still proxy it since every member used here (Headers) is
+/// virtual/abstract; IConfiguration's string indexer is a plain interface
+/// member.
 /// </summary>
 public class ProvisionOwnerOnSupabaseSignupHandlerTests
 {
@@ -70,14 +71,24 @@ public class ProvisionOwnerOnSupabaseSignupHandlerTests
         integrationEvent.Should().BeNull();
     }
 
+    private static IDocumentSession BuildSessionWithExistingAccount(Guid ownerId, OwnerAccount? existing)
+    {
+        var session = Substitute.For<IDocumentSession>();
+        var eventStore = Substitute.For<Marten.Events.IEventStoreOperations>();
+        session.Events.Returns(eventStore);
+        eventStore.AggregateStreamAsync<OwnerAccount>(
+                Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<DateTimeOffset?>(), Arg.Any<OwnerAccount>(), Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .ReturnsForAnyArgs(Task.FromResult(existing));
+        return session;
+    }
+
     [Fact]
     public async Task Handle_WhenOwnerAlreadyProvisioned_AcksAndCascadesNothing()
     {
         var (request, configuration) = BuildAuthenticatedContext();
         var ownerId = Guid.NewGuid();
-        var existing = OwnerAccount.Create(ownerId, "owner@example.com", DateTimeOffset.UtcNow);
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<OwnerAccount>(ownerId, Arg.Any<CancellationToken>()).Returns(existing);
+        var (existing, _) = OwnerAccount.CreateNew(ownerId, "owner@example.com", DateTimeOffset.UtcNow);
+        var session = BuildSessionWithExistingAccount(ownerId, existing);
 
         var (result, integrationEvent) = await ProvisionOwnerOnSupabaseSignupHandler.Handle(
             BuildInsertPayload(ownerId, "owner@example.com", DateTimeOffset.UtcNow),
@@ -94,8 +105,7 @@ public class ProvisionOwnerOnSupabaseSignupHandlerTests
         var (request, configuration) = BuildAuthenticatedContext();
         var ownerId = Guid.NewGuid();
         var createdAt = DateTimeOffset.UtcNow;
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<OwnerAccount>(ownerId, Arg.Any<CancellationToken>()).Returns((OwnerAccount?)null);
+        var session = BuildSessionWithExistingAccount(ownerId, null);
 
         var (result, integrationEvent) = await ProvisionOwnerOnSupabaseSignupHandler.Handle(
             BuildInsertPayload(ownerId, "owner@example.com", createdAt),
@@ -106,7 +116,10 @@ public class ProvisionOwnerOnSupabaseSignupHandlerTests
         integrationEvent!.OwnerId.Should().Be(ownerId);
         integrationEvent.Email.Should().Be("owner@example.com");
 
-        session.Received(1).Store(Arg.Is<OwnerAccount[]>(arr => arr != null && arr.Length == 1 && arr[0].Id == ownerId));
+        session.Events.Received(1).StartStream<OwnerAccount>(
+            ownerId,
+            Arg.Is<object[]>(events => events != null && events.Length == 1 && events[0] != null
+                && ((K9Crush.Modules.Identity.Domain.Events.OwnerAccountCreatedV1)events[0]).SupabaseUserId == ownerId));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

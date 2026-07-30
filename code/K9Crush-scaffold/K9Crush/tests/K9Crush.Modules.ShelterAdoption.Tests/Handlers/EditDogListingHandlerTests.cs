@@ -10,9 +10,10 @@ using Xunit;
 namespace K9Crush.Modules.ShelterAdoption.Tests.Handlers;
 
 /// <summary>
-/// Layer 2 (TestingApproach.md) - EditDogListingHandler only calls
-/// LoadAsync/Store/SaveChangesAsync, so IDocumentSession mocks cleanly
-/// here.
+/// Layer 2 (TestingApproach.md) - EditDogListingHandler calls
+/// FetchForWriting/AppendOne/SaveChangesAsync against DogListing plus a
+/// plain LoadAsync against ShelterAccount for the ownership check
+/// (read-only, not a self-load - ADR-031).
 /// </summary>
 public class EditDogListingHandlerTests
 {
@@ -23,18 +24,23 @@ public class EditDogListingHandlerTests
 
     private static (ShelterAccount shelterAccount, DogListing dogListing) SeedListing()
     {
-        var shelterAccount = ShelterAccount.Create(ShelterOwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
-        var dogListing = DogListing.Create(shelterAccount.Id, "Biscuit", "Beagle mix", 24, "Friendly");
+        var shelterAccount = ShelterAccount.RequestNew(ShelterOwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid()).ShelterAccount;
+        var dogListing = DogListing.AddNew(shelterAccount.Id, "Biscuit", "Beagle mix", 24, "Friendly").DogListing;
         return (shelterAccount, dogListing);
+    }
+
+    private static IDocumentSession BuildSession(ShelterAccount shelterAccount, DogListing? dogListing, out JasperFx.Events.IEventStream<DogListing> stream)
+    {
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(dogListing?.Id ?? Guid.NewGuid(), dogListing, out stream);
+        session.LoadAsync<ShelterAccount>(shelterAccount.Id, Arg.Any<CancellationToken>()).Returns(shelterAccount);
+        return session;
     }
 
     [Fact]
     public async Task Handle_WhenSignificantChangeIsTrue_CascadesDogListingSignificantlyEdited()
     {
         var (shelterAccount, dogListing) = SeedListing();
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<DogListing>(dogListing.Id, Arg.Any<CancellationToken>()).Returns(dogListing);
-        session.LoadAsync<ShelterAccount>(shelterAccount.Id, Arg.Any<CancellationToken>()).Returns(shelterAccount);
+        var session = BuildSession(shelterAccount, dogListing, out _);
 
         var (result, integrationEvent) = await EditDogListingHandler.Handle(
             dogListing.Id,
@@ -51,9 +57,7 @@ public class EditDogListingHandlerTests
     public async Task Handle_WhenSignificantChangeIsFalse_EditsButCascadesNothing()
     {
         var (shelterAccount, dogListing) = SeedListing();
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<DogListing>(dogListing.Id, Arg.Any<CancellationToken>()).Returns(dogListing);
-        session.LoadAsync<ShelterAccount>(shelterAccount.Id, Arg.Any<CancellationToken>()).Returns(shelterAccount);
+        var session = BuildSession(shelterAccount, dogListing, out var stream);
 
         var (result, integrationEvent) = await EditDogListingHandler.Handle(
             dogListing.Id,
@@ -62,14 +66,14 @@ public class EditDogListingHandlerTests
 
         result.Result.Should().BeOfType<Ok<EditDogListingResponse>>();
         integrationEvent.Should().BeNull();
+        stream.Received(1).AppendOne(Arg.Is<object>(o => o != null && o.GetType() == typeof(K9Crush.Modules.ShelterAdoption.Domain.Events.DogListingEditedV1)));
     }
 
     [Fact]
     public async Task Handle_WhenListingDoesNotExist_ReturnsNotFoundAndNoIntegrationEvent()
     {
-        var session = Substitute.For<IDocumentSession>();
         var dogListingId = Guid.NewGuid();
-        session.LoadAsync<DogListing>(dogListingId, Arg.Any<CancellationToken>()).Returns((DogListing?)null);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting<DogListing>(dogListingId, null, out _);
 
         var (result, integrationEvent) = await EditDogListingHandler.Handle(
             dogListingId,

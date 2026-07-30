@@ -13,8 +13,9 @@ namespace K9Crush.Modules.Identity.Tests.Handlers;
 
 /// <summary>
 /// Layer 2 (TestingApproach.md) - ConfirmAccountDeletionHandler only calls
-/// LoadAsync/Store/SaveChangesAsync plus (ADR-026) IMessageBus.ScheduleAsync,
-/// so both IDocumentSession and IMessageBus mock cleanly here.
+/// FetchForWriting/AppendOne/SaveChangesAsync plus (ADR-026)
+/// IMessageBus.ScheduleAsync, so both IDocumentSession and IMessageBus
+/// mock cleanly here (ADR-031).
 /// </summary>
 public class ConfirmAccountDeletionHandlerTests
 {
@@ -25,9 +26,8 @@ public class ConfirmAccountDeletionHandlerTests
     public async Task Handle_WhenOwnerDoesNotExist_ReturnsNotFound()
     {
         var ownerId = Guid.NewGuid();
-        var session = Substitute.For<IDocumentSession>();
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting<OwnerAccount>(ownerId, null, out _);
         var bus = Substitute.For<IMessageBus>();
-        session.LoadAsync<OwnerAccount>(ownerId, Arg.Any<CancellationToken>()).Returns((OwnerAccount?)null);
 
         var result = await ConfirmAccountDeletionHandler.Handle(BuildUser(ownerId), session, bus, CancellationToken.None);
 
@@ -37,10 +37,9 @@ public class ConfirmAccountDeletionHandlerTests
     [Fact]
     public async Task Handle_WhenDeletionWasNeverRequested_ReturnsConflictAndDoesNotSchedule()
     {
-        var owner = OwnerAccount.Create(Guid.NewGuid(), "owner@example.com", DateTimeOffset.UtcNow);
-        var session = Substitute.For<IDocumentSession>();
+        var (owner, _) = OwnerAccount.CreateNew(Guid.NewGuid(), "owner@example.com", DateTimeOffset.UtcNow);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(owner.Id, owner, out _);
         var bus = Substitute.For<IMessageBus>();
-        session.LoadAsync<OwnerAccount>(owner.Id, Arg.Any<CancellationToken>()).Returns(owner);
 
         var result = await ConfirmAccountDeletionHandler.Handle(BuildUser(owner.Id), session, bus, CancellationToken.None);
 
@@ -51,12 +50,11 @@ public class ConfirmAccountDeletionHandlerTests
     [Fact]
     public async Task Handle_WhenAlreadyConfirmed_ReturnsConflictAndDoesNotSchedule()
     {
-        var owner = OwnerAccount.Create(Guid.NewGuid(), "owner@example.com", DateTimeOffset.UtcNow);
+        var (owner, _) = OwnerAccount.CreateNew(Guid.NewGuid(), "owner@example.com", DateTimeOffset.UtcNow);
         owner.RequestDeletion();
         owner.ConfirmDeletion(30);
-        var session = Substitute.For<IDocumentSession>();
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(owner.Id, owner, out _);
         var bus = Substitute.For<IMessageBus>();
-        session.LoadAsync<OwnerAccount>(owner.Id, Arg.Any<CancellationToken>()).Returns(owner);
 
         var result = await ConfirmAccountDeletionHandler.Handle(BuildUser(owner.Id), session, bus, CancellationToken.None);
 
@@ -66,11 +64,10 @@ public class ConfirmAccountDeletionHandlerTests
     [Fact]
     public async Task Handle_WhenDeletionWasRequested_ConfirmsAndSchedulesGracePeriodCheck30DaysOut()
     {
-        var owner = OwnerAccount.Create(Guid.NewGuid(), "owner@example.com", DateTimeOffset.UtcNow);
+        var (owner, _) = OwnerAccount.CreateNew(Guid.NewGuid(), "owner@example.com", DateTimeOffset.UtcNow);
         owner.RequestDeletion();
-        var session = Substitute.For<IDocumentSession>();
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(owner.Id, owner, out var stream);
         var bus = Substitute.For<IMessageBus>();
-        session.LoadAsync<OwnerAccount>(owner.Id, Arg.Any<CancellationToken>()).Returns(owner);
 
         var result = await ConfirmAccountDeletionHandler.Handle(BuildUser(owner.Id), session, bus, CancellationToken.None);
 
@@ -79,6 +76,7 @@ public class ConfirmAccountDeletionHandlerTests
         response.GracePeriodDays.Should().Be(30);
         response.Recoverable.Should().BeTrue();
         owner.GracePeriodEndsAt.Should().NotBeNull();
+        await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
 
         await bus.Received(1).PublishAsync(
             Arg.Is<CheckAccountGracePeriodExpired>(m => m != null && m.OwnerId == owner.Id),

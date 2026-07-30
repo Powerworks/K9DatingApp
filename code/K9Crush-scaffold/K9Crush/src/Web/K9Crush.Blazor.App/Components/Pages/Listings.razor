@@ -1,0 +1,88 @@
+@page "/listings"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using System.Net
+@using System.Text.Json
+@using K9Crush.Blazor.App.Services
+@inject AuthorizedApiClient AuthorizedApiClient
+
+<PageTitle>Adoptable Dogs</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Adoptable Dogs</MudText>
+
+@if (_isLoading)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+}
+else if (_errorMessage is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadAsync">Try Again</MudButton>
+}
+else if (_listings is { Items.Count: 0 })
+{
+    <MudAlert Severity="Severity.Info">No dogs available for adoption right now - check back soon!</MudAlert>
+}
+else if (_listings is not null)
+{
+    <MudGrid>
+        @foreach (var item in _listings.Items)
+        {
+            <MudItem xs="12" sm="6" md="4">
+                <MudCard>
+                    <MudCardContent>
+                        <MudText Typo="Typo.h6">@item.Name</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">@item.Breed</MudText>
+                    </MudCardContent>
+                    <MudCardActions>
+                        <MudButton Href="@($"/listings/{item.DogListingId}")" Variant="Variant.Text" Color="Color.Primary">View Details</MudButton>
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    private AdoptionListingsResponse? _listings;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var client = await AuthorizedApiClient.CreateAsync();
+            var response = await client.GetAsync("/api/v1/shelter-adoption/dog-listings");
+            if (!response.IsSuccessStatusCode)
+            {
+                _errorMessage = response.StatusCode switch
+                {
+                    HttpStatusCode.Unauthorized => "Your session has expired - please log in again.",
+                    HttpStatusCode.Forbidden => "Your account needs to be verified before you can browse listings.",
+                    _ => "Couldn't load adoptable dogs right now - please try again in a moment."
+                };
+                return;
+            }
+
+            _listings = await response.Content.ReadFromJsonAsync<AdoptionListingsResponse>();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or JsonException)
+        {
+            _errorMessage = "Couldn't reach the server right now - please try again in a moment.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private sealed record AdoptionListingSummary(Guid DogListingId, string Name, string Breed, Guid ShelterAccountId);
+    private sealed record AdoptionListingsResponse(IReadOnlyList<AdoptionListingSummary> Items);
+}

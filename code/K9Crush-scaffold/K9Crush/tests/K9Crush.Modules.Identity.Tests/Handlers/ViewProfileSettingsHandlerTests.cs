@@ -33,7 +33,7 @@ public class ViewProfileSettingsHandlerTests
     [Fact]
     public async Task Handle_WhenOwnerExists_ReturnsSettingsIncludingDeletionSagaState()
     {
-        var owner = OwnerAccount.Create(Guid.NewGuid(), "owner@example.com", DateTimeOffset.UtcNow);
+        var (owner, _) = OwnerAccount.CreateNew(Guid.NewGuid(), "owner@example.com", DateTimeOffset.UtcNow);
         owner.UpdateDisplayName("Alex");
         owner.RequestDeletion();
         owner.ConfirmDeletion(30);

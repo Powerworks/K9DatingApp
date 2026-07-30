@@ -61,8 +61,8 @@ public static class AddDogListingHandler
         if (shelterAccount.Status != ShelterAccountStatus.Created)
             return TypedResults.Conflict($"Cannot add a dog listing to a shelter account in status {shelterAccount.Status}.");
 
-        var dogListing = DogListing.Create(shelterAccountId, request.Name, request.Breed, request.AgeInMonths, request.Bio);
-        session.Store(dogListing);
+        var (dogListing, @event) = DogListing.AddNew(shelterAccountId, request.Name, request.Breed, request.AgeInMonths, request.Bio);
+        session.Events.StartStream<DogListing>(dogListing.Id, @event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new AddDogListingResponse(dogListing.Id));

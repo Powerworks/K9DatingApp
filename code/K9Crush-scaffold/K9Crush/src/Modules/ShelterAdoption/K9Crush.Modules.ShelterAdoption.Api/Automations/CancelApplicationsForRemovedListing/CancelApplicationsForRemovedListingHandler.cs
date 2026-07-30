@@ -32,14 +32,17 @@ public static class CancelApplicationsForRemovedListingHandler
             .Where(x => x.DogListingId == integrationEvent.DogListingId)
             .ToListAsync(cancellationToken);
 
-        var openApplications = applications.Where(x => x.IsOpen).ToList();
-        if (openApplications.Count == 0)
+        var openApplicationIds = applications.Where(x => x.IsOpen).Select(x => x.Id).ToList();
+        if (openApplicationIds.Count == 0)
             return;
 
-        foreach (var application in openApplications)
+        var openApplications = new List<Application>();
+        foreach (var applicationId in openApplicationIds)
         {
-            application.CancelDogNoLongerAvailable();
-            session.Store(application);
+            var stream = await session.Events.FetchForWriting<Application>(applicationId, cancellationToken);
+            var application = stream.Aggregate!;
+            stream.AppendOne(application.CancelDogNoLongerAvailable());
+            openApplications.Add(application);
         }
 
         await session.SaveChangesAsync(cancellationToken);

@@ -3,8 +3,17 @@
   <ItemGroup>
     <!-- A Domain project may ONLY reference BuildingBlocks.Domain. Never
          another module's Domain/Infrastructure/Api project. Enforced by
-         K9Crush.ArchitectureTests. -->
+         K9Crush.ArchitectureTests. Third-party package references (below)
+         are unaffected by that rule. -->
     <ProjectReference Include="..\..\..\BuildingBlocks\K9Crush.BuildingBlocks.Domain\K9Crush.BuildingBlocks.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ADR-031: self-aggregating event-sourced entities need Marten's
+         Roslyn source generator to run in the assembly that DEFINES the
+         entity - see K9Crush.Modules.Media.Domain.csproj's identical
+         comment (Phase 1) for the live-confirmed failure this prevents. -->
+    <PackageReference Include="Marten" />
   </ItemGroup>
 
 </Project>

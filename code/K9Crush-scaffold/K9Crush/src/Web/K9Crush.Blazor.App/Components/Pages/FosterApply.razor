@@ -1,0 +1,106 @@
+@page "/foster/apply"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using System.Net
+@using System.Text.Json
+@using K9Crush.Blazor.App.Services
+@inject AuthorizedApiClient AuthorizedApiClient
+
+<PageTitle>Apply to Foster</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Apply to Foster</MudText>
+
+@if (_successMessage is not null)
+{
+    <MudAlert Severity="Severity.Success">@_successMessage</MudAlert>
+}
+else
+{
+    <EditForm Model="Input" OnValidSubmit="SubmitAsync">
+        <DataAnnotationsValidator />
+
+        @if (_errorMessage is not null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
+        }
+
+        <MudStack Spacing="4" Class="mb-4" Style="max-width: 400px;">
+            <MudSelect T="HomeType" @bind-Value="Input.HomeType" Label="Home Type">
+                <MudSelectItem Value="HomeType.House">House</MudSelectItem>
+                <MudSelectItem Value="HomeType.Apartment">Apartment</MudSelectItem>
+                <MudSelectItem Value="HomeType.Other">Other</MudSelectItem>
+            </MudSelect>
+
+            <MudSwitch @bind-Value="Input.HasGarden" Label="Has Garden" Color="Color.Primary" />
+            <MudSwitch @bind-Value="Input.HasOtherPets" Label="Has Other Pets" Color="Color.Primary" />
+
+            <MudDatePicker @bind-Date="Input.AvailableFrom" Label="Available From" For="@(() => Input.AvailableFrom)" />
+        </MudStack>
+
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="_isSubmitting">Submit Application</MudButton>
+    </EditForm>
+}
+
+@code {
+    private readonly InputModel Input = new();
+    private bool _isSubmitting;
+    private string? _errorMessage;
+    private string? _successMessage;
+
+    private async Task SubmitAsync()
+    {
+        _isSubmitting = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var client = await AuthorizedApiClient.CreateAsync();
+            var request = new
+            {
+                HomeType = Input.HomeType,
+                Input.HasGarden,
+                Input.HasOtherPets,
+                AvailableFrom = DateOnly.FromDateTime(Input.AvailableFrom!.Value)
+            };
+            var response = await client.PostAsJsonAsync("/api/v1/shelter-adoption/foster-applications", request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _errorMessage = response.StatusCode switch
+                {
+                    HttpStatusCode.Unauthorized => "Your session has expired - please log in again.",
+                    HttpStatusCode.Forbidden => "Your account needs to be verified before you can apply.",
+                    HttpStatusCode.BadRequest => "Please check the form for errors and try again.",
+                    _ => "Couldn't submit your application right now - please try again in a moment."
+                };
+                return;
+            }
+
+            _successMessage = "Your foster application has been submitted! A shelter admin will review it soon.";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or JsonException)
+        {
+            _errorMessage = "Couldn't reach the server right now - please try again in a moment.";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    // Member order must match K9Crush.Modules.ShelterAdoption.Domain's
+    // HomeType exactly - serialized by ordinal, not name.
+    private enum HomeType { House, Apartment, Other }
+
+    private sealed class InputModel
+    {
+        public HomeType HomeType { get; set; }
+        public bool HasGarden { get; set; }
+        public bool HasOtherPets { get; set; }
+
+        [Required(ErrorMessage = "Please choose a date you're available from.")]
+        public DateTime? AvailableFrom { get; set; }
+    }
+}

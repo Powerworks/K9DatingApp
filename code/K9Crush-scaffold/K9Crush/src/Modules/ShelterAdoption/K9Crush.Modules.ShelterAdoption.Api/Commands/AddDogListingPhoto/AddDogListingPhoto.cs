@@ -1,0 +1,20 @@
+using System.ComponentModel.DataAnnotations;
+
+namespace K9Crush.Modules.ShelterAdoption.Api.Commands.AddDogListingPhoto;
+
+/// <summary>
+/// The request/command for this slice - what the caller sends.
+/// Guid-not-empty can't be expressed as a plain attribute, so it lives in
+/// IValidatableObject.Validate below - same pattern as SwipeOnDogRequest.
+/// </summary>
+public sealed record AddDogListingPhotoRequest(Guid MediaAssetId) : IValidatableObject
+{
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (MediaAssetId == Guid.Empty)
+            yield return new ValidationResult("MediaAssetId is required.", [nameof(MediaAssetId)]);
+    }
+}
+
+/// <summary>What this slice hands back to the caller.</summary>
+public sealed record AddDogListingPhotoResponse(Guid DogListingId, IReadOnlyList<Guid> PhotoIds);

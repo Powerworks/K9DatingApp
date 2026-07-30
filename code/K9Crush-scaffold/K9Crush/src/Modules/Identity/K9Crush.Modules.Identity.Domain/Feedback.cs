@@ -1,17 +1,22 @@
 using System.Text.Json.Serialization;
 using K9Crush.BuildingBlocks.Domain;
+using K9Crush.Modules.Identity.Domain.Events;
 
 namespace K9Crush.Modules.Identity.Domain;
 
 /// <summary>
-/// Current-state Marten document. AccountProfileSettings' "Submit
-/// Feedback" -> "Feedback Submitted" - deliberately parked here rather
-/// than in a dedicated Admin module, which doesn't exist yet (see
-/// module_boundaries memory / docs/03-solution-architecture.md's proposed
-/// module map). Same "no destination module yet, land it somewhere real
-/// instead of nowhere" deferral as this codebase's other "not built yet"
-/// gaps. No read/review slice on top of this yet - only the write side
-/// (Commands/SubmitFeedback) exists this increment.
+/// AccountProfileSettings' "Submit Feedback" -> "Feedback Submitted" -
+/// deliberately parked here rather than in a dedicated Admin module at
+/// the time this was first built (Admin exists now, but this entity's
+/// own creation is what triggers Admin's cross-module copy - see
+/// Admin.Domain.FeedbackInboxItem, Phase 2 - so it stays here). No read/
+/// review slice on top of this Identity-side copy - only the write side
+/// (Commands/SubmitFeedback) exists.
+///
+/// Self-aggregating event-sourced entity (ADR-031, Phase 4/5) - create-only,
+/// no Apply overloads (nothing ever mutates a submitted feedback record),
+/// same shape as Notifications' NotificationLog (Phase 3). No Inline
+/// snapshot - nothing queries it from within this module.
 /// </summary>
 public class Feedback : Entity
 {
@@ -22,16 +27,19 @@ public class Feedback : Entity
     [JsonConstructor]
     private Feedback() { }
 
-    public static Feedback Submit(Guid ownerId, string message)
+    public static Feedback Create(FeedbackRecordedV1 e) => new()
+    {
+        OwnerId = e.OwnerId,
+        Message = e.Message,
+        SubmittedAt = e.SubmittedAt
+    };
+
+    public static (Feedback Feedback, FeedbackRecordedV1 Event) Submit(Guid ownerId, string message)
     {
         if (string.IsNullOrWhiteSpace(message))
             throw new ArgumentException("Message is required.", nameof(message));
 
-        return new Feedback
-        {
-            OwnerId = ownerId,
-            Message = message.Trim(),
-            SubmittedAt = DateTimeOffset.UtcNow
-        };
+        var @event = new FeedbackRecordedV1(ownerId, message.Trim(), DateTimeOffset.UtcNow);
+        return (Create(@event), @event);
     }
 }

@@ -28,12 +28,12 @@ public static class RequestShelterAccountHandler
     {
         var ownerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var shelterAccount = ShelterAccount.Create(
+        var (shelterAccount, @event) = ShelterAccount.RequestNew(
             ownerId,
             request.BusinessDetails,
             request.UtilityBillDocumentId);
 
-        session.Store(shelterAccount);
+        session.Events.StartStream<ShelterAccount>(shelterAccount.Id, @event);
         await session.SaveChangesAsync(cancellationToken);
 
         return new RequestShelterAccountResponse(shelterAccount.Id);

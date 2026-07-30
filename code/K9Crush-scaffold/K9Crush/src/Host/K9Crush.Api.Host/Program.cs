@@ -6,14 +6,9 @@ using K9Crush.BuildingBlocks.Domain;
 using K9Crush.BuildingBlocks.Persistence;
 using K9Crush.BuildingBlocks.Web;
 using K9Crush.Modules.Admin.Api;
-using K9Crush.Modules.Chat.Api;
-using K9Crush.Modules.Discovery.Api;
 using K9Crush.Modules.Identity.Api;
 using K9Crush.Modules.Media.Api;
-using K9Crush.Modules.Moderation.Api;
 using K9Crush.Modules.Notifications.Api;
-using K9Crush.Modules.Places.Api;
-using K9Crush.Modules.Profiles.Api;
 using K9Crush.Modules.ShelterAdoption.Api;
 using Serilog;
 using Wolverine;
@@ -35,15 +30,10 @@ builder.Host.UseSerilog((context, configuration) =>
 var modules = new IModule[]
 {
     new IdentityModule(),
-    new ProfilesModule(),
-    new DiscoveryModule(),
     new ShelterAdoptionModule(),
     new NotificationsModule(),
-    new ChatModule(),
     new AdminModule(),
-    new MediaModule(),
-    new ModerationModule(),
-    new PlacesModule()
+    new MediaModule()
 };
 
 foreach (var module in modules)
@@ -58,6 +48,21 @@ var connectionString = builder.Configuration.GetConnectionString("Postgres")
 builder.Services.AddMarten(options =>
 {
     options.Connection(connectionString);
+
+    // Event store schema is ONE shared setting for the whole StoreOptions,
+    // not one per module - Marten has a single mt_events/mt_streams table
+    // pair per store, it doesn't partition the event log by schema. Every
+    // module used to call options.Events.DatabaseSchemaName = SchemaName
+    // from its own Configure(), which silently overwrote whichever
+    // module's setting was applied last (Media, per this array's order) -
+    // every module's events were landing in "media" regardless of which
+    // module actually owned them (see marten_schema_isolation_bug memory
+    // for how this was found live, and ADR-003's updated entry for the
+    // resulting split: documents are schema-per-module, the event store
+    // is one shared schema). "eventstore" is deliberately not any single
+    // module's name, since every module's events live here.
+    options.Events.DatabaseSchemaName = "eventstore";
+
     options.ApplyModuleConfigurations(modules.Select(m => m.MartenConfiguration));
 
     // NOTE: the explicit AutoCreateSchemaObjects assignment that used to
@@ -83,27 +88,14 @@ builder.Services.AddMarten(options =>
     // exact package version that's actually installed, which is more
     // reliable than what I can confirm from documentation alone.
 })
-.IntegrateWithWolverine(m =>
-{
-    // Forwards captured Marten domain events to any local Wolverine
-    // handler for that event type - this is what makes automation
-    // slices (EVENT -> AUTOMATION -> COMMAND -> EVENT) work without a
-    // hand-rolled polling loop. Each automation just declares a
-    // Handle(TDomainEvent) method; Wolverine finds and invokes it.
-    // See K9Crush.Modules.Discovery.Api.Automations.DetectMutualMatch
-    // for the concrete example (reacts to DogLiked).
-    //
-    // Verify this call against the installed WolverineFx.Marten version
-    // - event forwarding vs. the newer async-daemon event-subscriptions
-    // API have both existed at different points; pick one per the
-    // library's current guidance and don't mix both in the same app.
-    m.SubscribeToEvent<K9Crush.Modules.Discovery.Domain.Events.DogLiked>();
-
-    // Chat's own read-model projectors (ReadModels/Projectors) - same
-    // forwarding mechanism, see ChatModule.cs.
-    m.SubscribeToEvent<K9Crush.Modules.Chat.Domain.Events.ConversationCreated>();
-    m.SubscribeToEvent<K9Crush.Modules.Chat.Domain.Events.MessageSent>();
-});
+// Wires Marten's transactional outbox/inbox with Wolverine. No
+// SubscribeToEvent<T> registrations needed right now - Discovery and
+// Chat were the only modules using that same-process domain-event
+// forwarding mechanism (EVENT -> AUTOMATION -> COMMAND -> EVENT without
+// a hand-rolled polling loop), and both are removed. If a future
+// automation needs it again, register it here - see WolverineFx.Marten's
+// MartenIntegrationExpression.SubscribeToEvent<T>().
+.IntegrateWithWolverine();
 
 // --- Wolverine (mediator + RabbitMQ transport + Http endpoints) ---------
 var rabbitConnectionString = builder.Configuration.GetConnectionString("RabbitMQ")
@@ -172,24 +164,25 @@ builder.Services.AddSwaggerGen();
 // credentials. Supabase Cloud owns registration/login/MFA/password reset;
 // this only validates the bearer token Supabase already issued.
 //
-// Unlike Keycloak, Supabase's default token signing is a shared HS256
-// secret, not OIDC-discovery-compatible JWKS - so this uses an explicit
-// SymmetricSecurityKey rather than the options.Authority auto-discovery
-// pattern Keycloak supported. Supabase does offer a newer asymmetric
-// (ES256/JWKS) signing mode, which is the better long-term fit (no shared
-// secret living in this config at all), but it requires explicitly
-// enabling it in the Supabase project first - not done here. Revisit once
-// that's turned on: swap this for TokenValidationParameters.IssuerSigningKeyResolver
-// fetching https://<project-ref>.supabase.co/auth/v1/.well-known/jwks.json.
+// Confirmed live against a real Supabase project (2026-07-23): new
+// projects issue session tokens signed with ES256 (asymmetric JWKS), not
+// the legacy HS256 shared-secret mode this code originally assumed - a
+// hardcoded SymmetricSecurityKey rejected every real login token with
+// "the signature key was not found". Fixed by using Authority-based OIDC
+// discovery instead: Supabase exposes a real
+// /auth/v1/.well-known/openid-configuration document (confirmed via
+// curl) whose jwks_uri ASP.NET Core's JwtBearer handler fetches, caches,
+// and auto-rotates on its own - no manual key material in this config at
+// all, and it transparently keeps working if the project's active
+// signing key ever changes.
 var supabaseUrl = builder.Configuration["Supabase:Url"]
     ?? throw new InvalidOperationException("Missing Supabase:Url");
-var supabaseJwtSecret = builder.Configuration["Supabase:JwtSecret"]
-    ?? throw new InvalidOperationException("Missing Supabase:JwtSecret");
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+        options.Authority = $"{supabaseUrl}/auth/v1";
+        options.RequireHttpsMetadata = true;
         options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -197,12 +190,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = true,
             // "authenticated" is Supabase's standard audience for user
             // session tokens - a fixed string, not project-specific.
-            // Unverified against a real token this session; confirm
-            // against your actual Supabase project's issued JWTs.
+            // Confirmed live against a real issued token.
             ValidAudience = "authenticated",
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
-                System.Text.Encoding.UTF8.GetBytes(supabaseJwtSecret)),
             ValidateLifetime = true
         };
 
@@ -210,8 +200,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         // auto-remapping short JWT claim names (sub, email, name, ...) to
         // their long-form ClaimTypes.* URIs - claims come through exactly
         // as the IdP names them instead. Every handler in this codebase
-        // that reads ClaimTypes.NameIdentifier (e.g. CreateDogProfile,
-        // SwipeOnDog) was written assuming the older remapped behavior.
+        // that reads ClaimTypes.NameIdentifier (e.g. AddDogListing,
+        // ApplyToAdopt) was written assuming the older remapped behavior.
         // Restoring it centrally here means those handlers don't each
         // need to know the IdP's raw claim names - fix once, works
         // everywhere any future module reads the caller's identity. This
@@ -226,17 +216,24 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 // IQuerySession). See RoleRequirement.cs's doc comment.
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, RoleAuthorizationHandler>();
 
+// EmailVerifiedRequirement/EmailVerifiedAuthorizationHandler (BuildingBlocks.Web)
+// replaces a plain RequireClaim("email_verified", "true") - confirmed live
+// against a real Supabase token (2026-07-23) that there is no such
+// top-level claim; it's nested inside the "user_metadata" claim's JSON
+// as {"email_verified":true}. See that file's doc comment.
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, EmailVerifiedAuthorizationHandler>();
+
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("VerifiedOwner", policy =>
-        policy.RequireAuthenticatedUser().RequireClaim("email_verified", "true"));
+        policy.RequireAuthenticatedUser().AddRequirements(new EmailVerifiedRequirement()));
 
     // Reviewer-only actions on someone else's ShelterAccount (verify,
     // activate, flag/approve/reject) - see ShelterAdoption's Commands/*
     // handlers, all originally flagged as having no role check at all.
     options.AddPolicy("Admin", policy =>
         policy.RequireAuthenticatedUser()
-            .RequireClaim("email_verified", "true")
+            .AddRequirements(new EmailVerifiedRequirement())
             .AddRequirements(new RoleRequirement(OwnerRole.Admin)));
 
     // Actions on a shelter's own resources once it's been activated
@@ -245,7 +242,7 @@ builder.Services.AddAuthorization(options =>
     // ShelterAccount's resources, not every shelter's.
     options.AddPolicy("Shelter", policy =>
         policy.RequireAuthenticatedUser()
-            .RequireClaim("email_verified", "true")
+            .AddRequirements(new EmailVerifiedRequirement())
             .AddRequirements(new RoleRequirement(OwnerRole.Shelter)));
 });
 
@@ -276,6 +273,37 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// ADR-031: FetchForWriting/FetchForExclusiveWriting are optimistic by
+// default - SaveChangesAsync throws on a stale fetch. Confirmed LIVE
+// (Phase 1's Media Testcontainers spike, two sessions racing a
+// FetchForWriting+AppendOne+SaveChangesAsync against the same stream):
+// the real exception is JasperFx.Events.EventStreamUnexpectedMaxEventIdException,
+// whose base is JasperFx.ConcurrencyException - a completely separate
+// hierarchy from Marten.Exceptions.ConcurrentUpdateException (base:
+// Marten.Exceptions.MartenException), which is Marten's *document*-level
+// optimistic-concurrency exception, not the event-stream one. Two earlier
+// guesses at this type name were both wrong (ConcurrencyException, then
+// ConcurrentUpdateException) before this was verified against a real
+// concurrent-write race, not just reflection. Catching both hierarchies
+// here since this codebase could plausibly hit either one someday (a
+// versioned document Store() doesn't exist today, but nothing rules it
+// out later) - mapped globally, once, since every event-sourced command
+// handler across every module hits the same failure the same way.
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next(context);
+    }
+    catch (Exception ex) when (ex is JasperFx.ConcurrencyException or Marten.Exceptions.ConcurrentUpdateException)
+    {
+        context.Response.Clear();
+        await Microsoft.AspNetCore.Http.Results.Conflict(
+            "This resource was modified by someone else since you last loaded it. Reload and try again."
+        ).ExecuteAsync(context);
+    }
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -294,7 +322,7 @@ app.MapWolverineEndpoints(opts =>
     // the record itself (attributes, or IValidatableObject for
     // cross-field/Guid-not-empty checks that plain attributes can't
     // express) instead of a separate AbstractValidator<T> class - see
-    // CreateDogProfileRequest, SwipeOnDogRequest, RequestShelterAccountRequest.
+    // AddDogListingRequest, ApplyToAdoptRequest, RequestShelterAccountRequest.
     opts.UseDataAnnotationsValidationProblemDetailMiddleware();
 }); // maps every [WolverineGet]/[WolverinePost] slice across all modules
 

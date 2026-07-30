@@ -11,10 +11,11 @@
 # v2 chapters (TheWouldBeAdopter, ShelterManagingListings) are also
 # enriched in place to connect to this wider scope (a fuller adoption
 # intake questionnaire, and an explicit listing status that now has
-# somewhere to come from other than "just added"). None of this new
-# material is built yet - it is a scope proposal, not a record of what
-# runs today. Donation/sponsorship-style flows are deliberately excluded
-# from this pass.
+# somewhere to come from other than "just added"). Donation/sponsorship-
+# style flows are deliberately excluded from this pass. As of 2026-07-22,
+# SurrenderingYourDog and FosteringADog are real and built (see their own
+# chapter comments); VolunteeringAndHomeChecks remains a scope proposal,
+# not yet built.
 #
 # Purpose: re-import onto an eventmodelers board to plan the next phase of
 # work.
@@ -26,13 +27,12 @@
 #     nothing has been built for them yet, so there is nothing to correct.
 #   - 3 chapters are NEW as of v2 (no v1 equivalent) - real, built slices
 #     that never had a home on the original board.
-#   - 3 chapters are NEW as of v3 (no v1 or v2 equivalent) - a scope
-#     extension, not yet built, appended in their own marked section at
-#     the very end: SurrenderingYourDog, FosteringADog, and
-#     VolunteeringAndHomeChecks (the last of which cross-references
-#     ShelterReviewsApplication - a completed home check can gate
-#     approval - via a `# v3 ENRICHMENT:` note on that existing chapter,
-#     rather than duplicating its steps).
+#   - 3 chapters are NEW as of v3 (no v1 or v2 equivalent), appended in
+#     their own marked section at the very end: SurrenderingYourDog and
+#     FosteringADog ([BUILT] as of 2026-07-22), VolunteeringAndHomeChecks
+#     ([PLANNED], not yet built - it cross-references ShelterReviewsApplication
+#     - a completed home check can gate approval - via a `# v3 ENRICHMENT:`
+#     note on that existing chapter, rather than duplicating its steps).
 #   - 2 v2 chapters (TheWouldBeAdopter, ShelterManagingListings) are
 #     ENRICHED in place - marked with their own `# v3 ENRICHMENT:` comment
 #     at the point of change, distinct from v2's own `# DEVIATION:` comments
@@ -54,6 +54,58 @@
 #
 # Element type mapping, ordering rules, and swimlane-prefix conventions are
 # unchanged from v1 - see that file's header for the full explanation.
+#
+# ============================================================================
+# SCOPE NOTE (2026-07-23) - product direction pivot, nothing below rewritten yet
+# ============================================================================
+# User decided to descope the whole product away from its original "dog
+# dating app" framing, toward a shelter/rescue/foster/adoption operations
+# tool plus the administration of a non-profit/charity running it. Decision
+# made after reviewing several real shelter/rescue charity websites (Dogs
+# Trust Ireland, MADRA, RSPCA, ISPCA/NSPCA, Mission K9 Rescue) - none of
+# them have a swipe/matching mechanic, user-to-user chat, a social
+# activity feed, meetup/place reviews, or a vendor marketplace; all of
+# them have adopt/foster/surrender/volunteer/sponsor/donate as the real
+# core, plus training/advice content and (for larger ones) multi-centre
+# management.
+#
+# Modules/chapters this cuts (not yet removed from this file or the
+# codebase - this note records the *decision*, a later pass does the
+# actual chapter-by-chapter removal and code deletion):
+#   - Discovery/Matching (the swipe mechanic itself) - e.g. SwipingAndMatching
+#   - Chat - e.g. MessagingDirectGroup, ChatMatchTriggeredMessaging
+#   - Places (dog-park/cafe reviews, meetups) - e.g. ClaimABusinessListing,
+#     LeaveAReviewRestaurantOrDogPark
+#   - Moderation (ModeratingFlaggedContentUserReports) - nothing left to
+#     moderate once the above social/UGC surfaces are gone
+#   - Community (social feed/follow) - e.g. ActivityFeed, FollowAProfile
+#   - Providers (vendor marketplace) - e.g. DogServiceProviderApplication,
+#     ContactADogServiceProvider, ReviewingServiceProviderApplications
+#   - Shop - e.g. ShopVendorApplication, TheGiftShopper (every reference
+#     site outsources this to an external platform rather than building
+#     it in-house)
+#
+# Profiles (e.g. AddDogProfile) is being merged into ShelterAdoption - a
+# dog's photo/breed/bio lives on DogListing now, no separate "dating
+# profile" concept needed once there's nothing to swipe on.
+#
+# Kept as-is: Identity, ShelterAdoption, Notifications, Media, Admin.
+# Kept on the roadmap, not yet built: Content (training/advice - every
+# reference site has this), Lost & Found (validated by MADRA/ISPCA).
+# Scheduling (not yet built) is repurposed away from its original unclear
+# scope toward internal shelter ops - volunteer shift rosters, home-check
+# appointments, foster handovers.
+#
+# New module, not yet modeled anywhere in this file: Donations/
+# Sponsorship (one-time/recurring donations, legacy giving, and
+# "sponsor this dog" ongoing support) - validated as a major feature on
+# every non-profit reference site, previously out of scope entirely (see
+# this file's own header: "Donation/sponsorship-style flows are
+# deliberately excluded from this pass").
+#
+# See memory (module-boundaries, project-descope-direction) for the full
+# reasoning trail.
+# ============================================================================
 
 slices:
   TheCuriousNewDogOwner:
@@ -872,6 +924,14 @@ slices:
   # once an application is approved (ShelterReviewsApplication moves it to
   # Adopted) - those two chapters cascade this same status change rather
   # than duplicating the transition logic.
+  # v3 ENRICHMENT: "Update Listing Status" cannot set OR change away from
+  # Adopted (guard added 2026-07-22 after an event-modeling checklist pass
+  # flagged this chapter had no defined status transitions at all).
+  # Adopted is a one-way door reachable only via ShelterReviewsApplication's
+  # approval cascade above - never assertable by hand, and not editable
+  # once reached. A "dog returned after adoption" flow, if this product
+  # ever needs one, is a distinct not-yet-modeled chapter, not a side
+  # effect of this manual override.
   ShelterManagingListings:
     steps:
     - v: Shelter Staff/Shelter Dog Listings
@@ -900,8 +960,13 @@ slices:
     - t: Shelter Staff/Update Listing Status
     - c: Shelter Staff/Update Listing Status
       props:
-        status: Available | NotReadyYet | InFoster | PendingAdoption | Adopted
+        status: Available | NotReadyYet | InFoster | PendingAdoption
     - e: Shelter Staff/Listing Status Updated
+    - t: Shelter Staff/Status Change Blocked
+    - c: Shelter Staff/Update Listing Status
+      props:
+        status: Adopted
+    - e: 'Shelter Staff/Listing Status Update Blocked: Adopted Requires Approval'
     - e: Shelter Staff/Applications Cancelled For Removed Listing
       props:
         cascadedTo: Notifications (ApplicationCancelledV1, one per affected applicant)
@@ -934,6 +999,21 @@ slices:
         - c: Shelter Staff/Update Listing Status
         then:
         - e: Shelter Staff/Listing Status Updated
+      ListingStatusUpdateBlockedWhenTargetIsAdopted:
+        given:
+        - e: Shelter Staff/Dog Listing Added
+        when:
+        - c: Shelter Staff/Update Listing Status
+        then:
+        - e: 'Shelter Staff/Listing Status Update Blocked: Adopted Requires Approval'
+      ListingStatusUpdateBlockedWhenCurrentlyAdopted:
+        given:
+        - e: Shelter Staff/Dog Listing Added
+        - e: Shelter Staff/Application Approved # cross-reference: ShelterReviewsApplication - the only path to Adopted
+        when:
+        - c: Shelter Staff/Update Listing Status
+        then:
+        - e: 'Shelter Staff/Listing Status Update Blocked: Adopted Requires Approval'
       ApplicationsCancelledForRemovedListing:
         given:
         - e: Shelter Staff/Dog Listing Removed
@@ -2989,25 +3069,33 @@ slices:
         then:
         - e: 'Member/Bootstrap Blocked: Admin Already Exists'
   # ============================================================
-  # v3 scope extension below - [PLANNED], not built. Three chapters
-  # widening ShelterAdoption's own lifecycle: a dog entering care by
-  # surrender rather than shelter intake, a dog spending time in foster
-  # care before (or instead of) direct listing, and the volunteer
-  # workforce that includes a dedicated home-check role feeding into
-  # application review. Donation/sponsorship-style flows are deliberately
-  # out of scope for this pass.
+  # v3 scope extension below. Three chapters widening ShelterAdoption's
+  # own lifecycle: a dog entering care by surrender rather than shelter
+  # intake, a dog spending time in foster care before (or instead of)
+  # direct listing, and the volunteer workforce that includes a dedicated
+  # home-check role feeding into application review. Donation/sponsorship-
+  # style flows are deliberately out of scope for this pass.
   # ============================================================
-  # [PLANNED] ShelterAdoption module extension. A member surrendering
-  # their OWN dog into a shelter's care - distinct from TheWouldBeAdopter's
-  # applicant journey and from a shelter directly adding a listing
-  # (TheShelterRescueOrgSigningUp/ShelterManagingListings). Gated by
-  # Admin, same reviewer-role pattern as shelter-account verification -
-  # this is a platform-level intake decision, not the surrendering
-  # member's own action past the initial request. Accepting a surrender
-  # is the bridge into the existing listing lifecycle: it cascades into
-  # ShelterManagingListings' "Add Dog Listing" (status starts NotReadyYet,
-  # same as any newly added listing) rather than inventing a parallel
-  # listing-creation path.
+  # [BUILT] ShelterAdoption module extension (2026-07-22). A member
+  # surrendering their OWN dog into a shelter's care - distinct from
+  # TheWouldBeAdopter's applicant journey and from a shelter directly
+  # adding a listing (TheShelterRescueOrgSigningUp/ShelterManagingListings).
+  # Gated by Admin, same reviewer-role pattern as shelter-account
+  # verification - this is a platform-level intake decision, not the
+  # surrendering member's own action past the initial request. Accepting a
+  # surrender is the bridge into the existing listing lifecycle: it
+  # cascades into ShelterManagingListings' "Add Dog Listing" (status
+  # starts NotReadyYet, same as any newly added listing) rather than
+  # inventing a parallel listing-creation path - TemperamentNotes becomes
+  # the new listing's Bio, HealthNotes stays on the surrender record only.
+  # DEVIATION: "Accept Dog Surrender" needed a shelterAccountId prop added
+  # (disclosed gap-fill, same class as Places' CreatePlaceListing) - the
+  # yaml never specified which shelter receives the dog, but
+  # DogListing.Create requires one; Admin picks the destination shelter
+  # explicitly. "Submit Additional Surrender Details" and "Review
+  # Surrender Request" carry no request body, matching
+  # ShelterReviewsApplication's identically-shaped steps exactly (no
+  # captured content beyond the reason text already on the request side).
   SurrenderingYourDog:
     steps:
     - t: Member/Surrender My Dog
@@ -3100,17 +3188,33 @@ slices:
         - c: Admin/Decline Dog Surrender
         then:
         - e: Admin/Dog Surrender Declined
-  # [PLANNED] ShelterAdoption module extension. A member (the "Foster
-  # Caregiver" swimlane below) providing temporary care for a shelter's
-  # dog. Foster placement is modeled as a status change on an EXISTING
-  # DogListing (see ShelterManagingListings' v3 enrichment), not a
-  # separate document - a listing moves InFoster and back to Available
+  # [BUILT] ShelterAdoption module extension (2026-07-22). A member (the
+  # "Foster Caregiver" swimlane below) providing temporary care for a
+  # shelter's dog. Foster placement is modeled as a status change on an
+  # EXISTING DogListing (see ShelterManagingListings' v3 enrichment), not
+  # a separate document - a listing moves InFoster and back to Available
   # (or straight to Adopted via foster-to-adopt) rather than a foster
-  # placement owning its own parallel lifecycle. "Convert Foster To
-  # Adoption" is a fast path into TheWouldBeAdopter's own Submit
-  # Application - the foster caregiver still goes through a real
-  # application, just one a reviewer can reasonably expect to approve
-  # quickly given the dog is already living with them.
+  # placement owning its own parallel lifecycle. DogListing.
+  # CurrentFosterCaregiverOwnerId (new field, not in this yaml as a prop
+  # since it's implementation detail, not a modeled field anywhere)
+  # tracks who's currently fostering - deliberately survives "Mark Foster
+  # Dog Ready For Adoption" (status goes back to Available so other
+  # applicants can apply too, but the caregiver is still fostering until
+  # "End Foster Placement" resolves it either way). "Convert Foster To
+  # Adoption" is NOT a separate command in code - it IS TheWouldBeAdopter's
+  # "Submit Application", called by the current foster caregiver for the
+  # dog they're fostering, no special-casing (see SubmitApplicationHandler's
+  # own comment).
+  # DEVIATION: "Place Dog In Foster" takes fosterApplicationId, not the
+  # yaml's bare fosterCaregiverOwnerId - a disclosed traceability fix
+  # (same event-modeling checklist pass that found DogListing.Status's
+  # missing Adopted guard): nothing linked this step back to *which*
+  # approved application authorized the caregiver. The handler derives
+  # the caregiver's owner id from the loaded, Approved FosterApplication.
+  # DEVIATION: UpdateListingStatusHandler (ShelterManagingListings) now
+  # also rejects any manual status change while CurrentFosterCaregiverOwnerId
+  # is set - a manual flip out of InFoster would otherwise leave that
+  # field stale. Use "End Foster Placement" first.
   FosteringADog:
     steps:
     - t: Foster Caregiver/Foster Program
@@ -3141,7 +3245,7 @@ slices:
     - c: Admin/Place Dog In Foster
       props:
         dogListingId: dog_71
-        fosterCaregiverOwnerId: owner_77
+        fosterApplicationId: foster_318
     - e: Admin/Dog Placed In Foster
       props:
         cascadedTo: ShelterManagingListings (Update Listing Status -> InFoster)

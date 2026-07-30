@@ -36,7 +36,8 @@ public static class ResubmitShelterAccountHandler
     {
         var callerOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var shelterAccount = await session.LoadAsync<ShelterAccount>(shelterAccountId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<ShelterAccount>(shelterAccountId, cancellationToken);
+        var shelterAccount = stream.Aggregate;
         if (shelterAccount is null)
             return TypedResults.NotFound();
 
@@ -46,8 +47,8 @@ public static class ResubmitShelterAccountHandler
         if (shelterAccount.Status != ShelterAccountStatus.VerificationIssuesFound)
             return TypedResults.Conflict($"Cannot resubmit a shelter account in status {shelterAccount.Status}.");
 
-        shelterAccount.Resubmit(request.BusinessDetails, request.UtilityBillDocumentId);
-        session.Store(shelterAccount);
+        var @event = shelterAccount.Resubmit(request.BusinessDetails, request.UtilityBillDocumentId);
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new ResubmitShelterAccountResponse(shelterAccount.Id, shelterAccount.Status.ToString()));

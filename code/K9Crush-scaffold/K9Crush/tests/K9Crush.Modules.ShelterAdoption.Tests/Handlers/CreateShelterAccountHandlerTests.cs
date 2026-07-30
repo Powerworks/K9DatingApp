@@ -1,5 +1,4 @@
 using FluentAssertions;
-using Marten;
 using Microsoft.AspNetCore.Http.HttpResults;
 using NSubstitute;
 using K9Crush.Modules.ShelterAdoption.Api.Commands.CreateShelterAccount;
@@ -10,7 +9,8 @@ namespace K9Crush.Modules.ShelterAdoption.Tests.Handlers;
 
 /// <summary>
 /// Layer 2 (TestingApproach.md) - CreateShelterAccountHandler only calls
-/// LoadAsync/Store/SaveChangesAsync, so IDocumentSession mocks cleanly here.
+/// FetchForWriting/AppendOne/SaveChangesAsync, so IDocumentSession mocks
+/// cleanly here (ADR-031).
 /// </summary>
 public class CreateShelterAccountHandlerTests
 {
@@ -18,8 +18,7 @@ public class CreateShelterAccountHandlerTests
     public async Task Handle_WhenShelterAccountDoesNotExist_ReturnsNotFoundAndCascadesNothing()
     {
         var shelterAccountId = Guid.NewGuid();
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<ShelterAccount>(shelterAccountId, Arg.Any<CancellationToken>()).Returns((ShelterAccount?)null);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting<ShelterAccount>(shelterAccountId, null, out _);
 
         var (result, integrationEvent) = await CreateShelterAccountHandler.Handle(shelterAccountId, session, CancellationToken.None);
 
@@ -30,9 +29,8 @@ public class CreateShelterAccountHandlerTests
     [Fact]
     public async Task Handle_WhenNotVerified_ReturnsConflictAndCascadesNothing()
     {
-        var shelterAccount = ShelterAccount.Create(Guid.NewGuid(), "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid()); // Requested, not Verified
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<ShelterAccount>(shelterAccount.Id, Arg.Any<CancellationToken>()).Returns(shelterAccount);
+        var shelterAccount = ShelterAccount.RequestNew(Guid.NewGuid(), "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid()).ShelterAccount; // Requested, not Verified
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(shelterAccount.Id, shelterAccount, out _);
 
         var (result, integrationEvent) = await CreateShelterAccountHandler.Handle(shelterAccount.Id, session, CancellationToken.None);
 
@@ -44,10 +42,9 @@ public class CreateShelterAccountHandlerTests
     public async Task Handle_WhenVerified_ActivatesAndCascadesShelterAccountCreated()
     {
         var ownerId = Guid.NewGuid();
-        var shelterAccount = ShelterAccount.Create(ownerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
+        var shelterAccount = ShelterAccount.RequestNew(ownerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid()).ShelterAccount;
         shelterAccount.Verify();
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<ShelterAccount>(shelterAccount.Id, Arg.Any<CancellationToken>()).Returns(shelterAccount);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(shelterAccount.Id, shelterAccount, out var stream);
 
         var (result, integrationEvent) = await CreateShelterAccountHandler.Handle(shelterAccount.Id, session, CancellationToken.None);
 
@@ -56,7 +53,7 @@ public class CreateShelterAccountHandlerTests
         integrationEvent.Should().NotBeNull();
         integrationEvent!.ShelterAccountId.Should().Be(shelterAccount.Id);
         integrationEvent.OwnerId.Should().Be(ownerId);
-        session.Received(1).Store(Arg.Is<ShelterAccount[]>(arr => arr != null && arr.Length == 1 && arr[0] == shelterAccount));
+        stream.Received(1).AppendOne(Arg.Is<object>(o => o != null && o.GetType() == typeof(K9Crush.Modules.ShelterAdoption.Domain.Events.ShelterAccountActivatedV1)));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

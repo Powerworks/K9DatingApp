@@ -27,12 +27,13 @@ public static class RespondToFeedbackHandler
         IDocumentSession session,
         CancellationToken cancellationToken)
     {
-        var item = await session.LoadAsync<FeedbackInboxItem>(feedbackId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<FeedbackInboxItem>(feedbackId, cancellationToken);
+        var item = stream.Aggregate;
         if (item is null)
             return TypedResults.NotFound();
 
-        item.Respond(request.ResponseMessage);
-        session.Store(item);
+        var @event = item.Respond(request.ResponseMessage);
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new RespondToFeedbackResponse(item.Id, item.Status.ToString()));

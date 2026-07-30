@@ -18,6 +18,11 @@ appsettings.*.local.json
 TestResults/
 coverage/*.xml
 
+## Quality-gate hook's own loop-guard state (ephemeral counters) —
+## .claude/metrics/ (audit trails: gate-bypass-audit.jsonl, gate-history.jsonl)
+## is deliberately NOT ignored here, see build-kit-dotnet-es/hooks/README.md
+.claude/state/
+
 ## OS
 .DS_Store
 Thumbs.db

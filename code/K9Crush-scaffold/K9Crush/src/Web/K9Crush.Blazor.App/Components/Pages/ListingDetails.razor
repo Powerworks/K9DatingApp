@@ -1,0 +1,98 @@
+@page "/listings/{DogListingId:guid}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using System.Net
+@using System.Text.Json
+@using K9Crush.Blazor.App.Services
+@inject AuthorizedApiClient AuthorizedApiClient
+
+<PageTitle>Dog Details</PageTitle>
+
+<MudButton Href="/listings" Variant="Variant.Text" Class="mb-4" StartIcon="@Icons.Material.Filled.ArrowBack">Back to Adoptable Dogs</MudButton>
+
+@if (_isLoading)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+}
+else if (_errorMessage is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadAsync">Try Again</MudButton>
+}
+else if (_details is not null)
+{
+    <MudCard>
+        <MudCardContent>
+            <MudText Typo="Typo.h4">@_details.Name</MudText>
+            <MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="mb-4">@_details.Breed - @_details.AgeInMonths months old</MudText>
+            <MudText Typo="Typo.body1">@_details.Bio</MudText>
+            <MudChip T="string" Size="Size.Small" Class="mt-4">@_details.Status</MudChip>
+        </MudCardContent>
+        @if (_details.Status == DogListingStatus.Available)
+        {
+            <MudCardActions>
+                <MudButton Href="@($"/listings/{DogListingId}/apply")" Variant="Variant.Filled" Color="Color.Primary">Apply to Adopt</MudButton>
+            </MudCardActions>
+        }
+    </MudCard>
+}
+
+@code {
+    [Parameter] public Guid DogListingId { get; set; }
+
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    private DogListingDetailsResponse? _details;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var client = await AuthorizedApiClient.CreateAsync();
+            var response = await client.GetAsync($"/api/v1/shelter-adoption/dog-listings/{DogListingId}");
+            if (!response.IsSuccessStatusCode)
+            {
+                _errorMessage = response.StatusCode switch
+                {
+                    HttpStatusCode.NotFound => "That dog listing couldn't be found.",
+                    HttpStatusCode.Unauthorized => "Your session has expired - please log in again.",
+                    HttpStatusCode.Forbidden => "Your account needs to be verified before you can view this page.",
+                    _ => "Couldn't load this dog's details right now - please try again in a moment."
+                };
+                return;
+            }
+
+            _details = await response.Content.ReadFromJsonAsync<DogListingDetailsResponse>();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or JsonException)
+        {
+            _errorMessage = "Couldn't reach the server right now - please try again in a moment.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    // Must match DogListing.Domain's DogListingStatus declaration order
+    // exactly - Api.Host has no JsonStringEnumConverter registered, so
+    // this travels over the wire as a plain int, not a string.
+    private enum DogListingStatus
+    {
+        Available,
+        NotReadyYet,
+        InFoster,
+        PendingAdoption,
+        Adopted
+    }
+
+    private sealed record DogListingDetailsResponse(
+        Guid DogListingId, string Name, string Breed, int AgeInMonths,
+        string Bio, Guid ShelterAccountId, DogListingStatus Status);
+}

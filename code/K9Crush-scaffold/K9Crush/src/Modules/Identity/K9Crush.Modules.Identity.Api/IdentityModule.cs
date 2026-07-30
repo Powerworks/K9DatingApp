@@ -37,14 +37,27 @@ public sealed class IdentityModule : IModule
 
         public void Configure(StoreOptions options)
         {
-            options.Schema.For<OwnerAccount>()
-                .DatabaseSchemaName(SchemaName)
-                .Identity(x => x.Id);
+            // Event store schema is configured once, centrally, in
+            // Program.cs - see its comment for why this can't be a
+            // per-module setting (Marten only has one event-store schema
+            // per StoreOptions, not one per registered module).
 
-            options.Schema.For<Feedback>()
-                .DatabaseSchemaName(SchemaName)
-                .Identity(x => x.Id)
-                .Index(x => x.OwnerId);
+            // ADR-031 (Phase 4/5): OwnerAccount is event-sourced AND
+            // registered as its own Inline snapshot - OwnerAccountViewHandler/
+            // ViewProfileSettingsHandler genuinely query it by id, and
+            // MartenOwnerRoleLookup (ADR-017) reads it on every
+            // Admin/Shelter-policy-gated request. Feedback is event-sourced
+            // with no snapshot - nothing under ReadModels/** queries it
+            // (same as Media's MediaAsset, Phase 1).
+            //
+            // The Inline snapshot is a normal Marten document under the
+            // hood (mt_doc_owneraccount) - it needs the same explicit
+            // per-type DatabaseSchemaName() call any other document does,
+            // which this didn't have until this fix. Without it, Marten's
+            // document schema defaults to Postgres's "public" schema
+            // regardless of the module's intended SchemaName.
+            options.Projections.Snapshot<OwnerAccount>(JasperFx.Events.Projections.SnapshotLifecycle.Inline);
+            options.Schema.For<OwnerAccount>().DatabaseSchemaName(SchemaName);
         }
     }
 }

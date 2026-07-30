@@ -10,9 +10,10 @@ using Xunit;
 namespace K9Crush.Modules.ShelterAdoption.Tests.Handlers;
 
 /// <summary>
-/// Layer 2 (TestingApproach.md) - RejectApplicationHandler only calls
-/// LoadAsync/Store/SaveChangesAsync, so IDocumentSession mocks cleanly
-/// here.
+/// Layer 2 (TestingApproach.md) - RejectApplicationHandler calls
+/// FetchForWriting/AppendOne/SaveChangesAsync against Application plus
+/// plain LoadAsync calls against ShelterAccount (ownership check) and
+/// DogListing (read-only, for the cascaded event's DogName) - ADR-031.
 /// </summary>
 public class RejectApplicationHandlerTests
 {
@@ -26,9 +27,8 @@ public class RejectApplicationHandlerTests
     [Fact]
     public async Task Handle_WhenApplicationDoesNotExist_ReturnsNotFoundAndNoIntegrationEvent()
     {
-        var session = Substitute.For<IDocumentSession>();
         var applicationId = Guid.NewGuid();
-        session.LoadAsync<Application>(applicationId, Arg.Any<CancellationToken>()).Returns((Application?)null);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting<Application>(applicationId, null, out _);
 
         var (result, integrationEvent) = await RejectApplicationHandler.Handle(
             applicationId, new RejectApplicationRequest("Not a fit"), BuildUser(ShelterOwnerId), session, CancellationToken.None);
@@ -40,13 +40,12 @@ public class RejectApplicationHandlerTests
     [Fact]
     public async Task Handle_WhenUnderReview_RejectsAndCascadesApplicationRejectedWithDogName()
     {
-        var shelterAccount = ShelterAccount.Create(ShelterOwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid());
-        var application = Application.Submit(ApplicantOwnerId, DogListingId, shelterAccount.Id);
+        var shelterAccount = ShelterAccount.RequestNew(ShelterOwnerId, "Sunny Paws Rescue, EIN 12-3456789", Guid.NewGuid()).ShelterAccount;
+        var application = Application.SubmitNew(ApplicantOwnerId, DogListingId, shelterAccount.Id, TestIntake.Default).Application;
         application.Review();
-        var dogListing = DogListing.Create(shelterAccount.Id, "Biscuit", "Beagle mix", 24, "Friendly");
+        var dogListing = DogListing.AddNew(shelterAccount.Id, "Biscuit", "Beagle mix", 24, "Friendly").DogListing;
 
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<Application>(application.Id, Arg.Any<CancellationToken>()).Returns(application);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(application.Id, application, out var stream);
         session.LoadAsync<ShelterAccount>(shelterAccount.Id, Arg.Any<CancellationToken>()).Returns(shelterAccount);
         session.LoadAsync<DogListing>(DogListingId, Arg.Any<CancellationToken>()).Returns(dogListing);
 
@@ -55,6 +54,7 @@ public class RejectApplicationHandlerTests
 
         result.Result.Should().BeOfType<Ok<RejectApplicationResponse>>();
         application.Status.Should().Be(ApplicationStatus.Rejected);
+        stream.Received(1).AppendOne(Arg.Any<object>());
 
         integrationEvent.Should().NotBeNull();
         integrationEvent!.ApplicationId.Should().Be(application.Id);

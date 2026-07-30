@@ -1,9 +1,58 @@
 @inherits LayoutComponentBase
+@using System.Security.Claims
 
-<div class="page">
-    <main>
-        <article class="content">
+<MudThemeProvider Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" />
+        <MudText Typo="Typo.h5">K9Crush</MudText>
+        <MudSpacer />
+        <AuthorizeView>
+            <Authorized>
+                <MudText Class="mr-4 align-self-center">@context.User.FindFirst(ClaimTypes.Email)?.Value</MudText>
+                <form method="post" action="/auth/logout">
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Text" Color="Color.Inherit">Log Out</MudButton>
+                </form>
+            </Authorized>
+            <NotAuthorized>
+                <MudButton Href="/login" Variant="Variant.Text" Color="Color.Inherit">Log In</MudButton>
+            </NotAuthorized>
+        </AuthorizeView>
+    </MudAppBar>
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="1">
+        <MudDrawerHeader>
+            <MudText Typo="Typo.h6">Menu</MudText>
+        </MudDrawerHeader>
+        <MudNavMenu>
+            <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Pets">Home</MudNavLink>
+            <AuthorizeView>
+                <Authorized>
+                    <MudNavLink Href="/listings" Icon="@Icons.Material.Filled.Home">Adoptable Dogs</MudNavLink>
+                    <MudNavLink Href="/volunteer/apply" Icon="@Icons.Material.Filled.VolunteerActivism">Volunteer</MudNavLink>
+                    <MudNavLink Href="/foster/apply" Icon="@Icons.Material.Filled.House">Foster</MudNavLink>
+                    <MudNavLink Href="/surrender/apply" Icon="@Icons.Material.Filled.Assignment">Surrender My Dog</MudNavLink>
+                    <MudNavLink Href="/account" Icon="@Icons.Material.Filled.Person">My Account</MudNavLink>
+                </Authorized>
+            </AuthorizeView>
+        </MudNavMenu>
+    </MudDrawer>
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="my-4">
             @Body
-        </article>
-    </main>
-</div>
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    // Default MudTheme for now - ADR-029 defers the actual palette/
+    // typography/spacing tokens to Penpot's design system, not yet built.
+    // Swap this for a real MudTheme once those tokens exist.
+    private readonly MudTheme _theme = new();
+    private bool _drawerOpen = true;
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+}

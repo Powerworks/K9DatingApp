@@ -1,3 +1,4 @@
+using JasperFx.Events.Projections;
 using Marten;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,22 +45,36 @@ public sealed class ShelterAdoptionModule : IModule
 
         public void Configure(StoreOptions options)
         {
-            options.Schema.For<ShelterAccount>()
-                .DatabaseSchemaName(SchemaName)
-                .Identity(x => x.Id)
-                .Index(x => x.RequestedByOwnerId);
+            // ADR-031 event-sourcing retrofit, Phase 5/5 - every entity in
+            // this module is now an event stream, self-aggregating via
+            // Create/Apply and registered as its own Inline snapshot (dual
+            // use for the read models that genuinely query current state -
+            // GetShelterDogListings/GetDogListingDetails/GetAdoptionListings/
+            // GetPendingApplicationsQueue/GetApplicationStatus/
+            // GetDraftApplications/GetSurrenderReviewQueue/
+            // GetFosterApplicationsQueue/GetVolunteerApplicationsQueue, plus
+            // every ownership-check LoadAsync<ShelterAccount>).
+            //
+            // Event store schema is configured once, centrally, in
+            // Program.cs - see its comment for why. Each Inline snapshot
+            // below is still a normal Marten document (mt_doc_*) and needs
+            // its own explicit DatabaseSchemaName() call - without it,
+            // Marten defaults the document schema to "public" regardless
+            // of SchemaName, which is what was actually happening here
+            // until this fix (see marten_schema_isolation_bug memory).
+            options.Projections.Snapshot<ShelterAccount>(SnapshotLifecycle.Inline);
+            options.Projections.Snapshot<DogListing>(SnapshotLifecycle.Inline);
+            options.Projections.Snapshot<Application>(SnapshotLifecycle.Inline);
+            options.Projections.Snapshot<DogSurrenderRequest>(SnapshotLifecycle.Inline);
+            options.Projections.Snapshot<FosterApplication>(SnapshotLifecycle.Inline);
+            options.Projections.Snapshot<VolunteerApplication>(SnapshotLifecycle.Inline);
 
-            options.Schema.For<DogListing>()
-                .DatabaseSchemaName(SchemaName)
-                .Identity(x => x.Id)
-                .Index(x => x.ShelterAccountId);
-
-            options.Schema.For<Application>()
-                .DatabaseSchemaName(SchemaName)
-                .Identity(x => x.Id)
-                .Index(x => x.ApplicantOwnerId)
-                .Index(x => x.DogListingId)
-                .Index(x => x.ShelterAccountId);
+            options.Schema.For<ShelterAccount>().DatabaseSchemaName(SchemaName);
+            options.Schema.For<DogListing>().DatabaseSchemaName(SchemaName);
+            options.Schema.For<Application>().DatabaseSchemaName(SchemaName);
+            options.Schema.For<DogSurrenderRequest>().DatabaseSchemaName(SchemaName);
+            options.Schema.For<FosterApplication>().DatabaseSchemaName(SchemaName);
+            options.Schema.For<VolunteerApplication>().DatabaseSchemaName(SchemaName);
         }
     }
 }

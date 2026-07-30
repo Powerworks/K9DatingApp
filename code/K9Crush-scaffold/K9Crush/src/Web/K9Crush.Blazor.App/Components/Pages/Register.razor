@@ -1,0 +1,104 @@
+@page "/register"
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@using K9Crush.Blazor.App.Services
+@using System.Text.Json
+@inject SupabaseAuthService SupabaseAuthService
+@inject NavigationManager NavigationManager
+@inject IHttpContextAccessor HttpContextAccessor
+
+<PageTitle>Sign Up</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Sign Up</MudText>
+
+@if (_confirmationSent)
+{
+    <MudAlert Severity="Severity.Success">Almost there - check your email to confirm your account before logging in.</MudAlert>
+}
+else
+{
+    <EditForm Model="Input" method="post" OnValidSubmit="RegisterAsync" FormName="register" class="mud-width-full" style="max-width: 400px;">
+        <DataAnnotationsValidator />
+
+        @if (_errorMessage is not null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
+        }
+
+        <div class="mb-4">
+            <MudText Typo="Typo.body2" Class="mb-1">Email</MudText>
+            <InputText @bind-Value="Input.Email" type="email" class="mud-static-input" />
+            <ValidationMessage For="@(() => Input.Email)" />
+        </div>
+        <div class="mb-4">
+            <MudText Typo="Typo.body2" Class="mb-1">Password</MudText>
+            <InputText @bind-Value="Input.Password" type="password" class="mud-static-input" />
+            <MudText Typo="Typo.caption" Class="mud-input-helper-text">At least 8 characters</MudText>
+            <ValidationMessage For="@(() => Input.Password)" />
+        </div>
+
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" FullWidth="true">Sign Up</MudButton>
+    </EditForm>
+
+    <MudText Typo="Typo.body2" Class="mt-4">
+        Already have an account? <MudLink Href="/login">Log in</MudLink>
+    </MudText>
+}
+
+@code {
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+
+    private string? _errorMessage;
+    private bool _confirmationSent;
+
+    private async Task RegisterAsync()
+    {
+        SupabaseAuthResult result;
+        try
+        {
+            result = await SupabaseAuthService.SignUpAsync(Input.Email, Input.Password, CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or JsonException)
+        {
+            _errorMessage = "Couldn't reach the authentication service right now - please try again in a moment.";
+            return;
+        }
+
+        if (!result.IsSuccess)
+        {
+            _errorMessage = result.ErrorMessage ?? "Could not create an account with that email.";
+            return;
+        }
+
+        if (result.Session?.AccessToken is not null && result.Session.User is not null)
+        {
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.NameIdentifier, result.Session.User.Id),
+                new("access_token", result.Session.AccessToken)
+            };
+            if (result.Session.User.Email is not null)
+                claims.Add(new Claim(ClaimTypes.Email, result.Session.User.Email));
+
+            var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+            await HttpContextAccessor.HttpContext!.SignInAsync(
+                CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
+            NavigationManager.NavigateTo("/", forceLoad: true);
+            return;
+        }
+
+        _confirmationSent = true;
+    }
+
+    private sealed class InputModel
+    {
+        [Required, EmailAddress]
+        public string Email { get; set; } = "";
+
+        [Required, MinLength(8)]
+        public string Password { get; set; } = "";
+    }
+}

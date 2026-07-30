@@ -23,14 +23,20 @@ namespace K9Crush.IntegrationTests.ShelterAdoption;
 [Collection(ShelterAdoptionPostgresCollection.Name)]
 public class DraftsIntegrationTests(ShelterAdoptionPostgresFixture fixture)
 {
+    private static readonly SubmitApplicationRequest TestSubmitApplicationRequest = new(
+        HouseholdSize: 3, HomeOwnership.Own, HomeType.House, HasGarden: true, GardenSize.Medium, GardenEnclosed: true,
+        HasChildren: false, ChildrenAgeRange: null, HasOtherPets: false, OtherPetsDetails: null, DailyAloneHours: 4,
+        HasUpcomingExtendedAbsence: false, PreferredEnergyLevel: EnergyLevelPreference.Medium, DailyExerciseCommitment: "Two 30-minute walks",
+        PastDogOwnershipExperience: true, WillingToCareForMedicalNeedsDog: false, WillingToCareForNervousDog: true, DataProcessingConsent: true);
+
     private static ClaimsPrincipal BuildUser(Guid ownerId) =>
         new(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, ownerId.ToString())]));
 
     private async Task<Guid> CreateDogListingAsync(Guid shelterAccountId, string name)
     {
         await using var session = fixture.Store.LightweightSession();
-        var dogListing = DogListing.Create(shelterAccountId, name, "Mixed", 12, "A good dog");
-        session.Store(dogListing);
+        var (dogListing, @event) = DogListing.AddNew(shelterAccountId, name, "Mixed", 12, "A good dog");
+        session.Events.StartStream<DogListing>(dogListing.Id, @event);
         await session.SaveChangesAsync();
         return dogListing.Id;
     }
@@ -97,7 +103,7 @@ public class DraftsIntegrationTests(ShelterAdoptionPostgresFixture fixture)
         await using (var session = fixture.Store.LightweightSession())
         {
             var submitResult = await SubmitApplicationHandler.Handle(
-                dogListingId, user, session, CancellationToken.None);
+                dogListingId, TestSubmitApplicationRequest, user, session, CancellationToken.None);
 
             submitResult.Result.Should().BeOfType<Ok<SubmitApplicationResponse>>();
             var ok = (Ok<SubmitApplicationResponse>)submitResult.Result;

@@ -1,2 +1,28 @@
 /* Starter stylesheet - replace with the design system once branding lands */
 body { font-family: system-ui, sans-serif; margin: 2rem; }
+
+/* Plain <InputText>/<InputText type="password"> used in static-SSR forms
+   (Login.razor/Register.razor) where MudTextField can't participate in a
+   real form POST - MudBlazor has no first-party static-SSR input support
+   (see ADR-029 follow-up note). Styled by hand to look reasonably at home
+   next to the rest of the MudBlazor UI. */
+.mud-static-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 12px;
+    font-family: inherit;
+    font-size: 1rem;
+    border: 1px solid rgba(0, 0, 0, 0.23);
+    border-radius: 4px;
+}
+.mud-static-input:focus {
+    outline: none;
+    border-color: var(--mud-palette-primary, #594AE2);
+    border-width: 2px;
+    padding: 7px 11px;
+}
+.validation-message {
+    color: var(--mud-palette-error, #f44336);
+    font-size: 0.75rem;
+    display: block;
+}

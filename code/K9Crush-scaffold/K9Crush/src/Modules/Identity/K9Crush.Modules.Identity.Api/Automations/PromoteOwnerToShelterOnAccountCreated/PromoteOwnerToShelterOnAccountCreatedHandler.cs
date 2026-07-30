@@ -24,12 +24,13 @@ public static class PromoteOwnerToShelterOnAccountCreatedHandler
 {
     public static async Task Handle(ShelterAccountCreatedV1 integrationEvent, IDocumentSession session, CancellationToken cancellationToken)
     {
-        var ownerAccount = await session.LoadAsync<OwnerAccount>(integrationEvent.OwnerId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<OwnerAccount>(integrationEvent.OwnerId, cancellationToken);
+        var ownerAccount = stream.Aggregate;
         if (ownerAccount is null || ownerAccount.Role == OwnerRole.Shelter)
             return;
 
-        ownerAccount.PromoteToShelter();
-        session.Store(ownerAccount);
+        var @event = ownerAccount.PromoteToShelter();
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
     }
 }

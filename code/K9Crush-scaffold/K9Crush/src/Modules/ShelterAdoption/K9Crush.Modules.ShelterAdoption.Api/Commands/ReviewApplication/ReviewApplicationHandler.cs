@@ -30,7 +30,8 @@ public static class ReviewApplicationHandler
     {
         var callerOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var application = await session.LoadAsync<Application>(applicationId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<Application>(applicationId, cancellationToken);
+        var application = stream.Aggregate;
         if (application is null)
             return TypedResults.NotFound();
 
@@ -41,8 +42,8 @@ public static class ReviewApplicationHandler
         if (application.Status != ApplicationStatus.Pending)
             return TypedResults.Conflict($"Cannot review an application in status {application.Status}.");
 
-        application.Review();
-        session.Store(application);
+        var @event = application.Review();
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new ReviewApplicationResponse(application.Id, application.Status.ToString()));

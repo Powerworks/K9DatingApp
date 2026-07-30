@@ -34,7 +34,8 @@ public static class WithdrawApplicationHandler
     {
         var callerOwnerId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        var application = await session.LoadAsync<Application>(applicationId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<Application>(applicationId, cancellationToken);
+        var application = stream.Aggregate;
         if (application is null)
             return TypedResults.NotFound();
 
@@ -44,8 +45,8 @@ public static class WithdrawApplicationHandler
         if (application.Status == ApplicationStatus.Approved)
             return TypedResults.Conflict("Withdrawal Blocked: Already Approved.");
 
-        application.Withdraw();
-        session.Store(application);
+        var @event = application.Withdraw();
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(new WithdrawApplicationResponse(application.Id, application.Status.ToString()));

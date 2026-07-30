@@ -34,15 +34,16 @@ public static class CreateShelterAccountHandler
         IDocumentSession session,
         CancellationToken cancellationToken)
     {
-        var shelterAccount = await session.LoadAsync<ShelterAccount>(shelterAccountId, cancellationToken);
+        var stream = await session.Events.FetchForWriting<ShelterAccount>(shelterAccountId, cancellationToken);
+        var shelterAccount = stream.Aggregate;
         if (shelterAccount is null)
             return (TypedResults.NotFound(), null);
 
         if (shelterAccount.Status != ShelterAccountStatus.Verified)
             return (TypedResults.Conflict($"Cannot activate a shelter account in status {shelterAccount.Status}."), null);
 
-        shelterAccount.Activate();
-        session.Store(shelterAccount);
+        var @event = shelterAccount.Activate();
+        stream.AppendOne(@event);
         await session.SaveChangesAsync(cancellationToken);
 
         var integrationEvent = new ShelterAccountCreatedV1(

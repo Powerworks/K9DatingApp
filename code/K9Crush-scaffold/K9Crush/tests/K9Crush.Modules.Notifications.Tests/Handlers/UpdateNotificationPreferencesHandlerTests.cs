@@ -4,14 +4,15 @@ using Marten;
 using NSubstitute;
 using K9Crush.Modules.Notifications.Api.Commands.UpdateNotificationPreferences;
 using K9Crush.Modules.Notifications.Domain;
+using K9Crush.Modules.Notifications.Domain.Events;
 using Xunit;
 
 namespace K9Crush.Modules.Notifications.Tests.Handlers;
 
 /// <summary>
 /// Layer 2 (TestingApproach.md) - UpdateNotificationPreferencesHandler
-/// only calls LoadAsync/Store/SaveChangesAsync, so IDocumentSession mocks
-/// cleanly here.
+/// only calls FetchForWriting/AppendOne/Events.StartStream/
+/// SaveChangesAsync, so IDocumentSession mocks cleanly here (ADR-031).
 /// </summary>
 public class UpdateNotificationPreferencesHandlerTests
 {
@@ -19,11 +20,10 @@ public class UpdateNotificationPreferencesHandlerTests
         new(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, ownerId.ToString())]));
 
     [Fact]
-    public async Task Handle_WhenNoPreferenceDocumentExistsYet_LazyCreatesADefaultThenAppliesTheUpdate()
+    public async Task Handle_WhenNoPreferenceStreamExistsYet_StartsANewStreamWithTheDefaultThenTheUpdate()
     {
         var ownerId = Guid.NewGuid();
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<NotificationPreference>(ownerId, Arg.Any<CancellationToken>()).Returns((NotificationPreference?)null);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting<NotificationPreference>(ownerId, null, out _);
 
         var response = await UpdateNotificationPreferencesHandler.Handle(
             new UpdateNotificationPreferencesRequest(NotificationType.Messages, false),
@@ -32,27 +32,28 @@ public class UpdateNotificationPreferencesHandlerTests
         response.NotificationType.Should().Be(NotificationType.Messages);
         response.Enabled.Should().BeFalse();
 
-        session.Received(1).Store(Arg.Is<NotificationPreference[]>(arr =>
-arr != null &&             arr.Length == 1 &&
-            arr[0].OwnerId == ownerId &&
-            !arr[0].IsEnabled(NotificationType.Messages) &&
-            arr[0].IsEnabled(NotificationType.ActivityFeed))); // other types remain enabled by default
+        session.Events.Received(1).StartStream<NotificationPreference>(
+            ownerId,
+            Arg.Is<object[]>(events => events != null && events.Length == 2
+                && events[0] != null && ((NotificationPreferenceCreatedV1)events[0]).OwnerId == ownerId
+                && events[1] != null && ((NotificationPreferenceUpdatedV1)events[1]).NotificationType == NotificationType.Messages
+                && !((NotificationPreferenceUpdatedV1)events[1]).Enabled));
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Handle_WhenAPreferenceDocumentAlreadyExists_UpdatesItInPlace()
+    public async Task Handle_WhenAPreferenceStreamAlreadyExists_AppendsTheUpdate()
     {
         var ownerId = Guid.NewGuid();
-        var preference = NotificationPreference.CreateDefault(ownerId);
-        var session = Substitute.For<IDocumentSession>();
-        session.LoadAsync<NotificationPreference>(ownerId, Arg.Any<CancellationToken>()).Returns(preference);
+        var (preference, _) = NotificationPreference.CreateDefaultNew(ownerId);
+        var session = MartenEventStoreTestHelpers.BuildSessionWithFetchForWriting(ownerId, preference, out var stream);
 
         await UpdateNotificationPreferencesHandler.Handle(
             new UpdateNotificationPreferencesRequest(NotificationType.ActivityFeed, false),
             BuildUser(ownerId), session, CancellationToken.None);
 
         preference.IsEnabled(NotificationType.ActivityFeed).Should().BeFalse();
-        session.Received(1).Store(Arg.Is<NotificationPreference[]>(arr => arr != null && arr.Length == 1 && arr[0] == preference));
+        stream.Received(1).AppendOne(Arg.Is<object>(o => o != null && ((NotificationPreferenceUpdatedV1)o).NotificationType == NotificationType.ActivityFeed));
+        await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

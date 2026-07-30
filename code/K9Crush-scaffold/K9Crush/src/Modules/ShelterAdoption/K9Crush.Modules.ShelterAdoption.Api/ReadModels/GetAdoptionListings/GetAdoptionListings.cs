@@ -7,7 +7,7 @@ namespace K9Crush.Modules.ShelterAdoption.Api.ReadModels.GetAdoptionListings;
 /// it would be worse than just returning the id. Add a dedicated display
 /// name field to ShelterAccount if this becomes a real product need.
 /// </summary>
-public sealed record AdoptionListingSummary(Guid DogListingId, string Name, string Breed, Guid ShelterAccountId);
+public sealed record AdoptionListingSummary(Guid DogListingId, string Name, string Breed, Guid ShelterAccountId, IReadOnlyList<Guid> PhotoIds);
 
 /// <summary>What this slice hands back to the caller.</summary>
 public sealed record AdoptionListingsResponse(IReadOnlyList<AdoptionListingSummary> Items);
