@@ -47,7 +47,8 @@ public sealed class AdminModule : IModule
 
         public void Configure(StoreOptions options)
         {
-            options.Events.DatabaseSchemaName = SchemaName;
+            // Event store schema is configured once, centrally, in
+            // Program.cs - see its comment for why.
 
             // ADR-031 dual-use pattern: FeedbackInboxItem is event-sourced
             // (FetchForWriting, used by RespondToFeedback/ResolveFeedback)
@@ -56,7 +57,13 @@ public sealed class AdminModule : IModule
             // query it (Query<T>/LoadAsync) - unlike Media's MediaAsset
             // (Phase 1), which has no ReadModels/** consumer and so has no
             // snapshot registration at all.
+            //
+            // The Inline snapshot needs its own DatabaseSchemaName() call -
+            // without it, Marten defaults the document schema to "public"
+            // regardless of SchemaName (see marten_schema_isolation_bug
+            // memory for how this was found).
             options.Projections.Snapshot<FeedbackInboxItem>(JasperFx.Events.Projections.SnapshotLifecycle.Inline);
+            options.Schema.For<FeedbackInboxItem>().DatabaseSchemaName(SchemaName);
         }
     }
 }
