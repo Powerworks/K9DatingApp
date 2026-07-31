@@ -1,10 +1,13 @@
 name: CD
 
 # Runs after CI succeeds on main (not on its own push/PR trigger - this
-# avoids deploying a commit CI hasn't actually passed for). Builds the 3
-# app images, pushes them to GHCR, then SSHes into the Hetzner MVP box
-# (ADR-025) to pull and restart. See docs/03-solution-architecture.md
-# section 7.1/7.3 for the target this implements.
+# avoids deploying a commit CI hasn't actually passed for). Cuts a semver
+# release from Conventional Commits since the last one (if any commit
+# since then warrants it), builds the 3 app images tagged with sha/latest/
+# (optionally) that version, pushes to GHCR, then SSHes into the Hetzner
+# MVP box (ADR-025) to pull and restart. See
+# docs/03-solution-architecture.md section 7.1 for the target this
+# implements.
 on:
   workflow_run:
     workflows: ["CI"]
@@ -17,7 +20,40 @@ env:
   SOLUTION_DIR: code/K9Crush-scaffold/K9Crush
 
 jobs:
+  release:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    outputs:
+      version: ${{ steps.semrel.outputs.new-release-version }}
+      released: ${{ steps.semrel.outputs.new-release-published }}
+    steps:
+      # semantic-release needs full history/tags to diff against the last
+      # release, not just the last commit - fetch-depth 0 is required here.
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      # Reads .releaserc.json at repo root: commit-analyzer decides the
+      # bump from Conventional Commits since the last vX.Y.Z tag (feat ->
+      # minor, fix -> patch, "BREAKING CHANGE" footer -> major; docs/
+      # chore/ci/build/refactor/test commits alone don't trigger a
+      # release - that's expected, not a misconfiguration, and doesn't
+      # fail the job). When it does release, pushes the git tag and
+      # publishes a GitHub Release with generated notes.
+      - name: Semantic Release
+        id: semrel
+        uses: cycjimmy/semantic-release-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build-and-push:
+    needs: release
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
@@ -41,17 +77,40 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # One metadata block per image: always tags with the commit sha and
+      # `latest`, plus the semver from the release job - but only when
+      # that job actually cut a release (`enable=` drops the line
+      # otherwise, rather than pushing a blank/invalid tag).
+      - name: Docker metadata - gateway
+        id: meta-gateway
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/k9crush-gateway
+          tags: |
+            type=raw,value=${{ github.event.workflow_run.head_sha }}
+            type=raw,value=latest
+            type=raw,value=${{ needs.release.outputs.version }},enable=${{ needs.release.outputs.released == 'true' }}
+
       - name: Build and push gateway
         uses: docker/build-push-action@v6
         with:
           context: ${{ env.SOLUTION_DIR }}
           file: ${{ env.SOLUTION_DIR }}/deploy/docker/Gateway.Dockerfile
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/k9crush-gateway:${{ github.event.workflow_run.head_sha }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/k9crush-gateway:latest
+          tags: ${{ steps.meta-gateway.outputs.tags }}
+          labels: ${{ steps.meta-gateway.outputs.labels }}
           cache-from: type=gha,scope=gateway
           cache-to: type=gha,mode=max,scope=gateway
+
+      - name: Docker metadata - api-host
+        id: meta-api-host
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/k9crush-api-host
+          tags: |
+            type=raw,value=${{ github.event.workflow_run.head_sha }}
+            type=raw,value=latest
+            type=raw,value=${{ needs.release.outputs.version }},enable=${{ needs.release.outputs.released == 'true' }}
 
       - name: Build and push api-host
         uses: docker/build-push-action@v6
@@ -59,11 +118,20 @@ jobs:
           context: ${{ env.SOLUTION_DIR }}
           file: ${{ env.SOLUTION_DIR }}/deploy/docker/ApiHost.Dockerfile
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/k9crush-api-host:${{ github.event.workflow_run.head_sha }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/k9crush-api-host:latest
+          tags: ${{ steps.meta-api-host.outputs.tags }}
+          labels: ${{ steps.meta-api-host.outputs.labels }}
           cache-from: type=gha,scope=api-host
           cache-to: type=gha,mode=max,scope=api-host
+
+      - name: Docker metadata - blazor-app
+        id: meta-blazor-app
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/k9crush-blazor-app
+          tags: |
+            type=raw,value=${{ github.event.workflow_run.head_sha }}
+            type=raw,value=latest
+            type=raw,value=${{ needs.release.outputs.version }},enable=${{ needs.release.outputs.released == 'true' }}
 
       - name: Build and push blazor-app
         uses: docker/build-push-action@v6
@@ -71,9 +139,8 @@ jobs:
           context: ${{ env.SOLUTION_DIR }}
           file: ${{ env.SOLUTION_DIR }}/deploy/docker/BlazorApp.Dockerfile
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/k9crush-blazor-app:${{ github.event.workflow_run.head_sha }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/k9crush-blazor-app:latest
+          tags: ${{ steps.meta-blazor-app.outputs.tags }}
+          labels: ${{ steps.meta-blazor-app.outputs.labels }}
           cache-from: type=gha,scope=blazor-app
           cache-to: type=gha,mode=max,scope=blazor-app
 
