@@ -204,12 +204,16 @@ Each instance's git worktree lives as a sibling directory
 (`<solution-dir>-ralph-1`, `-ralph-2`, ...) on branch `ralph/instance-N`,
 off whatever branch you were on when you ran the command. Once every
 tracked slice in the chapter reaches `Done` or `Blocked`, each instance's
-branch is merged back automatically and its worktree removed. Per-instance
-output goes to `ralph-1.log`/`ralph-2.log`/... in this directory (not the
-terminal) — `orchestrate.mjs` itself only prints its own retrofit/flip/
-watch progress. Per-slice `InProgress`→terminal timing is appended to
-`slice-timings.jsonl` as it happens, plus a running average printed at the
-end of each watch.
+branch is merged back automatically; its worktree is only removed if it's
+actually clean afterward (`git status --porcelain` empty) — a Ralph loop
+can pick up a new Planned slice from elsewhere on the board the instant its
+tracked one finishes, so the worktree is left in place with instructions
+printed if it still has uncommitted changes, rather than force-deleted.
+Per-instance output goes to `ralph-1.log`/`ralph-2.log`/... in this
+directory (not the terminal) — `orchestrate.mjs` itself only prints its own
+retrofit/flip/watch progress. Per-slice `InProgress`→terminal timing is
+appended to `slice-timings.jsonl` as it happens, plus a running average
+printed at the end of each watch.
 
 Two `.eventmodelers/config.json` fields (optional, read by `lib/ralph.js`,
 not by `orchestrate.mjs` itself) matter more once you're running several

@@ -275,6 +275,14 @@ function readCurrentContext(kitDir) {
   try { return JSON.parse(readFileSync(ctxPath, 'utf-8')).name || null; } catch { return null; }
 }
 
+// Dropped by orchestrate.mjs (in the worktree it passes as projectDir) once
+// it decides a chapter is complete and is about to merge+remove that
+// worktree — tells this loop to stop grabbing new Planned slices so it can't
+// leave fresh uncommitted work sitting in a worktree that's about to be
+// cleaned up. Doesn't interrupt a `claude -p` call already in flight; the
+// orchestrator's own git-status check before removal is the real backstop.
+const RALPH_STOP_FILE = '.ralph-stop';
+
 // Returns the first Planned slice IN THE CURRENT CONTEXT ONLY. If the current
 // context has no planned work, returns null so the loop waits — it must NEVER
 // cross into another context to find something to build.
@@ -346,11 +354,12 @@ async function runWithRetry(label, fn, { maxAttempts = 3, onGiveUp } = {}) {
   }
 }
 
-async function ralphLoop(kitDir, cfg, onTask, onPlannedSlice) {
+async function ralphLoop(kitDir, projectDir, cfg, onTask, onPlannedSlice) {
   const promptFile = join(kitDir, 'lib', 'prompt.md');
   const backendPromptFile = join(kitDir, 'lib', 'backend-prompt.md');
   const credentialed = hasCredentials(cfg);
   let lastIdleCtx;
+  let stopLogged = false;
   let slicesBuilt = 0;
   const maxSlicesPerRun = cfg.maxSlicesPerRun ? parseInt(cfg.maxSlicesPerRun, 10) : null;
 
@@ -372,7 +381,12 @@ async function ralphLoop(kitDir, cfg, onTask, onPlannedSlice) {
       didWork = true;
     }
 
-    const planned = onPlannedSlice && getFirstPlannedSlice(kitDir);
+    const stopSignaled = existsSync(join(projectDir, RALPH_STOP_FILE));
+    if (stopSignaled && !stopLogged) {
+      console.log(`[ralph] Stop signal found at ${join(projectDir, RALPH_STOP_FILE)} — orchestrator is cleaning up this worktree, not picking up new planned slices.`);
+      stopLogged = true;
+    }
+    const planned = !stopSignaled && onPlannedSlice && getFirstPlannedSlice(kitDir);
     if (planned) {
       const prompt = readFileSync(backendPromptFile, 'utf-8').replaceAll('build-kit-dotnet-es', kitDir);
       await runWithRetry(`onPlannedSlice: building slice "${planned.title}"...`, () => onPlannedSlice(prompt), {
@@ -421,7 +435,7 @@ export async function startRalph({ kitDir, projectDir, onTask, onPlannedSlice })
 
   if (!hasCredentials(local)) {
     console.log(`         mode: local-only (no platform sync)\n`);
-    await ralphLoop(kitDir, local, onTask, onPlannedSlice);
+    await ralphLoop(kitDir, projectDir, local, onTask, onPlannedSlice);
     return;
   }
 
@@ -430,6 +444,6 @@ export async function startRalph({ kitDir, projectDir, onTask, onPlannedSlice })
 
   await Promise.all([
     startRealtimeAgent(cfg, kitDir),
-    ralphLoop(kitDir, cfg, onTask, onPlannedSlice),
+    ralphLoop(kitDir, projectDir, cfg, onTask, onPlannedSlice),
   ]);
 }
