@@ -24,7 +24,7 @@
 // after killing instances early, before a chapter finished.
 
 import { spawn, execFileSync } from 'child_process';
-import { readFileSync, existsSync, openSync, appendFileSync } from 'fs';
+import { readFileSync, existsSync, openSync, appendFileSync, writeFileSync } from 'fs';
 import { dirname, resolve, join, basename } from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
@@ -248,6 +248,38 @@ function worktreeDir(n) {
   return join(dirname(projectDir), `${basename(projectDir)}-ralph-${n}`);
 }
 
+// A ralph loop runs detached and can pick up a brand-new Planned slice (from
+// any chapter, not just the one this orchestrate.mjs run is watching — see
+// getFirstPlannedSlice's "current context" scoping in lib/ralph.js) the
+// instant its previously-tracked slice goes terminal, racing against
+// monitorChapter deciding the chapter is done and starting cleanup. Dropping
+// this file tells the loop in that specific worktree to stop grabbing new
+// planned-slice work (checked once per loop iteration — it won't interrupt
+// an already-running `claude -p` call). It's a best-effort narrowing of the
+// race window, not a substitute for worktreeHasUncommittedChanges() below,
+// which is the actual backstop against data loss.
+const RALPH_STOP_FILE = '.ralph-stop';
+
+function signalStop(dir, reason) {
+  try {
+    writeFileSync(join(dir, RALPH_STOP_FILE), `${reason}\n`, 'utf-8');
+  } catch (err) {
+    console.error(`  ! failed to write stop signal to ${dir}: ${err.message}`);
+  }
+}
+
+// git worktree remove (without --force) already refuses to touch a worktree
+// with uncommitted or untracked changes — that's git protecting the caller.
+// Check status ourselves first (rather than blindly retrying with --force on
+// ANY failure) so we can tell an in-flight-work refusal apart from some other
+// removal failure, and never destroy real work just because a Ralph instance
+// happened to pick up new work in the gap between its tracked slice going
+// terminal and this cleanup step running.
+function worktreeHasUncommittedChanges(dir) {
+  const status = execFileSync('git', ['status', '--porcelain'], { cwd: dir, encoding: 'utf-8' });
+  return status.trim().length > 0;
+}
+
 function ensureWorktree(n, startPoint) {
   const dir = worktreeDir(n);
   const branch = `ralph/instance-${n}`;
@@ -281,10 +313,15 @@ async function mergeWorktrees(n, targetBranch) {
       continue;
     }
     if (existsSync(dir)) {
+      if (worktreeHasUncommittedChanges(dir)) {
+        console.error(`  ! ${dir} still has uncommitted/untracked changes after merging ${branch} — NOT removing it. This usually means the Ralph loop in this worktree picked up a new slice after ${branch} was merged. Inspect and clean up manually once you've confirmed nothing is lost:\n      cd "${dir}" && git status\n      git add -A && git commit   # if the new work should be kept\n      git worktree remove --force "${dir}"\n      git branch -d "${branch}"\n    (leaving this worktree/branch in place; not touching later instances)`);
+        continue;
+      }
       try {
         git(['worktree', 'remove', dir]);
-      } catch {
-        git(['worktree', 'remove', '--force', dir]);
+      } catch (err) {
+        console.error(`  ! ${dir} reported clean but "git worktree remove" still failed (${err.message}) — leaving it in place rather than force-removing blindly. Investigate manually.`);
+        continue;
       }
     }
     try {
@@ -436,6 +473,10 @@ async function main() {
 
   const { completed } = await monitorChapter(chapter, sliceIds);
   if (completed) {
+    for (let i = 1; i <= parallel; i++) {
+      const dir = worktreeDir(i);
+      if (existsSync(dir)) signalStop(dir, `chapter "${chapter.meta.title}" completed at ${new Date().toISOString()} — orchestrator is merging this worktree, not picking up new work`);
+    }
     await mergeWorktrees(parallel, startBranch);
   } else {
     console.log(`\nNot merging worktree branches yet — the Ralph instance(s) are still running (this is just the watch loop giving up after ${timeoutMinutes}m). Re-run with --watch to resume monitoring, or with --merge once you've stopped them, to merge whatever they finished.`);
