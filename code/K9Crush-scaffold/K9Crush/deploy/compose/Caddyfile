@@ -1,0 +1,8 @@
+# Automatic HTTPS via Let's Encrypt - Caddy requests/renews the cert itself,
+# no certbot/cron needed. Requires DOMAIN (set in .env) to already resolve
+# via DNS to this box's public IP, and ports 80/443 reachable from the
+# internet (80 is needed for the ACME HTTP-01 challenge, not just a
+# redirect target).
+{$DOMAIN} {
+	reverse_proxy gateway:8080
+}
