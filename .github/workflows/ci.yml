@@ -1,14 +1,14 @@
 name: CI
 
-# Runs on PRs targeting dev/main (the pre-merge gate) and on direct
-# pushes to dev/main (this repo's actual workflow so far has been
-# committing straight to dev - this re-runs the same checks as a
-# post-merge confirmation so nothing slips through either path).
+# Runs on PRs targeting main (the pre-merge gate for dev->main catch-up
+# PRs) and on direct pushes to main (post-merge confirmation). dev itself
+# is pushed to directly and frequently, so it's intentionally excluded -
+# see cicd-setup memory for why CI was disabled in the first place.
 on:
   pull_request:
-    branches: [dev, main]
+    branches: [main]
   push:
-    branches: [dev, main]
+    branches: [main]
 
 env:
   DOTNET_NOLOGO: true
