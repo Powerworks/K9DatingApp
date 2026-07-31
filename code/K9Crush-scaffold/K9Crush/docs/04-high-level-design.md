@@ -2,7 +2,7 @@
 
 > **This document's module inventory is stale and not the current source of
 > truth** - it predates several rounds of scope changes and only covers 8
-> of the modules that actually exist or are planned. `Spec/K9CRUSH.emlang.v3.yaml`
+> of the modules that actually exist or are planned. `Spec/K9CRUSH.emlang.v3.2026-07-31.yaml`
 > (its own header, plus the "SCOPE NOTE" block added 2026-07-23) is the
 > real source of truth for module boundaries and current scope. As of
 > 2026-07-23, the product itself is being descoped away from a "dog dating
