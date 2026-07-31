@@ -16,12 +16,14 @@ namespace K9Crush.Modules.Media.Api;
 /// Upload/Share/Remove Media, plus Report Media -> Content Flagged.
 ///
 /// ADR-031 (Phase 1/5, this module's own retrofit): MediaAsset is now
-/// event-sourced - no Schema.For&lt;T&gt; document registration, since Marten
-/// discovers the event stream from FetchForWriting/StartStream/
-/// AggregateStreamAsync calls at runtime. No Inline snapshot is registered
-/// either - nothing under ReadModels/** queries MediaAsset today, so
-/// there's no read side to persist yet (see MediaAsset.cs's own doc
-/// comment for how to add one later if that changes).
+/// event-sourced. No Inline snapshot is registered - nothing under
+/// ReadModels/** queries MediaAsset today, so there's no read side to
+/// persist yet (see MediaAsset.cs's own doc comment for how to add one
+/// later if that changes). If one is added, it needs its own
+/// options.Schema.For&lt;MediaAsset&gt;().DatabaseSchemaName(SchemaName) call in
+/// Configure() below, same as every other module's Inline snapshots -
+/// Marten does not infer a document's schema from the module that
+/// registered its event stream (see marten_schema_isolation_bug memory).
 /// </summary>
 public sealed class MediaModule : IModule
 {
@@ -41,7 +43,10 @@ public sealed class MediaModule : IModule
 
         public void Configure(StoreOptions options)
         {
-            options.Events.DatabaseSchemaName = SchemaName;
+            // Nothing to register here yet - MediaAsset's event stream
+            // itself needs no per-module setup (event store schema is
+            // configured once, centrally, in Program.cs), and this module
+            // has no Inline snapshot to scope. See the class doc comment.
         }
     }
 }

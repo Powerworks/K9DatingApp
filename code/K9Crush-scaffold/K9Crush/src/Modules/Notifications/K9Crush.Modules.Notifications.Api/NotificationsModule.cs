@@ -36,7 +36,8 @@ public sealed class NotificationsModule : IModule
 
         public void Configure(StoreOptions options)
         {
-            options.Events.DatabaseSchemaName = SchemaName;
+            // Event store schema is configured once, centrally, in
+            // Program.cs - see its comment for why.
 
             // ADR-031 (Phase 3/5): NotificationPreference and
             // NotificationTemplate are event-sourced AND registered as
@@ -45,8 +46,16 @@ public sealed class NotificationsModule : IModule
             // ViewNotificationTemplates). NotificationLog is event-sourced
             // with no snapshot at all (no query consumer exists, same as
             // Media's MediaAsset in Phase 1).
+            //
+            // Both snapshots need their own DatabaseSchemaName() call, same
+            // as OwnerContact below - an Inline snapshot is still a normal
+            // Marten document and was NOT scoped to this module's schema
+            // before this fix (only OwnerContact was), so both were
+            // landing in Postgres's default "public" schema.
             options.Projections.Snapshot<NotificationPreference>(JasperFx.Events.Projections.SnapshotLifecycle.Inline);
             options.Projections.Snapshot<NotificationTemplate>(JasperFx.Events.Projections.SnapshotLifecycle.Inline);
+            options.Schema.For<NotificationPreference>().DatabaseSchemaName(SchemaName);
+            options.Schema.For<NotificationTemplate>().DatabaseSchemaName(SchemaName);
 
             // OwnerContact deliberately stays a plain document, not
             // event-sourced - it's a pure cross-module denormalized cache

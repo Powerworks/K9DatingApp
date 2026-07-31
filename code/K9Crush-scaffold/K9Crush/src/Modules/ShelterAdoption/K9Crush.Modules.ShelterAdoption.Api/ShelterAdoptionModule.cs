@@ -54,14 +54,27 @@ public sealed class ShelterAdoptionModule : IModule
             // GetDraftApplications/GetSurrenderReviewQueue/
             // GetFosterApplicationsQueue/GetVolunteerApplicationsQueue, plus
             // every ownership-check LoadAsync<ShelterAccount>).
-            options.Events.DatabaseSchemaName = SchemaName;
-
+            //
+            // Event store schema is configured once, centrally, in
+            // Program.cs - see its comment for why. Each Inline snapshot
+            // below is still a normal Marten document (mt_doc_*) and needs
+            // its own explicit DatabaseSchemaName() call - without it,
+            // Marten defaults the document schema to "public" regardless
+            // of SchemaName, which is what was actually happening here
+            // until this fix (see marten_schema_isolation_bug memory).
             options.Projections.Snapshot<ShelterAccount>(SnapshotLifecycle.Inline);
             options.Projections.Snapshot<DogListing>(SnapshotLifecycle.Inline);
             options.Projections.Snapshot<Application>(SnapshotLifecycle.Inline);
             options.Projections.Snapshot<DogSurrenderRequest>(SnapshotLifecycle.Inline);
             options.Projections.Snapshot<FosterApplication>(SnapshotLifecycle.Inline);
             options.Projections.Snapshot<VolunteerApplication>(SnapshotLifecycle.Inline);
+
+            options.Schema.For<ShelterAccount>().DatabaseSchemaName(SchemaName);
+            options.Schema.For<DogListing>().DatabaseSchemaName(SchemaName);
+            options.Schema.For<Application>().DatabaseSchemaName(SchemaName);
+            options.Schema.For<DogSurrenderRequest>().DatabaseSchemaName(SchemaName);
+            options.Schema.For<FosterApplication>().DatabaseSchemaName(SchemaName);
+            options.Schema.For<VolunteerApplication>().DatabaseSchemaName(SchemaName);
         }
     }
 }

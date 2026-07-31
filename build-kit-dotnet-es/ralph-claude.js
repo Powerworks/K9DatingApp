@@ -26,6 +26,13 @@ const inlineHeader = cfg.boardId
 
 const claudeArgs = ['--dangerously-skip-permissions'];
 if (cfg.model) claudeArgs.push('--model', cfg.model);
+// Per-slice spend cap (one claude -p call = one slice). If a slice's build
+// genuinely needs more than this, Ralph's existing retry-on-error logic
+// (lib/ralph.js's runWithRetry) will keep retrying it every 60s and hit the
+// same cap each time — that's a pre-existing retry-forever behavior for any
+// claude -p failure, not new here. Watch ralph-N.log for a slice retrying
+// repeatedly and raise maxBudgetUsdPerSlice (or investigate the slice) if so.
+if (cfg.maxBudgetUsdPerSlice) claudeArgs.push('--max-budget-usd', String(cfg.maxBudgetUsdPerSlice));
 const claudeEnv = cfg.anthropicBaseUrl
   ? { ...process.env, ANTHROPIC_BASE_URL: cfg.anthropicBaseUrl }
   : process.env;

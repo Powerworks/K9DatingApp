@@ -33,9 +33,23 @@ build-kit-dotnet/.slices/
 build-kit-dotnet/tasks.json
 build-kit-dotnet/progress.txt
 
+## build-kit-dotnet-es — same runtime/scratch state as build-kit-dotnet above,
+## plus orchestrate.mjs's own per-run artifacts (per-instance Ralph logs,
+## slice timing history)
+build-kit-dotnet-es/.eventmodelers/
+build-kit-dotnet-es/.slices/
+build-kit-dotnet-es/tasks.json
+build-kit-dotnet-es/progress.txt
+build-kit-dotnet-es/ralph-*.log
+build-kit-dotnet-es/slice-timings.jsonl
+
 ## Node (build-kit-dotnet's Ralph/CodeExport tools, same as build-kit/)
 node_modules/
 build-kit-dotnet/config.json
+
+## Scratch/experiment workspace brought in from outside the repo,
+## kept locally for convenience but not part of the tracked project
+agentic-modeling/
 
 ## OS
 .DS_Store

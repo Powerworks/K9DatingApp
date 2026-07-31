@@ -275,10 +275,18 @@ function readCurrentContext(kitDir) {
   try { return JSON.parse(readFileSync(ctxPath, 'utf-8')).name || null; } catch { return null; }
 }
 
+// Dropped by orchestrate.mjs (in the worktree it passes as projectDir) once
+// it decides a chapter is complete and is about to merge+remove that
+// worktree — tells this loop to stop grabbing new Planned slices so it can't
+// leave fresh uncommitted work sitting in a worktree that's about to be
+// cleaned up. Doesn't interrupt a `claude -p` call already in flight; the
+// orchestrator's own git-status check before removal is the real backstop.
+const RALPH_STOP_FILE = '.ralph-stop';
+
 // Returns the first Planned slice IN THE CURRENT CONTEXT ONLY. If the current
 // context has no planned work, returns null so the loop waits — it must NEVER
 // cross into another context to find something to build.
-function getFirstPlannedSliceTitle(kitDir) {
+function getFirstPlannedSlice(kitDir) {
   const currentCtx = readCurrentContext(kitDir);
   if (!currentCtx) return null;
   const indexPath = join(kitDir, '.slices', currentCtx, 'index.json');
@@ -286,47 +294,119 @@ function getFirstPlannedSliceTitle(kitDir) {
   try {
     const { slices } = JSON.parse(readFileSync(indexPath, 'utf-8'));
     const planned = slices && slices.find((s) => (s.status || '').toLowerCase() === 'planned');
-    if (planned) return planned.slice || planned.id || null;
+    if (planned) return { id: planned.id || null, title: planned.slice || planned.id || null };
   } catch {}
   return null;
 }
 
-async function runWithRetry(label, fn) {
-  while (true) {
+// Marks a SLICE_BORDER node Blocked directly on the board — used when a slice
+// exhausts its retry budget below, so it drops out of the Planned queue
+// instead of being picked up again on the next loop iteration.
+async function markSliceBlocked(cfg, sliceId, reason) {
+  // The failing attempt may have completed the actual work and marked the
+  // slice Done just before some unrelated, later step (e.g. the CLI process
+  // itself) failed non-zero — don't clobber that with Blocked.
+  const nodeUrl = `${cfg.baseUrl}/api/org/${cfg.organizationId}/boards/${cfg.boardId}/nodes/${sliceId}`;
+  const node = await fetchJSON(nodeUrl, { headers: { 'x-token': cfg.token, 'x-board-id': cfg.boardId } }).catch(() => null);
+  if (node?.meta?.sliceStatus === 'Done') {
+    console.log(`[ralph] Slice ${sliceId} already Done — not marking Blocked`);
+    return;
+  }
+
+  const url = `${cfg.baseUrl}/api/org/${cfg.organizationId}/boards/${cfg.boardId}/nodes/events`;
+  await fetchJSON(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-token': cfg.token, 'x-board-id': cfg.boardId },
+    body: JSON.stringify([{
+      id: randomUUID(),
+      eventType: 'node:changed',
+      nodeId: sliceId,
+      boardId: cfg.boardId,
+      timestamp: Date.now(),
+      changedAttributes: ['sliceStatus'],
+      meta: { sliceStatus: 'Blocked' },
+    }]),
+  });
+  console.error(`[ralph] Marked slice ${sliceId} Blocked after repeated failures: ${reason}`);
+}
+
+// Retries fn up to maxAttempts times, 60s apart. A failure that keeps
+// recurring (an underspecified slice, a budget cap that will never be met)
+// used to retry forever here — this caps it, matching the give-up-after-3
+// convention ralph.sh's bash loop already uses for onTask failures. onGiveUp
+// (if provided) runs once, after the final attempt, so the caller can mark
+// the underlying board state instead of leaving it stuck in Planned forever.
+async function runWithRetry(label, fn, { maxAttempts = 3, onGiveUp } = {}) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       console.log(`[ralph] ${label}`);
       await fn();
       return;
     } catch (err) {
-      console.error(`[ralph] Error — retrying in 60s:`, err.message);
+      if (attempt >= maxAttempts) {
+        console.error(`[ralph] Error — giving up after ${maxAttempts} attempt(s):`, err.message);
+        if (onGiveUp) await onGiveUp(err).catch((giveUpErr) => console.error('[ralph] onGiveUp failed:', giveUpErr.message));
+        return;
+      }
+      console.error(`[ralph] Error — retrying in 60s (${attempt}/${maxAttempts}):`, err.message);
       await new Promise((r) => setTimeout(r, 60_000));
     }
   }
 }
 
-async function ralphLoop(kitDir, cfg, onTask, onPlannedSlice) {
+async function ralphLoop(kitDir, projectDir, cfg, onTask, onPlannedSlice) {
   const promptFile = join(kitDir, 'lib', 'prompt.md');
   const backendPromptFile = join(kitDir, 'lib', 'backend-prompt.md');
   const credentialed = hasCredentials(cfg);
   let lastIdleCtx;
+  let stopLogged = false;
+  let slicesBuilt = 0;
+  const maxSlicesPerRun = cfg.maxSlicesPerRun ? parseInt(cfg.maxSlicesPerRun, 10) : null;
 
   while (true) {
     let didWork = false;
 
     if (credentialed && hasPendingTasks(kitDir)) {
-      const prompt = readFileSync(promptFile, 'utf-8');
+      // The prompt file references the kit by the bare relative name
+      // "build-kit-dotnet-es/..." — only correct if the kit happens to live
+      // inside the executor's cwd (projectDir). It doesn't in general (this
+      // kit is meant to sit alongside, not inside, the target solution), so
+      // resolve it to the kit's real absolute path before handing the
+      // prompt to the executor. Without this, the executor sometimes reads
+      // its own cwd literally, concludes the kit "isn't present", and bails
+      // with NO_TASKS — a full paid iteration wasted on nothing.
+      const prompt = readFileSync(promptFile, 'utf-8').replaceAll('build-kit-dotnet-es', kitDir);
       await runWithRetry('onTask: loading slice from board...', () => onTask(prompt));
       await fetchAndPersistSlices(cfg, kitDir).catch(() => {});
       didWork = true;
     }
 
-    const plannedTitle = onPlannedSlice && getFirstPlannedSliceTitle(kitDir);
-    if (plannedTitle) {
-      const prompt = readFileSync(backendPromptFile, 'utf-8');
-      await runWithRetry(`onPlannedSlice: building slice "${plannedTitle}"...`, () => onPlannedSlice(prompt));
+    const stopSignaled = existsSync(join(projectDir, RALPH_STOP_FILE));
+    if (stopSignaled && !stopLogged) {
+      console.log(`[ralph] Stop signal found at ${join(projectDir, RALPH_STOP_FILE)} — orchestrator is cleaning up this worktree, not picking up new planned slices.`);
+      stopLogged = true;
+    }
+    const planned = !stopSignaled && onPlannedSlice && getFirstPlannedSlice(kitDir);
+    if (planned) {
+      const prompt = readFileSync(backendPromptFile, 'utf-8').replaceAll('build-kit-dotnet-es', kitDir);
+      await runWithRetry(`onPlannedSlice: building slice "${planned.title}"...`, () => onPlannedSlice(prompt), {
+        onGiveUp: planned.id
+          ? () => markSliceBlocked(cfg, planned.id, `onPlannedSlice failed repeatedly while building "${planned.title}"`)
+          : undefined,
+      });
       console.log(`[ralph] Slice build complete — waiting for next slice`);
+      slicesBuilt++;
       if (credentialed) await fetchAndPersistSlices(cfg, kitDir).catch(() => {});
       didWork = true;
+
+      if (maxSlicesPerRun && slicesBuilt >= maxSlicesPerRun) {
+        console.log(`[ralph] Reached max slices per run (${maxSlicesPerRun}) — stopping this instance now. Restart it (via orchestrate.mjs or ralph-claude.js directly), or raise maxSlicesPerRun in .eventmodelers/config.json, to keep going.`);
+        // process.exit rather than return: startRalph() runs this loop
+        // alongside startRealtimeAgent() via Promise.all, which never
+        // resolves on its own — returning here would leave the process
+        // hanging instead of actually stopping it.
+        process.exit(0);
+      }
     }
 
     if (!didWork) {
@@ -355,7 +435,7 @@ export async function startRalph({ kitDir, projectDir, onTask, onPlannedSlice })
 
   if (!hasCredentials(local)) {
     console.log(`         mode: local-only (no platform sync)\n`);
-    await ralphLoop(kitDir, local, onTask, onPlannedSlice);
+    await ralphLoop(kitDir, projectDir, local, onTask, onPlannedSlice);
     return;
   }
 
@@ -364,6 +444,6 @@ export async function startRalph({ kitDir, projectDir, onTask, onPlannedSlice })
 
   await Promise.all([
     startRealtimeAgent(cfg, kitDir),
-    ralphLoop(kitDir, cfg, onTask, onPlannedSlice),
+    ralphLoop(kitDir, projectDir, cfg, onTask, onPlannedSlice),
   ]);
 }

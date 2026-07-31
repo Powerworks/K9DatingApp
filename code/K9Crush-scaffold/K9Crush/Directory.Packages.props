@@ -90,9 +90,9 @@
 
     <!-- Testing -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />               <!-- [good-faith] -->
-    <PackageVersion Include="xunit" Version="2.9.2" />                                  <!-- [good-faith] -->
+    <PackageVersion Include="xunit" Version="2.9.3" />                                  <!-- [good-faith] -->
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />              <!-- [good-faith] -->
-    <PackageVersion Include="FluentAssertions" Version="6.12.1" />                      <!-- [good-faith] -->
+    <PackageVersion Include="FluentAssertions" Version="8.10.0" />                      <!-- [good-faith] -->
     <PackageVersion Include="NSubstitute" Version="6.0.0" />                            <!-- [verified] mocking library - none was pinned yet; NSubstitute chosen over Moq for its no-Expression-tree call syntax, pairs well with async Marten interfaces (IDocumentSession/IQuerySession) -->
     <PackageVersion Include="NetArchTest.Rules" Version="1.3.2" />                      <!-- [good-faith] -->
 
@@ -103,7 +103,7 @@
          FetchForWriting<T> call from an accidental LoadAsync<T> call against the same
          type, since both reference an identical generic type argument; this needs an
          actual instruction-level scan. -->
-    <PackageVersion Include="Mono.Cecil" Version="0.11.3" />                          <!-- [verified - matches NetArchTest.Rules' own transitive version] -->
+    <PackageVersion Include="Mono.Cecil" Version="0.11.6" />                          <!-- [verified - matches NetArchTest.Rules' own transitive version] -->
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.13.0" />             <!-- [good-faith] -->
     <PackageVersion Include="Testcontainers.RabbitMq" Version="3.10.0" />               <!-- [good-faith] -->
     <PackageVersion Include="Testcontainers.Redis" Version="3.10.0" />                  <!-- [good-faith] -->

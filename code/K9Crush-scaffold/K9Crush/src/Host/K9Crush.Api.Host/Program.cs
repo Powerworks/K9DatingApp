@@ -48,6 +48,21 @@ var connectionString = builder.Configuration.GetConnectionString("Postgres")
 builder.Services.AddMarten(options =>
 {
     options.Connection(connectionString);
+
+    // Event store schema is ONE shared setting for the whole StoreOptions,
+    // not one per module - Marten has a single mt_events/mt_streams table
+    // pair per store, it doesn't partition the event log by schema. Every
+    // module used to call options.Events.DatabaseSchemaName = SchemaName
+    // from its own Configure(), which silently overwrote whichever
+    // module's setting was applied last (Media, per this array's order) -
+    // every module's events were landing in "media" regardless of which
+    // module actually owned them (see marten_schema_isolation_bug memory
+    // for how this was found live, and ADR-003's updated entry for the
+    // resulting split: documents are schema-per-module, the event store
+    // is one shared schema). "eventstore" is deliberately not any single
+    // module's name, since every module's events live here.
+    options.Events.DatabaseSchemaName = "eventstore";
+
     options.ApplyModuleConfigurations(modules.Select(m => m.MartenConfiguration));
 
     // NOTE: the explicit AutoCreateSchemaObjects assignment that used to
