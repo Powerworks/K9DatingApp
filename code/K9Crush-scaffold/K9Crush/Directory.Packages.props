@@ -24,7 +24,7 @@
     -->
 
     <!-- Persistence -->
-    <PackageVersion Include="Marten" Version="9.20.1" />                                <!-- [confirmed real - Dependabot PRs #24/#28, 2026-07-31] -->
+    <PackageVersion Include="Marten" Version="9.22.2" />                                <!-- [confirmed real - Dependabot PRs #24/#28, 2026-07-31] -->
     <PackageVersion Include="Marten.AspNetCore" Version="9.20.1" />                     <!-- [confirmed real - Dependabot PR #24, 2026-07-31] -->
 
     <!-- Messaging / Mediator - Wolverine packages release in lockstep,
@@ -33,7 +33,7 @@
          independently resolved to 6.17.2 in your restore log) -->
     <PackageVersion Include="WolverineFx" Version="6.23.1" />                           <!-- [confirmed real - Dependabot PRs #27/#29/#30, 2026-07-31] -->
     <PackageVersion Include="WolverineFx.RabbitMQ" Version="6.23.1" />                  <!-- [confirmed real - Dependabot PR #29, 2026-07-31] -->
-    <PackageVersion Include="WolverineFx.Marten" Version="6.23.1" />                    <!-- [confirmed real - Dependabot PR #28, 2026-07-31] -->
+    <PackageVersion Include="WolverineFx.Marten" Version="6.24.5" />                    <!-- [confirmed real - Dependabot PR #28, 2026-07-31] -->
     <PackageVersion Include="WolverineFx.Http" Version="6.23.1" />                      <!-- [confirmed real - Dependabot PR #27, 2026-07-31] -->
     <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.23.1" />        <!-- [confirmed real - Dependabot PR #30, 2026-07-31] Dev-time only - see Program.cs comment; production should move to pre-generated static codegen instead of shipping this -->
 
