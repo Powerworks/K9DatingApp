@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <PackageReference Include="Marten" />
+    <PackageReference Include="WolverineFx" />
     <PackageReference Include="WolverineFx.Marten" />
   </ItemGroup>
 
