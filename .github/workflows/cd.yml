@@ -83,7 +83,7 @@ jobs:
       # otherwise, rather than pushing a blank/invalid tag).
       - name: Docker metadata - gateway
         id: meta-gateway
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/k9crush-gateway
           tags: |
@@ -104,7 +104,7 @@ jobs:
 
       - name: Docker metadata - api-host
         id: meta-api-host
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/k9crush-api-host
           tags: |
@@ -125,7 +125,7 @@ jobs:
 
       - name: Docker metadata - blazor-app
         id: meta-blazor-app
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/k9crush-blazor-app
           tags: |
