@@ -27,16 +27,23 @@ You work within **exactly ONE context at a time** — the one named in
 - A "Planned" slice in a *different* context is **NOT yours to build**. Ignore it completely.
 - If the current context has no "Planned" slice, you are **done for this iteration** — reply `<promise>NO_TASKS</promise>` and stop. Do not go looking elsewhere. The context is only ever changed on the board, never by you.
 
+## Chapter Boundary (orchestrator-driven runs — read this too, it's stricter than Context Boundary)
+
+Check whether `build-kit-dotnet-es/.slices/chapter-scope.json` exists and has a non-empty `sliceIds` array. **This board's own "context" grouping is flat — every slice on this board shares one context name — so Context Boundary above does NOT actually scope you to one chapter.** chapter-scope.json, written by `orchestrate.mjs` right before it spawns you, is the real per-chapter filter:
+
+- If it exists with a non-empty `sliceIds`: in Step 4 below, first filter `index.json`'s entries down to only the ones whose `id` is in that array, THEN pick your Planned slice from that filtered set. A "Planned" slice with an `id` *not* in `sliceIds` is **not yours to build** — this holds no matter how high-priority it looks in the raw `index.json`, no matter what the board's realtime channel reports about it, and no matter whether the slice you were originally dispatched for turned out to already be claimed. If the filtered set has no Planned slice, you are done for this iteration — reply `<promise>NO_TASKS</promise>` and stop, exactly as if the whole context had no Planned slice.
+- If it's absent, or `sliceIds` is empty: no extra restriction — fall back to plain Context Boundary above (this is the standalone-`ralph-claude.js`, no-orchestrator case).
+
 ## Your Task
 
 0. Do not read the entire codebase. Focus on the tasks in this description.
 1. Read `build-kit-dotnet-es/.slices/current_context.json` to find the active context name, then read `build-kit-dotnet-es/.slices/<contextName>/index.json`. Every item in status "planned" is a task.
 2. Read the progress log at `build-kit-dotnet-es/progress.txt` (check the "Codebase Patterns" section first).
 3. Make sure you are on a reasonable branch for this work — a feature branch off your project's default branch, or that branch itself if unsure. Do not touch a protected/production branch directly.
-4. Pick the **highest priority** slice where status is **exactly** "Planned" (case insensitive). This becomes your PRD. Set the status "InProgress" in `index.json` **and** update the slice status on the eventmodelers board using the `update-slice-status` skill.
-   **IMPORTANT: Only work on slices with status "Planned" in the CURRENT context. Never pick up a slice that is "InProgress", "Done", "Blocked", "Created", or any other status — even if it looks incomplete. If no slice has status "Planned" in the current context, reply with:**
+4. Pick the **highest priority** slice where status is **exactly** "Planned" (case insensitive) **from the chapter-scope-filtered set described above** (or from the whole context if no chapter-scope.json applies). This becomes your PRD. Set the status "InProgress" in `index.json` **and** update the slice status on the eventmodelers board using the `update-slice-status` skill.
+   **IMPORTANT: Only work on slices with status "Planned" in the CURRENT context AND (when chapter-scope.json applies) in its `sliceIds` list. Never pick up a slice that is "InProgress", "Done", "Blocked", "Created", or any other status — even if it looks incomplete. If no eligible slice has status "Planned", reply with:**
    <promise>NO_TASKS</promise> and stop immediately. Do not work on other slices and do not switch to another context.
-   **Claim conflict**: the board rejects the status update if the slice is already in the target status — this is expected: another agent claimed it first, racing you for the same slice. This is NOT an error. Do not stop, do not retry the same slice. Re-read `index.json` (or re-fetch via `load-slice`), pick the next-highest-priority slice still "Planned", and try claiming that one instead. Repeat until a claim succeeds or no "Planned" slice remains, in which case reply `<promise>NO_TASKS</promise>`.
+   **Claim conflict**: the board rejects the status update if the slice is already in the target status — this is expected: another agent claimed it first, racing you for the same slice. This is NOT an error. Do not stop, do not retry the same slice. Re-read `index.json` (or re-fetch via `load-slice`), pick the next-highest-priority slice still "Planned" **from the same chapter-scope-filtered set** (never outside it), and try claiming that one instead. Repeat until a claim succeeds or no eligible "Planned" slice remains, in which case reply `<promise>NO_TASKS</promise>`.
 5. Pick the slice definition from `build-kit-dotnet-es/.slices/<contextName>/<folder>/slice.json` as defined in the PRD. Never work on more than one slice per iteration.
 6. A slice can define additional prompts as codegen/backend hints in its `description`/`notes` — take them into account when implementing. If you use such a hint, add a line in `build-kit-dotnet-es/progress.txt`.
 7. Determine the slice type and invoke the matching skill (`build-state-change`, `build-state-view`, or `build-automation` — see each skill's own Step 1 for how to tell them apart from a slice.json's shape). Do NOT implement manually.
@@ -121,11 +128,13 @@ For every specification added to the slice, implement one executable test in cod
 If the slice was completed and committed successfully, reply with:
 <promise>DONE</promise>
 
-If no slice has status "Planned" in the current context, reply with:
+If no eligible slice has status "Planned" (in the current context, and in
+chapter-scope.json's `sliceIds` when that file applies), reply with:
 <promise>NO_TASKS</promise>
-(Do NOT switch to another context to find work — stop here.)
+(Do NOT switch to another context, and do NOT pick a Planned slice outside
+chapter-scope.json's list, to find work — stop here.)
 
-If ALL slices in the current context are Done, reply with:
+If ALL eligible slices are Done, reply with:
 <promise>COMPLETE</promise>
 
 ## Important

@@ -283,9 +283,30 @@ function readCurrentContext(kitDir) {
 // orchestrator's own git-status check before removal is the real backstop.
 const RALPH_STOP_FILE = '.ralph-stop';
 
-// Returns the first Planned slice IN THE CURRENT CONTEXT ONLY. If the current
-// context has no planned work, returns null so the loop waits — it must NEVER
-// cross into another context to find something to build.
+// Written by orchestrate.mjs before it spawns Ralph instances for a chapter
+// (all instances share this kitDir). The board's own "context" grouping
+// (slicedata's contextName) is NOT per-chapter — on this board every slice
+// comes back with contextName "default", so "current context" alone doesn't
+// stop a loop from grabbing a stray Planned slice left over from some other,
+// already-shipped chapter. This file is the real per-chapter filter; absent
+// (e.g. running ralph-claude.js standalone, with no orchestrate.mjs) means
+// no filtering, preserving the old behavior.
+function readChapterScope(kitDir) {
+  const scopePath = join(kitDir, '.slices', 'chapter-scope.json');
+  if (!existsSync(scopePath)) return null;
+  try {
+    const { sliceIds } = JSON.parse(readFileSync(scopePath, 'utf-8'));
+    return Array.isArray(sliceIds) && sliceIds.length ? new Set(sliceIds) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Returns the first Planned slice IN THE CURRENT CONTEXT ONLY, further
+// restricted to chapter-scope.json when orchestrate.mjs has written one. If
+// the current context (post-filter) has no planned work, returns null so the
+// loop waits — it must NEVER cross into another context, or outside the
+// active chapter scope, to find something to build.
 function getFirstPlannedSlice(kitDir) {
   const currentCtx = readCurrentContext(kitDir);
   if (!currentCtx) return null;
@@ -293,7 +314,9 @@ function getFirstPlannedSlice(kitDir) {
   if (!existsSync(indexPath)) return null;
   try {
     const { slices } = JSON.parse(readFileSync(indexPath, 'utf-8'));
-    const planned = slices && slices.find((s) => (s.status || '').toLowerCase() === 'planned');
+    const scope = readChapterScope(kitDir);
+    const candidates = scope ? (slices || []).filter((s) => scope.has(s.id)) : slices;
+    const planned = candidates && candidates.find((s) => (s.status || '').toLowerCase() === 'planned');
     if (planned) return { id: planned.id || null, title: planned.slice || planned.id || null };
   } catch {}
   return null;
