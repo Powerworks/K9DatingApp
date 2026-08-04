@@ -36,6 +36,9 @@ public class DogSurrenderRequest : Entity
     [JsonInclude] public string? AdditionalDetailsRequestReason { get; private set; }
     [JsonInclude] public string? DeclineReason { get; private set; }
     [JsonInclude] public DateTimeOffset RequestedAt { get; private set; }
+    [JsonInclude] public Guid? BehaviorTestPerformedBy { get; private set; }
+    [JsonInclude] public bool? BehaviorTestSuitableForRehoming { get; private set; }
+    [JsonInclude] public string? BehaviorTestNotes { get; private set; }
 
     [JsonConstructor]
     private DogSurrenderRequest() { }
@@ -68,6 +71,13 @@ public class DogSurrenderRequest : Entity
     {
         DeclineReason = e.Reason;
         Status = SurrenderRequestStatus.Declined;
+    }
+
+    public void Apply(BehaviorTestCompletedV1 e)
+    {
+        BehaviorTestPerformedBy = e.PerformedBy;
+        BehaviorTestSuitableForRehoming = e.SuitableForRehoming;
+        BehaviorTestNotes = e.BehaviorNotes;
     }
 
     /// <summary>The emlang yaml's "Request Dog Surrender" -> "Dog
@@ -132,6 +142,18 @@ public class DogSurrenderRequest : Entity
     public DogSurrenderDeclinedV1 Decline(string reason)
     {
         var @event = new DogSurrenderDeclinedV1(reason.Trim());
+        Apply(@event);
+        return @event;
+    }
+
+    /// <summary>
+    /// The SurrenderingYourDogFullIntake chapter's "Perform Behavior Test"
+    /// -> "Behavior Test Completed". State-guard (only valid from
+    /// Accepted) lives in the handler.
+    /// </summary>
+    public BehaviorTestCompletedV1 CompleteBehaviorTest(Guid performedBy, bool suitableForRehoming, string behaviorNotes)
+    {
+        var @event = new BehaviorTestCompletedV1(performedBy, suitableForRehoming, behaviorNotes.Trim());
         Apply(@event);
         return @event;
     }

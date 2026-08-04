@@ -14,3 +14,6 @@ public sealed record AdditionalSurrenderDetailsSubmittedV1;
 public sealed record DogSurrenderAcceptedV1;
 
 public sealed record DogSurrenderDeclinedV1(string Reason);
+
+/// <summary>SurrenderingYourDogFullIntake chapter - "Perform Behavior Test" -> "Behavior Test Completed".</summary>
+public sealed record BehaviorTestCompletedV1(Guid PerformedBy, bool SuitableForRehoming, string BehaviorNotes);
