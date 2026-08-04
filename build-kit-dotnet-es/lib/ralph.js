@@ -322,6 +322,22 @@ function getFirstPlannedSlice(kitDir) {
   return null;
 }
 
+// Re-fetches a single slice node directly from the board, bypassing the
+// local index.json cache that getFirstPlannedSlice() reads from. That cache
+// is only as fresh as the last successful realtime broadcast or poll — when
+// the realtime channel degrades (observed: repeated "Ping failed" and a
+// CHANNEL_ERROR on both instances of a --parallel run), two Ralph instances
+// can both cache the same slice as Planned and both start building it. This
+// closes that window at the one point it actually matters: right before
+// committing Claude spend to a build. Fails open (returns true) on error —
+// a flaky check shouldn't be able to stall the loop forever; the board's own
+// claim-conflict handling (backend-prompt.md) remains the backstop.
+async function isSliceStillPlanned(cfg, sliceId) {
+  const nodeUrl = `${cfg.baseUrl}/api/org/${cfg.organizationId}/boards/${cfg.boardId}/nodes/${sliceId}`;
+  const node = await fetchJSON(nodeUrl, { headers: { 'x-token': cfg.token, 'x-board-id': cfg.boardId } });
+  return (node?.meta?.sliceStatus || '').toLowerCase() === 'planned';
+}
+
 // Marks a SLICE_BORDER node Blocked directly on the board — used when a slice
 // exhausts its retry budget below, so it drops out of the Planned queue
 // instead of being picked up again on the next loop iteration.
@@ -409,7 +425,18 @@ async function ralphLoop(kitDir, projectDir, cfg, onTask, onPlannedSlice) {
       console.log(`[ralph] Stop signal found at ${join(projectDir, RALPH_STOP_FILE)} — orchestrator is cleaning up this worktree, not picking up new planned slices.`);
       stopLogged = true;
     }
-    const planned = !stopSignaled && onPlannedSlice && getFirstPlannedSlice(kitDir);
+    let planned = !stopSignaled && onPlannedSlice && getFirstPlannedSlice(kitDir);
+    if (planned && planned.id && credentialed) {
+      try {
+        if (!(await isSliceStillPlanned(cfg, planned.id))) {
+          console.log(`[ralph] "${planned.title}" was claimed elsewhere since the last sync — refreshing and re-checking.`);
+          await fetchAndPersistSlices(cfg, kitDir).catch(() => {});
+          planned = null;
+        }
+      } catch (err) {
+        console.error(`[ralph] Fresh status check failed for "${planned.title}" — proceeding on cached status:`, err.message);
+      }
+    }
     if (planned) {
       const prompt = readFileSync(backendPromptFile, 'utf-8').replaceAll('build-kit-dotnet-es', kitDir);
       await runWithRetry(`onPlannedSlice: building slice "${planned.title}"...`, () => onPlannedSlice(prompt), {
