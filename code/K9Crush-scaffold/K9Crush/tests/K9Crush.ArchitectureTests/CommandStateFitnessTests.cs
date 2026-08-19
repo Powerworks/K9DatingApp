@@ -168,6 +168,14 @@ public class CommandStateFitnessTests
         // referenced FosterApplication (a different aggregate) read-only
         // to confirm it's Approved.
         ("K9Crush.Modules.ShelterAdoption.Api.Commands.PlaceDogInFoster.PlaceDogInFosterHandler", "K9Crush.Modules.ShelterAdoption.Domain.FosterApplication"),
+        // PerformBehaviorTestHandler mutates DogSurrenderRequest (its own
+        // stream, via FetchForWriting) but resolves ownership the same way
+        // UpdateListingStatusHandler does: reads the referenced DogListing
+        // (read-only, dog_id -> ShelterAccountId) then the owning
+        // ShelterAccount (read-only, RequestedByOwnerId check) - two
+        // different aggregates, neither is the mutation target.
+        ("K9Crush.Modules.ShelterAdoption.Api.Commands.PerformBehaviorTest.PerformBehaviorTestHandler", "K9Crush.Modules.ShelterAdoption.Domain.DogListing"),
+        ("K9Crush.Modules.ShelterAdoption.Api.Commands.PerformBehaviorTest.PerformBehaviorTestHandler", "K9Crush.Modules.ShelterAdoption.Domain.ShelterAccount"),
     };
 
     [Fact]
