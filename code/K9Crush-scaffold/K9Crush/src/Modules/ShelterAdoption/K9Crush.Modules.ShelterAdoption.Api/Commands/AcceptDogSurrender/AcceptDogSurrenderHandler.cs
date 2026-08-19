@@ -48,7 +48,7 @@ public static class AcceptDogSurrenderHandler
         if (shelterAccount.Status != ShelterAccountStatus.Created)
             return TypedResults.Conflict($"Cannot add a dog listing to a shelter account in status {shelterAccount.Status}.");
 
-        var acceptedEvent = surrenderRequest.Accept();
+        var acceptedEvent = surrenderRequest.Accept(request.ShelterAccountId);
         surrenderStream.AppendOne(acceptedEvent);
 
         var (dogListing, dogListingAddedEvent) = DogListing.AddNew(
