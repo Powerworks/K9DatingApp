@@ -152,3 +152,4 @@ The skills (`build-state-change` Step 5, `build-state-view` Step 6, README setup
   }
   ```
 - Live reference: `src/Host/<SolutionName>.Api.Host/Program.cs` and `src/BuildingBlocks/<SolutionName>.BuildingBlocks.Domain/` in your `<path-to-your-.NET-solution>/` solution.
+- When a handler resolves cross-entity ownership via a field on its own aggregate that's only populated once the aggregate reaches a specific status (e.g. a `ShelterAccountId` set only at `Accept`), the status guard must run *before* the ownership LoadAsync — otherwise a not-yet-eligible entity resolves ownership against a zero/default id and returns the wrong error (`Forbid` instead of `Conflict`). Order guards by data dependency, not by convention.
