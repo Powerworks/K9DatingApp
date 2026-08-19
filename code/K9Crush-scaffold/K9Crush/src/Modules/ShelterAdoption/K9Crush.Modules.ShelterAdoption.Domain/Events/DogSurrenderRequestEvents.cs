@@ -36,3 +36,12 @@ public sealed record IntakeAppointmentScheduledV1(DateOnly AppointmentDate);
 
 /// <summary>SurrenderingYourDogFullIntake chapter's "Add To Waiting List" -> "Added To Waiting List".</summary>
 public sealed record AddedToWaitingListV1(int WaitlistPosition);
+
+/// <summary>
+/// SurrenderingYourDogFullIntake chapter's "Complete Surrender Paperwork"
+/// -> "Surrender Paperwork Completed". One of several independent
+/// intake-pipeline steps gated only on Status == Accepted (they don't
+/// depend on each other, per the yaml's per-step `given: Dog Surrender
+/// Accepted` tests) - doesn't transition DogSurrenderRequest.Status.
+/// </summary>
+public sealed record SurrenderPaperworkCompletedV1(bool LegalTransferSigned, string OwnershipProofType);

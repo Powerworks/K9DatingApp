@@ -42,6 +42,8 @@ public class DogSurrenderRequest : Entity
     [JsonInclude] public Guid ShelterAccountId { get; private set; }
     [JsonInclude] public DateOnly? IntakeAppointmentDate { get; private set; }
     [JsonInclude] public int? WaitlistPosition { get; private set; }
+    [JsonInclude] public bool? LegalTransferSigned { get; private set; }
+    [JsonInclude] public string? OwnershipProofType { get; private set; }
 
     [JsonConstructor]
     private DogSurrenderRequest() { }
@@ -78,6 +80,12 @@ public class DogSurrenderRequest : Entity
     public void Apply(IntakeAppointmentScheduledV1 e) => IntakeAppointmentDate = e.AppointmentDate;
 
     public void Apply(AddedToWaitingListV1 e) => WaitlistPosition = e.WaitlistPosition;
+
+    public void Apply(SurrenderPaperworkCompletedV1 e)
+    {
+        LegalTransferSigned = e.LegalTransferSigned;
+        OwnershipProofType = e.OwnershipProofType;
+    }
 
     public void Apply(DogSurrenderDeclinedV1 e)
     {
@@ -193,6 +201,18 @@ public class DogSurrenderRequest : Entity
     public AddedToWaitingListV1 AddToWaitingList(int waitlistPosition)
     {
         var @event = new AddedToWaitingListV1(waitlistPosition);
+        Apply(@event);
+        return @event;
+    }
+
+    /// <summary>The SurrenderingYourDogFullIntake chapter's "Complete
+    /// Surrender Paperwork" -> "Surrender Paperwork Completed". State-guard
+    /// (only valid from Accepted, and only for FullIntake-mode shelters)
+    /// lives in the handler, same as the other independent intake-pipeline
+    /// steps in this chapter.</summary>
+    public SurrenderPaperworkCompletedV1 CompleteSurrenderPaperwork(bool legalTransferSigned, string ownershipProofType)
+    {
+        var @event = new SurrenderPaperworkCompletedV1(legalTransferSigned, ownershipProofType.Trim());
         Apply(@event);
         return @event;
     }
