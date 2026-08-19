@@ -36,6 +36,8 @@ public class DogSurrenderRequest : Entity
     [JsonInclude] public string? AdditionalDetailsRequestReason { get; private set; }
     [JsonInclude] public string? DeclineReason { get; private set; }
     [JsonInclude] public DateTimeOffset RequestedAt { get; private set; }
+    [JsonInclude] public Guid ShelterAccountId { get; private set; }
+    [JsonInclude] public DateOnly? IntakeAppointmentDate { get; private set; }
 
     [JsonConstructor]
     private DogSurrenderRequest() { }
@@ -62,7 +64,14 @@ public class DogSurrenderRequest : Entity
     }
 
     public void Apply(AdditionalSurrenderDetailsSubmittedV1 e) => Status = SurrenderRequestStatus.UnderReview;
-    public void Apply(DogSurrenderAcceptedV1 e) => Status = SurrenderRequestStatus.Accepted;
+
+    public void Apply(DogSurrenderAcceptedV1 e)
+    {
+        ShelterAccountId = e.ShelterAccountId;
+        Status = SurrenderRequestStatus.Accepted;
+    }
+
+    public void Apply(IntakeAppointmentScheduledV1 e) => IntakeAppointmentDate = e.AppointmentDate;
 
     public void Apply(DogSurrenderDeclinedV1 e)
     {
@@ -118,10 +127,14 @@ public class DogSurrenderRequest : Entity
 
     /// <summary>The emlang yaml's "Accept Dog Surrender" -> "Dog Surrender
     /// Accepted". State-guard (only valid from UnderReview) lives in the
-    /// handler.</summary>
-    public DogSurrenderAcceptedV1 Accept()
+    /// handler. <paramref name="shelterAccountId"/> defaults to
+    /// <see cref="Guid.Empty"/> so existing domain-only tests that predate
+    /// the SurrenderingYourDogFullIntake pipeline (which needs this field
+    /// for ownership checks) don't have to change - production callers
+    /// (AcceptDogSurrenderHandler) always pass a real value.</summary>
+    public DogSurrenderAcceptedV1 Accept(Guid shelterAccountId = default)
     {
-        var @event = new DogSurrenderAcceptedV1();
+        var @event = new DogSurrenderAcceptedV1(shelterAccountId);
         Apply(@event);
         return @event;
     }
@@ -132,6 +145,17 @@ public class DogSurrenderRequest : Entity
     public DogSurrenderDeclinedV1 Decline(string reason)
     {
         var @event = new DogSurrenderDeclinedV1(reason.Trim());
+        Apply(@event);
+        return @event;
+    }
+
+    /// <summary>The SurrenderingYourDogFullIntake chapter's "Schedule
+    /// Intake Appointment" -> "Intake Appointment Scheduled". State-guard
+    /// (only valid from Accepted, on a FullIntake-mode shelter) lives in
+    /// the handler.</summary>
+    public IntakeAppointmentScheduledV1 ScheduleIntakeAppointment(DateOnly appointmentDate)
+    {
+        var @event = new IntakeAppointmentScheduledV1(appointmentDate);
         Apply(@event);
         return @event;
     }

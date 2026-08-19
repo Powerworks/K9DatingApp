@@ -155,6 +155,11 @@ public class CommandStateFitnessTests
         // from the DogSurrenderRequest this handler appends to and the new
         // DogListing stream it starts.
         ("K9Crush.Modules.ShelterAdoption.Api.Commands.AcceptDogSurrender.AcceptDogSurrenderHandler", "K9Crush.Modules.ShelterAdoption.Domain.ShelterAccount"),
+        // Ownership + FullIntake-mode checks against the owning
+        // ShelterAccount (via DogSurrenderRequest.ShelterAccountId, set at
+        // Accept time), distinct from the DogSurrenderRequest this handler
+        // mutates.
+        ("K9Crush.Modules.ShelterAdoption.Api.Commands.ScheduleIntakeAppointment.ScheduleIntakeAppointmentHandler", "K9Crush.Modules.ShelterAdoption.Domain.ShelterAccount"),
         // Availability checks: the handler mutates/creates an Application
         // but reads the referenced DogListing (read-only) to confirm it
         // still exists/isn't withdrawn.

@@ -11,6 +11,17 @@ public sealed record AdditionalSurrenderDetailsRequestedV1(string Reason);
 
 public sealed record AdditionalSurrenderDetailsSubmittedV1;
 
-public sealed record DogSurrenderAcceptedV1;
+/// <summary>
+/// ShelterAccountId is a disclosed gap-fill (see AcceptDogSurrenderRequest's
+/// own doc comment) - carried onto the event/entity so the
+/// SurrenderingYourDogFullIntake pipeline's later steps (Schedule Intake
+/// Appointment, Complete Surrender Paperwork, etc.) can resolve shelter
+/// ownership without a second lookup field on every downstream command.
+/// </summary>
+public sealed record DogSurrenderAcceptedV1(Guid ShelterAccountId);
 
 public sealed record DogSurrenderDeclinedV1(string Reason);
+
+/// <summary>SurrenderingYourDogFullIntake chapter's "Schedule Intake
+/// Appointment" -> "Intake Appointment Scheduled".</summary>
+public sealed record IntakeAppointmentScheduledV1(DateOnly AppointmentDate);
