@@ -8,6 +8,46 @@ Read your project's own `CLAUDE.md` (at the root of the .NET solution, not
 this kit) before starting, if one exists — it should describe the folder
 convention this project uses for slices.
 
+## Uncommitted Work Check (READ FIRST — before anything else, including honoring a pre-claimed slice below)
+
+Run `git status --short` in the project directory **before** doing anything
+else — before reading `index.json`, before honoring a "Pre-claimed slice"
+directive above (if one was injected by `ralph.js`), before picking any
+slice. A Ralph worktree can start a session with a prior iteration's
+uncommitted work already sitting in it (a crashed/killed process, a timeout
+before the commit step) — you must reconcile that before touching anything
+new, or you risk mixing two unrelated slices into one commit, or building on
+top of a broken partial implementation without knowing it.
+
+If `git status --short` is clean, proceed normally to Context Boundary below.
+
+If it is **dirty**:
+
+1. Identify which slice the dirty files belong to — check file/folder names
+   against `index.json` entries, and check `progress.txt` for a matching
+   "(starting)" entry with no later "(completed)"/commit entry.
+2. Check `git log --all` in this worktree (and, if easy to check, sibling
+   `ralph-N` worktrees) for a commit matching that slice. If none exists,
+   this is abandoned-but-possibly-complete work, not garbage — do not discard
+   it.
+3. **That abandoned slice takes priority over whatever this iteration was
+   about to build** — including a pre-claimed slice named in a preamble
+   above. Cross-check the dirty code against its `slice.json`/spec, finish
+   it if incomplete, run its quality checks, and commit it (Steps 12–14
+   below apply to it) before considering anything else this iteration.
+4. If a *different* slice was pre-claimed (set to `InProgress` on the board)
+   for this iteration and you are instead finishing the abandoned dirty
+   work: that pre-claimed slice is now orphaned — nobody is building it this
+   iteration. Revert it back to `Planned` via `update-slice-status` so it
+   isn't left stuck `InProgress` forever, and note why in `progress.txt`.
+5. If the dirty files don't match any known slice (leftover scratch, unclear
+   ownership): leave them untouched, note it in `progress.txt`, and proceed
+   normally — do not delete unfamiliar uncommitted work.
+
+Only after this check is resolved (clean tree, or the abandoned work is
+committed, or explicitly logged as unrelated) do you move on to Context
+Boundary and slice selection below.
+
 ## Storage strategy (read this once, it never changes)
 
 This kit is event-sourced only — there is no document-store/event-sourced
