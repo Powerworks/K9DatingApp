@@ -41,6 +41,7 @@ public class DogSurrenderRequest : Entity
     [JsonInclude] public string? BehaviorTestNotes { get; private set; }
     [JsonInclude] public Guid ShelterAccountId { get; private set; }
     [JsonInclude] public DateOnly? IntakeAppointmentDate { get; private set; }
+    [JsonInclude] public int? WaitlistPosition { get; private set; }
 
     [JsonConstructor]
     private DogSurrenderRequest() { }
@@ -75,6 +76,8 @@ public class DogSurrenderRequest : Entity
     }
 
     public void Apply(IntakeAppointmentScheduledV1 e) => IntakeAppointmentDate = e.AppointmentDate;
+
+    public void Apply(AddedToWaitingListV1 e) => WaitlistPosition = e.WaitlistPosition;
 
     public void Apply(DogSurrenderDeclinedV1 e)
     {
@@ -178,6 +181,18 @@ public class DogSurrenderRequest : Entity
     public IntakeAppointmentScheduledV1 ScheduleIntakeAppointment(DateOnly appointmentDate)
     {
         var @event = new IntakeAppointmentScheduledV1(appointmentDate);
+        Apply(@event);
+        return @event;
+    }
+
+    /// <summary>SurrenderingYourDogFullIntake chapter's "Add To Waiting
+    /// List" -> "Added To Waiting List". waitlistPosition is computed by
+    /// the handler (a count over the owning shelter's other waitlisted
+    /// requests), not supplied by the caller. State-guard (only valid from
+    /// Accepted, FullIntake-mode shelter) lives in the handler.</summary>
+    public AddedToWaitingListV1 AddToWaitingList(int waitlistPosition)
+    {
+        var @event = new AddedToWaitingListV1(waitlistPosition);
         Apply(@event);
         return @event;
     }

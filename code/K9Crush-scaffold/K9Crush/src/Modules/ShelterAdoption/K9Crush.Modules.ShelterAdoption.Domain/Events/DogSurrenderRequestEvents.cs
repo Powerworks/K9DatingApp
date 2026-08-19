@@ -12,13 +12,18 @@ public sealed record AdditionalSurrenderDetailsRequestedV1(string Reason);
 public sealed record AdditionalSurrenderDetailsSubmittedV1;
 
 /// <summary>
-/// ShelterAccountId is a disclosed gap-fill (see AcceptDogSurrenderRequest's
-/// own doc comment) - carried onto the event/entity so the
-/// SurrenderingYourDogFullIntake pipeline's later steps (Schedule Intake
-/// Appointment, Complete Surrender Paperwork, etc.) can resolve shelter
-/// ownership without a second lookup field on every downstream command.
+/// ShelterAccountId is a disclosed gap-fill (SurrenderingYourDogFullIntake
+/// chapter): the yaml's "Dog Surrender Accepted" event never re-lists it as
+/// a prop, but the FullIntake pipeline's later steps (Schedule Intake
+/// Appointment, Complete Surrender Paperwork, Add To Waiting List, etc.)
+/// need to know which shelter owns the request for their Shelter-policy
+/// ownership check, and AcceptDogSurrenderHandler already has it (as
+/// AcceptDogSurrenderRequest.ShelterAccountId) - just wasn't being
+/// persisted onto the aggregate before. Defaults to keep
+/// DogSurrenderRequestTests.cs's existing `request.Accept();` call
+/// compiling (CLAUDE.md: don't change existing test files).
 /// </summary>
-public sealed record DogSurrenderAcceptedV1(Guid ShelterAccountId);
+public sealed record DogSurrenderAcceptedV1(Guid ShelterAccountId = default);
 
 public sealed record DogSurrenderDeclinedV1(string Reason);
 
@@ -28,3 +33,6 @@ public sealed record BehaviorTestCompletedV1(Guid PerformedBy, bool SuitableForR
 /// <summary>SurrenderingYourDogFullIntake chapter's "Schedule Intake
 /// Appointment" -> "Intake Appointment Scheduled".</summary>
 public sealed record IntakeAppointmentScheduledV1(DateOnly AppointmentDate);
+
+/// <summary>SurrenderingYourDogFullIntake chapter's "Add To Waiting List" -> "Added To Waiting List".</summary>
+public sealed record AddedToWaitingListV1(int WaitlistPosition);
