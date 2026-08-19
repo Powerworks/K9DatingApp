@@ -322,20 +322,44 @@ function getFirstPlannedSlice(kitDir) {
   return null;
 }
 
-// Re-fetches a single slice node directly from the board, bypassing the
-// local index.json cache that getFirstPlannedSlice() reads from. That cache
-// is only as fresh as the last successful realtime broadcast or poll — when
-// the realtime channel degrades (observed: repeated "Ping failed" and a
-// CHANNEL_ERROR on both instances of a --parallel run), two Ralph instances
-// can both cache the same slice as Planned and both start building it. This
-// closes that window at the one point it actually matters: right before
-// committing Claude spend to a build. Fails open (returns true) on error —
-// a flaky check shouldn't be able to stall the loop forever; the board's own
-// claim-conflict handling (backend-prompt.md) remains the backstop.
-async function isSliceStillPlanned(cfg, sliceId) {
-  const nodeUrl = `${cfg.baseUrl}/api/org/${cfg.organizationId}/boards/${cfg.boardId}/nodes/${sliceId}`;
-  const node = await fetchJSON(nodeUrl, { headers: { 'x-token': cfg.token, 'x-board-id': cfg.boardId } });
-  return (node?.meta?.sliceStatus || '').toLowerCase() === 'planned';
+// Atomically claims a candidate slice by writing InProgress directly,
+// instead of just reading its status — closes the window a read-only check
+// can't: several Ralph instances restarting at the same instant each get a
+// local index.json snapshot that (correctly, at that moment) shows the same
+// slice as Planned, and a plain read-check can't tell them apart since none
+// has claimed it yet. The board enforces this atomically server-side (see
+// the update-slice-status skill): a write to a status the slice is already
+// in is rejected — that rejection IS the concurrency guard, not an error.
+//
+// Returns 'claimed', 'conflict' (someone else got there first — the caller
+// must not build it), or 'unknown' (the check itself errored, e.g. a network
+// blip — fails open by letting the caller fall back to cached status, so
+// backend flakiness can't stall the loop forever; backend-prompt.md's own
+// Step 4 claim-and-defer handling remains the backstop in that case).
+async function claimPlannedSlice(cfg, sliceId) {
+  const url = `${cfg.baseUrl}/api/org/${cfg.organizationId}/boards/${cfg.boardId}/nodes/events`;
+  try {
+    await fetchJSON(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-token': cfg.token, 'x-board-id': cfg.boardId },
+      body: JSON.stringify([{
+        id: randomUUID(),
+        eventType: 'node:changed',
+        nodeId: sliceId,
+        boardId: cfg.boardId,
+        timestamp: Date.now(),
+        changedAttributes: ['sliceStatus'],
+        meta: { sliceStatus: 'InProgress' },
+      }]),
+    });
+    return 'claimed';
+  } catch (err) {
+    if (err instanceof HttpError && (err.status === 409 || /already/i.test(err.message))) {
+      return 'conflict';
+    }
+    console.error('[ralph] Claim attempt failed — proceeding on cached status:', err.message);
+    return 'unknown';
+  }
 }
 
 // Marks a SLICE_BORDER node Blocked directly on the board — used when a slice
@@ -426,19 +450,35 @@ async function ralphLoop(kitDir, projectDir, cfg, onTask, onPlannedSlice) {
       stopLogged = true;
     }
     let planned = !stopSignaled && onPlannedSlice && getFirstPlannedSlice(kitDir);
+    let preClaimed = false;
     if (planned && planned.id && credentialed) {
-      try {
-        if (!(await isSliceStillPlanned(cfg, planned.id))) {
-          console.log(`[ralph] "${planned.title}" was claimed elsewhere since the last sync — refreshing and re-checking.`);
-          await fetchAndPersistSlices(cfg, kitDir).catch(() => {});
-          planned = null;
-        }
-      } catch (err) {
-        console.error(`[ralph] Fresh status check failed for "${planned.title}" — proceeding on cached status:`, err.message);
+      const outcome = await claimPlannedSlice(cfg, planned.id);
+      if (outcome === 'conflict') {
+        console.log(`[ralph] "${planned.title}" was claimed elsewhere since the last sync — refreshing and re-checking.`);
+        await fetchAndPersistSlices(cfg, kitDir).catch(() => {});
+        planned = null;
+      } else if (outcome === 'claimed') {
+        preClaimed = true;
+        await fetchAndPersistSlices(cfg, kitDir).catch(() => {});
       }
+      // 'unknown' (claim check itself errored) — proceed unclaimed on cached
+      // status; backend-prompt.md's own Step 4 claim-and-defer is the backstop.
     }
     if (planned) {
-      const prompt = readFileSync(backendPromptFile, 'utf-8').replaceAll('build-kit-dotnet-es', kitDir);
+      const basePrompt = readFileSync(backendPromptFile, 'utf-8').replaceAll('build-kit-dotnet-es', kitDir);
+      // A pre-claimed slice MUST be named explicitly — backend-prompt.md's
+      // Step 4 otherwise re-derives its own "highest priority Planned slice"
+      // from scratch, which (now that ours is InProgress) would be a
+      // DIFFERENT slice than the one just claimed above, orphaning the
+      // claimed one at InProgress forever with nobody actually building it.
+      const prompt = preClaimed
+        ? `## Pre-claimed slice (added by ralph.js — read this before Step 4)\n\n` +
+          `This iteration already claimed **"${planned.title}"** (id \`${planned.id}\`) by setting its board status to InProgress, to prevent two Ralph instances racing to build the same slice.\n\n` +
+          `- Build exactly this slice. Skip the Planned-scan-and-claim part of Step 4 below — look this slice up by id/title in \`index.json\` for its \`folder\`, then proceed from Step 5 (load \`slice.json\`, implement, test, commit, mark Done) as normal.\n` +
+          `- Do not call \`update-slice-status\` to claim it again — it is already InProgress. If you do and it reports "already in status", that's expected — ignore it and continue.\n` +
+          `- Only if this slice is missing, or already Done/Blocked by the time you look (a rare late race): fall back to Step 4's normal Planned-scan (still restricted to chapter-scope.json when present) and build whatever else is Planned instead. Do not touch this slice's status further either way — it's already accounted for.\n\n` +
+          `---\n\n${basePrompt}`
+        : basePrompt;
       await runWithRetry(`onPlannedSlice: building slice "${planned.title}"...`, () => onPlannedSlice(prompt), {
         onGiveUp: planned.id
           ? () => markSliceBlocked(cfg, planned.id, `onPlannedSlice failed repeatedly while building "${planned.title}"`)

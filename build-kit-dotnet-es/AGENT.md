@@ -3,6 +3,26 @@
 Patterns and gotchas discovered during task processing. Update this file
 whenever you encounter something reusable.
 
+## ArchitectureTests: cross-entity LoadAsync in a Commands/Automations handler
+
+`tests/K9Crush.ArchitectureTests/CommandStateFitnessTests.cs`
+(`CommandsAndAutomations_MustNotLoadOrQueryARegisteredSnapshotType`) IL-scans
+every `Commands/**`/`Automations/**` handler for `LoadAsync<T>`/`Query<T>`
+calls where `T` is in `SnapshotRegisteredTypeFullNames` (ADR-019/ADR-031: a
+handler must load its OWN mutation target live via
+`FetchForWriting`/`AggregateStreamAsync`, never `LoadAsync` a snapshot of the
+same type). A legitimate **read-only lookup of a DIFFERENT entity**
+(ownership checks, existence checks) still trips this scan purely because
+that other entity is also snapshot-registered — it must be added by name to
+`ReviewedCrossEntityLoadExceptions` (for `LoadAsync`) or
+`ReviewedCrossPopulationQueryExceptions` (for `Query`) with a one-line
+comment justifying it, or the build fails. Any new ShelterAdoption
+handler that does a cross-entity `LoadAsync` (e.g. dogId ->
+`DogListing.ShelterAccountId` -> `ShelterAccount` ownership check, the same
+shape as `UpdateListingStatusHandler`) needs this allowlist entry — check
+`dotnet test --filter FullyQualifiedName~K9Crush.ArchitectureTests` before
+assuming a slice is done, not just the slice's own test filter.
+
 ## tasks.json
 
 - Tasks are objects with `id`, `createdAt`, and `payload` (a `SliceChangedPayload`).
