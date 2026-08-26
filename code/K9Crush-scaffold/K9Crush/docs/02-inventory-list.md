@@ -112,7 +112,7 @@ K9Crush.sln
 | Observability collector | Receives OTLP from every app via zero-code auto-instrumentation, routes to Loki/Tempo/Mimir | Grafana Alloy container (or the bundled `grafana/otel-lgtm` image — see below) | Grafana Alloy (Deployment/DaemonSet) |
 | Container registry | Store built images | local Docker | GitHub Container Registry (GHCR) or ACR/ECR |
 | Orchestrator | Run containers | Docker Compose | **Kubernetes, decided (ADR-006)** |
-| Kubernetes operators | Manage the self-hosted data/observability tier declaratively | n/a (Docker Compose containers stand in locally) | RabbitMQ Cluster Operator, Redis Operator, OpenTelemetry Operator, cert-manager — CloudNativePG and MinIO Operator no longer needed per ADR-024 |
+| Kubernetes operators | Manage the self-hosted data/observability tier declaratively | n/a (Docker Compose containers stand in locally) | RabbitMQ Cluster Operator, Redis Operator, OpenTelemetry Operator, cert-manager, CloudNativePG (restored per ADR-047, superseding ADR-024's Postgres leg) — MinIO Operator no longer needed per ADR-024 |
 | Ingress/Reverse proxy | TLS termination, routing | n/a | NGINX Ingress + cert-manager/Let's Encrypt (YARP Gateway sits behind this) |
 | Secrets management | Connection strings, JWT keys | `.env` (gitignored) / user-secrets | Kubernetes Secrets + external vault (Azure Key Vault / AWS Secrets Manager) |
 | Observability stack | Logs/metrics/traces — **Grafana LGTM (Loki, Grafana, Tempo, Mimir) fed by Grafana Alloy**, decided (ADR-010) | Single `grafana/otel-lgtm` container (bundles all four for local dev) | Separate Helm charts per component (`grafana/loki`, `grafana/tempo`, `grafana/mimir-distributed`, `grafana/grafana`) + Alloy as collector |
