@@ -105,7 +105,7 @@ K9Crush.sln
 
 | Component | Purpose | Local Dev | Target Platform |
 |---|---|---|---|
-| PostgreSQL 16+ | Marten document/event storage | **Supabase Cloud project (ADR-024)** - no local container | **Supabase-managed (ADR-024)**, superseding the earlier self-hosted CloudNativePG plan — Supabase handles backups on its own side. Use the session-mode connection string, not the default transaction-mode pooler (Marten's advisory-lock-based leader election needs it) |
+| PostgreSQL 16+ | Marten document/event storage | **Local `postgres:16` Docker Compose container**, a deliberate, temporary reversal of ADR-024 for active build-out (revert before shipping — see ADR-024's 2026-08-20 update in `03-solution-architecture.md` and `GETTING_STARTED.md` Step 1) | **Supabase-managed (ADR-024)**, superseding the earlier self-hosted CloudNativePG plan — Supabase handles backups on its own side. Use the session-mode connection string, not the default transaction-mode pooler (Marten's advisory-lock-based leader election needs it) |
 | RabbitMQ 3.13+ | Async integration events between modules | Docker Compose container | **Self-hosted in-cluster via RabbitMQ Cluster Operator (ADR-011)**, quorum queues |
 | Redis 7+ | Distributed cache, SignalR backplane, rate limiting | Docker Compose container | **Self-hosted in-cluster via Redis Operator/Bitnami Helm chart (ADR-011)**, primary/replica + Sentinel |
 | Object storage | Dog photos/videos — **Supabase Storage (S3-compatible)**, decided (ADR-024), superseding the earlier MinIO decision (ADR-009) | **Supabase Cloud project** - no local container | Supabase-managed; the earlier MinIO single-node-durability caveat no longer applies since this isn't self-hosted anymore |
