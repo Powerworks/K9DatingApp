@@ -92,14 +92,13 @@ src/Modules/<Context>/K9Crush.Modules.<Context>.Api/
 
 ## Infra
 
-RabbitMQ runs locally via `deploy/compose/docker-compose.yml`. Postgres is
-Supabase-managed per ADR-024, but that leg is under a deliberate, temporary
-local reversal for active build-out — see ADR-024's 2026-08-20 update in
-`docs/03-solution-architecture.md` and `GETTING_STARTED.md` Step 1; a local
-`postgres:16` container is what's actually running right now. No
-Flyway/SQL migration files for application schema either way; Marten
-manages document/event schema automatically (`AutoCreateSchemaObjects`,
-see `Program.cs`).
+RabbitMQ and Postgres both run locally via `deploy/compose/docker-compose.yml`
+(a local `postgres:16` container) — Postgres is self-hosted permanently per
+ADR-047, which supersedes ADR-024's Postgres leg; see
+`docs/03-solution-architecture.md` and `GETTING_STARTED.md` Step 1. Storage
+and Auth remain Supabase-managed per ADR-024. No Flyway/SQL migration files
+for application schema either way; Marten manages document/event schema
+automatically (`AutoCreateSchemaObjects`, see `Program.cs`).
 
 ## Maintaining this file
 
