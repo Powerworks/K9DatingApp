@@ -51,7 +51,7 @@ PROJECT_DIR="$REPO_ROOT/code/K9Crush-scaffold/K9Crush"
 EVAL_DIR="$KIT_DIR/eval"
 MANIFEST="$EVAL_DIR/slices-manifest.json"
 RESULTS="$EVAL_DIR/results.jsonl"
-BASELINE_TAG="eval-shelteradoption-baseline-2026-09-07"
+BASELINE_TAG="eval-k9crush-baseline-2026-09-08"  # extended 12-slice baseline (WS1.1); was eval-shelteradoption-baseline-2026-09-07 (original 8, ShelterAdoption-only)
 CONFIG_FILE="$REPO_ROOT/.eventmodelers/config.json"
 CONFIG_HIDDEN="$REPO_ROOT/.eventmodelers/config.json.eval-hidden"
 
@@ -181,13 +181,28 @@ BACKEND_PROMPT="$(cat "$KIT_DIR/lib/backend-prompt.md")"
 START_TS=$(date +%s)
 ITER=0
 FINAL_STATUS="never-attempted"
+BUDGET_BREACHED=false
+# Fresh budget state per run-slice.sh invocation — cumulative cost resets
+# every time this script is invoked, not shared across different slices'
+# runs. WS1.3: hard kill switch, non-negotiable before any overnight/
+# unattended loop. Override caps via EVAL_MAX_COST_USD / EVAL_MAX_WALLCLOCK_S
+# env vars if the defaults (see budget-guard.sh) don't fit a given run.
+BUDGET_STATE_FILE="$EVAL_DIR/.budget-state-${SLICE_FOLDER}.json"
+rm -f "$BUDGET_STATE_FILE"
 
 while [[ "$ITER" -lt "$MAX_ITERATIONS" ]]; do
   ITER=$((ITER + 1))
   echo "[eval] === iteration $ITER/$MAX_ITERATIONS ==="
   set +e
-  (cd "$PROJECT_DIR" && bash "$KIT_DIR/lib/agent.sh" "$BACKEND_PROMPT")
+  (cd "$PROJECT_DIR" && bash "$EVAL_DIR/budget-guard.sh" "$BUDGET_STATE_FILE" "$BACKEND_PROMPT")
+  GUARD_EXIT=$?
   set -e
+
+  if [[ "$GUARD_EXIT" -ne 0 ]]; then
+    echo "[eval] budget-guard signaled stop (exit $GUARD_EXIT) — halting retry loop, not treating this as a normal non-Done iteration." >&2
+    BUDGET_BREACHED=true
+    break
+  fi
 
   CUR_STATUS=$(node -e "
     const d = require('$SLICES_DIR/default/index.json');
@@ -274,6 +289,7 @@ const row = {
   agent_final_status: '$FINAL_STATUS',
   failure_class: $FAILURE_CLASS,
   wall_clock_minutes: $WALL_CLOCK_MIN,
+  budget_breached: $BUDGET_BREACHED,
   human_review_verdict: null,
   notes: '',
 };
