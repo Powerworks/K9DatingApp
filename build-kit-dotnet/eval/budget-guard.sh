@@ -21,15 +21,31 @@
 # (run-slice.sh's retry loop) must check the exit code and stop, not retry
 # through a budget breach.
 #
-# Usage: ./budget-guard.sh <state-file> "<prompt>"
+# Usage: ./budget-guard.sh <state-file> ["<model>"] "<prompt>"
 #   state-file — path to a JSON file tracking cumulative cost for this run
 #                (created if absent; caller is responsible for using a
 #                fresh path per harness run so budgets don't leak across runs)
+#   model      — optional. An alias (sonnet/opus/fable) or full model id.
+#                Omit to use whatever the `claude` CLI's own default is.
+#                Pass explicitly whenever a fair cross-harness comparison
+#                (e.g. against pi-budget-guard.sh) needs a pinned model.
 
 set -euo pipefail
 
-STATE_FILE="${1:?Usage: budget-guard.sh <state-file> <prompt>}"
-PROMPT="${2:?Usage: budget-guard.sh <state-file> <prompt>}"
+STATE_FILE="${1:?Usage: budget-guard.sh <state-file> [model] <prompt>}"
+# Model is optional for backward compatibility with existing callers passing
+# just (state-file, prompt) — if $2 looks like a model id/alias (no spaces,
+# not empty) and a third arg exists, treat it as (state-file, model, prompt);
+# otherwise treat it as the original (state-file, prompt) shape.
+if [[ $# -ge 3 ]]; then
+  MODEL="$2"
+  PROMPT="$3"
+else
+  MODEL=""
+  PROMPT="${2:?Usage: budget-guard.sh <state-file> [model] <prompt>}"
+fi
+MODEL_FLAG=()
+[[ -n "$MODEL" ]] && MODEL_FLAG=(--model "$MODEL")
 
 MAX_COST_USD="${EVAL_MAX_COST_USD:-2.00}"
 MAX_WALLCLOCK_S="${EVAL_MAX_WALLCLOCK_S:-900}"
@@ -46,7 +62,7 @@ if node -e "process.exit($CUR_COST >= $MAX_COST_USD ? 0 : 1)"; then
   exit 1
 fi
 
-echo "[budget-guard] cumulative so far: \$$CUR_COST / \$$MAX_COST_USD cap. Wall-clock cap this call: ${MAX_WALLCLOCK_S}s."
+echo "[budget-guard] cumulative so far: \$$CUR_COST / \$$MAX_COST_USD cap. Wall-clock cap this call: ${MAX_WALLCLOCK_S}s. Model: ${MODEL:-<CLI default>}"
 
 # --- The actual call, hard-capped on wall-clock via `timeout` ----------------
 # --output-format json is required to get total_cost_usd/usage back at all;
@@ -55,7 +71,7 @@ echo "[budget-guard] cumulative so far: \$$CUR_COST / \$$MAX_COST_USD cap. Wall-
 RAW_OUTPUT=""
 CALL_EXIT=0
 set +e
-RAW_OUTPUT=$(timeout "${MAX_WALLCLOCK_S}s" claude --dangerously-skip-permissions -p "$PROMPT" --output-format json)
+RAW_OUTPUT=$(timeout "${MAX_WALLCLOCK_S}s" claude --dangerously-skip-permissions "${MODEL_FLAG[@]}" -p "$PROMPT" --output-format json)
 CALL_EXIT=$?
 set -e
 

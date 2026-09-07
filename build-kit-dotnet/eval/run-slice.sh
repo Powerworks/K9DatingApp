@@ -102,7 +102,15 @@ fi
 
 # --- Step 1: reset to baseline, strip the slice's implementation -------------
 
-RUN_BRANCH="eval/$SLICE_FOLDER"
+# WS1.4 baseline comparison support: EVAL_RUNNER selects which guard script
+# drives the agent (claude, the default/original behavior, or pi), EVAL_MODEL
+# pins the model on whichever side is used — pass the SAME EVAL_MODEL for
+# both runners for a fair "same models" comparison. Branch/state/result
+# naming includes the runner so a claude run and a pi run on the same slice
+# don't collide or overwrite each other.
+EVAL_RUNNER="${EVAL_RUNNER:-claude}"
+EVAL_MODEL="${EVAL_MODEL:-}"
+RUN_BRANCH="eval/$SLICE_FOLDER-$EVAL_RUNNER"
 cd "$REPO_ROOT"
 git checkout -B "$RUN_BRANCH" "$BASELINE_TAG"
 
@@ -187,14 +195,18 @@ BUDGET_BREACHED=false
 # runs. WS1.3: hard kill switch, non-negotiable before any overnight/
 # unattended loop. Override caps via EVAL_MAX_COST_USD / EVAL_MAX_WALLCLOCK_S
 # env vars if the defaults (see budget-guard.sh) don't fit a given run.
-BUDGET_STATE_FILE="$EVAL_DIR/.budget-state-${SLICE_FOLDER}.json"
+BUDGET_STATE_FILE="$EVAL_DIR/.budget-state-${SLICE_FOLDER}-${EVAL_RUNNER}.json"
 rm -f "$BUDGET_STATE_FILE"
 
 while [[ "$ITER" -lt "$MAX_ITERATIONS" ]]; do
   ITER=$((ITER + 1))
-  echo "[eval] === iteration $ITER/$MAX_ITERATIONS ==="
+  echo "[eval] === iteration $ITER/$MAX_ITERATIONS (runner: $EVAL_RUNNER, model: ${EVAL_MODEL:-<default>}) ==="
   set +e
-  (cd "$PROJECT_DIR" && bash "$EVAL_DIR/budget-guard.sh" "$BUDGET_STATE_FILE" "$BACKEND_PROMPT")
+  if [[ "$EVAL_RUNNER" == "pi" ]]; then
+    (cd "$PROJECT_DIR" && bash "$EVAL_DIR/pi-budget-guard.sh" "$BUDGET_STATE_FILE" "${EVAL_MODEL:-claude-sonnet-5}" "$BACKEND_PROMPT")
+  else
+    (cd "$PROJECT_DIR" && bash "$EVAL_DIR/budget-guard.sh" "$BUDGET_STATE_FILE" "$EVAL_MODEL" "$BACKEND_PROMPT")
+  fi
   GUARD_EXIT=$?
   set -e
 
@@ -283,6 +295,8 @@ const row = {
   slice_folder: '$SLICE_FOLDER',
   slice_title: '$SLICE_TITLE',
   run_branch: '$RUN_BRANCH',
+  eval_runner: '$EVAL_RUNNER',
+  eval_model: '${EVAL_MODEL:-default}',
   run_timestamp: new Date().toISOString(),
   passed_mechanical: $PASSED_MECHANICAL,
   iterations_to_green: $ITERATIONS_TO_GREEN,
