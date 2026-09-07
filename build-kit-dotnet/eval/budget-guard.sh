@@ -30,6 +30,15 @@
 #                Pass explicitly whenever a fair cross-harness comparison
 #                (e.g. against pi-budget-guard.sh) needs a pinned model.
 
+# --bare (found 2026-09-08): this machine has a top-level firstmate/CLAUDE.md
+# and firstmate/AGENTS.md above the K9Crush project directory implementing a
+# real, separate multi-agent governance system ("never write to a project
+# directly, delegate to a spawned crewmate"). That's a real, live system for
+# this user's actual workflow, but it's a confound for an eval harness meant
+# to measure raw coding capability, not exercise that governance layer.
+# --bare disables CLAUDE.md auto-discovery (among other things) so this
+# comparison measures the model, not whichever governance file happens to
+# sit above the project directory.
 set -euo pipefail
 
 STATE_FILE="${1:?Usage: budget-guard.sh <state-file> [model] <prompt>}"
@@ -71,7 +80,7 @@ echo "[budget-guard] cumulative so far: \$$CUR_COST / \$$MAX_COST_USD cap. Wall-
 RAW_OUTPUT=""
 CALL_EXIT=0
 set +e
-RAW_OUTPUT=$(timeout "${MAX_WALLCLOCK_S}s" claude --dangerously-skip-permissions "${MODEL_FLAG[@]}" -p "$PROMPT" --output-format json)
+RAW_OUTPUT=$(timeout "${MAX_WALLCLOCK_S}s" claude --dangerously-skip-permissions --bare "${MODEL_FLAG[@]}" -p "$PROMPT" --output-format json)
 CALL_EXIT=$?
 set -e
 

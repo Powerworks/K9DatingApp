@@ -5,6 +5,15 @@
 # for the WS1.4 baseline comparison (current setup vs Pi, same tasks, same
 # models).
 #
+# Context-file note (found 2026-09-08): this machine has a top-level
+# firstmate/AGENTS.md above the K9Crush project directory implementing a
+# real, separate multi-agent governance system ("never write to a project
+# directly, delegate to a spawned crewmate"). Pi auto-discovers and follows
+# this by default, refusing the eval task outright on the first real
+# comparison run. --no-context-files suppresses that discovery so this
+# harness measures the model's coding capability, not that governance layer
+# — same fix applied symmetrically on the Claude side via --bare.
+#
 # Auth note (found 2026-09-08): Pi's stored Anthropic OAuth credential is
 # invalid/expired, and it does NOT fall back to ANTHROPIC_API_KEY from the
 # environment on its own — the API key must be passed explicitly via
@@ -59,7 +68,7 @@ trap 'rm -f "$RAW_OUTPUT_FILE" "$PARSED_FILE"' EXIT
 
 CALL_EXIT=0
 set +e
-timeout "${MAX_WALLCLOCK_S}s" pi --print --mode json --no-session \
+timeout "${MAX_WALLCLOCK_S}s" pi --print --mode json --no-session --no-context-files \
   --provider anthropic --model "$MODEL" --api-key "$API_KEY" "$PROMPT" > "$RAW_OUTPUT_FILE"
 CALL_EXIT=$?
 set -e
