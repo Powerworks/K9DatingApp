@@ -58,6 +58,8 @@ MODEL_FLAG=()
 
 MAX_COST_USD="${EVAL_MAX_COST_USD:-2.00}"
 MAX_WALLCLOCK_S="${EVAL_MAX_WALLCLOCK_S:-900}"
+GCP_PROJECT="${EVAL_GCP_PROJECT:-agentos-61847}"
+SECRET_NAME="${EVAL_ANTHROPIC_SECRET:-anthropic-api-key}"
 
 if [[ ! -f "$STATE_FILE" ]]; then
   echo '{"cumulative_cost_usd": 0, "calls": 0}' > "$STATE_FILE"
@@ -77,12 +79,23 @@ echo "[budget-guard] cumulative so far: \$$CUR_COST / \$$MAX_COST_USD cap. Wall-
 # --output-format json is required to get total_cost_usd/usage back at all;
 # this is the one place this guard's invocation deliberately differs from
 # agent.sh's plain-text mode.
+#
+# --bare's auth is "strictly ANTHROPIC_API_KEY... OAuth and keychain are
+# never read" (per `claude --help`) — found 2026-09-08 the hard way, on the
+# first real call after adding --bare: it silently authenticated as nobody
+# ("Not logged in") because --bare also disables the keychain read that
+# normal `claude` calls use. Pulling the same Secret Manager key already
+# used by pi-budget-guard.sh, fresh per call, not cached in a variable
+# longer than needed.
+ANTHROPIC_API_KEY="$(gcloud secrets versions access latest --secret="$SECRET_NAME" --project="$GCP_PROJECT")"
+export ANTHROPIC_API_KEY
 RAW_OUTPUT=""
 CALL_EXIT=0
 set +e
 RAW_OUTPUT=$(timeout "${MAX_WALLCLOCK_S}s" claude --dangerously-skip-permissions --bare "${MODEL_FLAG[@]}" -p "$PROMPT" --output-format json)
 CALL_EXIT=$?
 set -e
+unset ANTHROPIC_API_KEY
 
 if [[ "$CALL_EXIT" -eq 124 ]]; then
   echo "[budget-guard] KILLED: wall-clock cap of ${MAX_WALLCLOCK_S}s breached (timeout exit 124)." >&2
