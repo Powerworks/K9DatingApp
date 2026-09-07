@@ -47,11 +47,20 @@ echo "[pi-budget-guard] cumulative so far: \$$CUR_COST / \$$MAX_COST_USD cap. Wa
 
 API_KEY="$(gcloud secrets versions access latest --secret="$SECRET_NAME" --project="$GCP_PROJECT")"
 
-RAW_OUTPUT=""
+# RAW_OUTPUT for a real multi-file coding session can be many MB (full tool
+# call/result transcript) — written to a temp file rather than ever passed
+# as a CLI arg or captured into a shell variable used as one. A prior version
+# of this script passed it via `process.argv`, which worked on trivial
+# verification prompts but broke on a real run with "Argument list too long"
+# (OS ARG_MAX) — found 2026-09-08 on the very first real WS1.4 comparison run.
+RAW_OUTPUT_FILE="$(mktemp "${TMPDIR:-/tmp}/pi-guard-raw.XXXXXX")"
+PARSED_FILE="$(mktemp "${TMPDIR:-/tmp}/pi-guard-parsed.XXXXXX")"
+trap 'rm -f "$RAW_OUTPUT_FILE" "$PARSED_FILE"' EXIT
+
 CALL_EXIT=0
 set +e
-RAW_OUTPUT=$(timeout "${MAX_WALLCLOCK_S}s" pi --print --mode json --no-session \
-  --provider anthropic --model "$MODEL" --api-key "$API_KEY" "$PROMPT")
+timeout "${MAX_WALLCLOCK_S}s" pi --print --mode json --no-session \
+  --provider anthropic --model "$MODEL" --api-key "$API_KEY" "$PROMPT" > "$RAW_OUTPUT_FILE"
 CALL_EXIT=$?
 set -e
 unset API_KEY
@@ -72,22 +81,23 @@ fi
 # `messages` array, whose final assistant message has `usage.cost.total`
 # and a `content` array mixing `{type:"thinking",...}` and `{type:"text",...}`
 # entries — only the "text" entries are the actual answer.
-PARSED=$(node -e "
-  const lines = process.argv[1].trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+node -e "
+  const fs = require('fs');
+  const lines = fs.readFileSync('$RAW_OUTPUT_FILE', 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
   const end = [...lines].reverse().find(l => l.type === 'agent_end');
-  if (!end) { console.log(JSON.stringify({cost: 0, text: '', error: 'no agent_end line found'})); process.exit(0); }
+  if (!end) { fs.writeFileSync('$PARSED_FILE', JSON.stringify({cost: 0, text: '', error: 'no agent_end line found'})); process.exit(0); }
   const lastAssistant = [...end.messages].reverse().find(m => m.role === 'assistant');
   const cost = lastAssistant?.usage?.cost?.total ?? 0;
   const text = (lastAssistant?.content || []).filter(c => c.type === 'text').map(c => c.text).join('');
   const erroredOut = lastAssistant?.stopReason === 'error';
-  console.log(JSON.stringify({cost, text, erroredOut, errorMessage: lastAssistant?.errorMessage || null}));
-" "$RAW_OUTPUT")
+  fs.writeFileSync('$PARSED_FILE', JSON.stringify({cost, text, erroredOut, errorMessage: lastAssistant?.errorMessage || null}));
+"
 
-CALL_COST=$(node -e "console.log(JSON.parse(process.argv[1]).cost)" "$PARSED")
-ERRORED=$(node -e "console.log(JSON.parse(process.argv[1]).erroredOut)" "$PARSED")
+CALL_COST=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$PARSED_FILE', 'utf8')).cost)")
+ERRORED=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$PARSED_FILE', 'utf8')).erroredOut)")
 
 if [[ "$ERRORED" == "true" ]]; then
-  echo "[pi-budget-guard] Pi's own turn ended in error (auth/model issue, not a budget breach): $(node -e "console.log(JSON.parse(process.argv[1]).errorMessage)" "$PARSED")" >&2
+  echo "[pi-budget-guard] Pi's own turn ended in error (auth/model issue, not a budget breach): $(node -e "console.log(JSON.parse(require('fs').readFileSync('$PARSED_FILE', 'utf8')).errorMessage)")" >&2
   exit 2
 fi
 
@@ -102,7 +112,7 @@ node -e "
 
 echo "[pi-budget-guard] this call: \$$CALL_COST. cumulative now: \$$NEW_TOTAL / \$$MAX_COST_USD cap."
 
-node -e "console.log(JSON.parse(process.argv[1]).text)" "$PARSED"
+node -e "console.log(JSON.parse(require('fs').readFileSync('$PARSED_FILE', 'utf8')).text)"
 
 if node -e "process.exit($NEW_TOTAL >= $MAX_COST_USD ? 0 : 1)"; then
   echo "[pi-budget-guard] BREACH: this call pushed cumulative cost to \$$NEW_TOTAL, at/over cap \$$MAX_COST_USD. Signaling caller to stop." >&2
