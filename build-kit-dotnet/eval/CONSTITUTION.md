@@ -65,15 +65,19 @@ New for WS4.2, grounded in real, current gaps (`RejectApplication`, WS3.3–3.5)
 ### C1 — No duplicate rejection
 A rejection attempt against an application that is not currently under review (already rejected, not found, or any other terminal/invalid state) must never produce a second `ApplicationRejected` event.
 **Why**: this is the exact gap WS3.4's demo surfaced (specification 3, currently uncovered) and WS4.1's operability mapping named as a missing guard — an Outcome that should be unreachable, declared here *before* the code closes it.
-**Status**: **enforced (as a failing check)** — `check-constitution.sh RejectApplication`, which reports this rule violated right now. That's correct: the rule is real, the gap is real, and the constitution should say so rather than stay silent until the gap happens to get closed.
+**Status**: **enforced (as a failing check)** — `check-constitution.sh RejectApplication`, which reports this rule violated right now. That's correct: the rule is real, the gap is real, and the constitution should say so rather than stay silent until the gap happens to get closed. **Alert provisioned** (WS4.4, `deploy/observability/alerts.yml`, Grafana rule `constitution-c1-duplicate-rejection`), **not yet able to fire** — no OpenTelemetry instrumentation in `RejectApplicationHandler` emits an application-id-tagged event/metric yet. The alert exists so it's not a forgotten follow-up once instrumentation lands, not a live check today.
 
 ### C2 — `ApplicationRejected` is observable
 Every emission of `ApplicationRejected` (and its cascade to Notifications) is logged with the application id and timestamp, so a *missing* expected rejection can be detected, not just a wrong one.
 **Why**: the observability half of WS4.1's mapping — every Outcome is a candidate failure mode, and a failure mode that can't be observed can't be alerted on. Sets up WS4.4 (LGTM) with a concrete, already-declared target.
-**Status**: declared, not yet enforced. Verifying real log output needs a running, observable instance — out of scope for this eval harness's static checks. A fake check that doesn't actually verify anything would be worse than stating this honestly.
+**Status**: declared, not yet enforced. Verifying real log output needs a running, observable instance — out of scope for this eval harness's static checks. **Alert provisioned** (WS4.4, `deploy/observability/alerts.yml`, Grafana rule `constitution-c2-missing-rejection`), **not yet able to fire** — same root cause as C1: no OpenTelemetry logging/metrics exist yet for `ApplicationRejected` emissions.
 
 ---
 
+## Observability stack (WS4.4)
+
+The `otel-lgtm` service in `deploy/compose/docker-compose.yml` (`grafana/otel-lgtm` — Grafana + Loki + Tempo + Mimir + an OTLP receiver bundled in one image, the known-good setup this project's inventory doc already named as its target, not a bespoke alerting engine) was verified running for real this session: brought up via `docker compose up -d`, Grafana's `/api/health` endpoint confirmed responding at `localhost:3000`, then the container recreated with `deploy/observability/alerts.yml` mounted into its alert-provisioning path (`/otel-lgtm/grafana/conf/provisioning/alerting/`, confirmed via direct image inspection, not assumed) and re-verified healthy. Its own compose comment cites "ADR-010" for the production topology it stands in for — that ADR, like every other ADR referenced across this codebase's comments (010/024/031/002/005), **doesn't exist as a file anywhere in the repo**. Flagged here, not solved — the same class of gap WS4.1 found for the constitution itself before this file existed.
+
 ## Enforcement summary
 
-Run `./check-constitution.sh <sliceFolder>` for the mechanically-checkable subset (B1, B2, C1). Tier A and C2 are real rules without an automated check yet — visible here as a to-do, not hidden by omission.
+Run `./check-constitution.sh <sliceFolder>` for the mechanically-checkable subset (B1, B2, C1). Tier A and C2 have no automated check yet — visible here as a to-do, not hidden by omission. C1/C2 both have a provisioned Grafana alert (WS4.4) that cannot yet fire, for the same reason: no OpenTelemetry instrumentation exists in the product code today.

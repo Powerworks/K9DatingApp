@@ -65,6 +65,10 @@ services:
       - "3000:3000"  # Grafana UI - http://localhost:3000 (admin/admin)
       - "4317:4317"  # OTLP gRPC
       - "4318:4318"  # OTLP HTTP
+    volumes:
+      # WS4.4: default alerts tied to CONSTITUTION.md's Tier C SLOs (C1, C2).
+      # Declared, not yet able to fire -- see the file's own header comment.
+      - ../observability/alerts.yml:/otel-lgtm/grafana/conf/provisioning/alerting/alerts.yml:ro
 
   # Fake SMTP server for local dev - Notifications sends real emails here
   # instead of a real provider (SendGrid/Postmark, per the Inventory doc)
