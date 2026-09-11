@@ -69,6 +69,7 @@ manifest_field() {
     const s = m.slices.find(x => x.folder === process.argv[1]);
     if (!s) { console.error('Unknown slice folder: ' + process.argv[1]); process.exit(1); }
     const v = s[process.argv[2]];
+    if (v === undefined) { process.stdout.write(''); process.exit(0); }
     process.stdout.write(typeof v === 'string' ? v : JSON.stringify(v));
   " "$SLICE_FOLDER" "$1"
 }
@@ -78,6 +79,10 @@ SLICE_TITLE="$(manifest_field title)"
 SLICE_TYPE="$(manifest_field sliceType)"
 IMPL_DIR="$(manifest_field implDir)"
 TEST_FILES_JSON="$(manifest_field testFiles)"
+# WS3.3: optional, relative to $EVAL_DIR. Empty string means "no
+# specifications wired for this slice" — Step 5's coverage check below is
+# skipped entirely in that case, same behavior as before this change.
+SPECIFICATIONS_FILE="$(manifest_field specificationsFile)"
 
 if [[ -z "$SLICE_ID" ]]; then
   exit 1  # manifest_field already printed the error
@@ -163,6 +168,7 @@ seed_index_json() {
   local status="$1"
   node -e "
     const fs = require('fs');
+    const path = require('path');
     const entry = {
       id: '$SLICE_ID',
       slice: '$SLICE_TITLE',
@@ -174,10 +180,21 @@ seed_index_json() {
       definition: { id: '$SLICE_ID', title: '$SLICE_TITLE', status: '$status' },
     };
     fs.writeFileSync('$SLICES_DIR/default/index.json', JSON.stringify({ slices: [entry] }, null, 2));
-    fs.writeFileSync('$SLICES_DIR/default/$RALPH_FOLDER/slice.json', JSON.stringify({
-      id: '$SLICE_ID', sliceType: '$SLICE_TYPE', status: '$status', title: '$SLICE_TITLE',
-    }, null, 2));
-  "
+
+    const sliceJson = { id: '$SLICE_ID', sliceType: '$SLICE_TYPE', status: '$status', title: '$SLICE_TITLE' };
+    // WS3.3: seed the real specifications[] into the run's slice.json, if this
+    // slice has one wired in the manifest — absent/missing means no field at
+    // all, identical to pre-WS3.3 behavior.
+    const specFile = process.argv[1];
+    if (specFile) {
+      const specPath = path.join('$EVAL_DIR', specFile);
+      if (fs.existsSync(specPath)) {
+        const parsed = JSON.parse(fs.readFileSync(specPath, 'utf8'));
+        if (Array.isArray(parsed.specifications)) sliceJson.specifications = parsed.specifications;
+      }
+    }
+    fs.writeFileSync('$SLICES_DIR/default/$RALPH_FOLDER/slice.json', JSON.stringify(sliceJson, null, 2));
+  " "$SPECIFICATIONS_FILE"
 }
 seed_index_json "Planned"
 
@@ -281,6 +298,38 @@ else
   FAILURE_CLASS='"test"'
 fi
 
+# --- WS3.3: independent spec-coverage check -----------------------------------
+# Only runs when this slice has a specificationsFile wired in the manifest,
+# and only as an ADDITIONAL check on top of an otherwise-passing build+test —
+# a build/test failure already has a more specific failure_class above.
+# Ground-truth count over the real test file(s) in their post-run state, not
+# the agent's own self-report of "Done" — the whole point of Step 5 being
+# independent. Deliberately a coverage-COUNT heuristic (test methods >=
+# specifications), not semantic matching of test N to spec N's content.
+SPEC_COUNT="null"
+TEST_METHOD_COUNT="null"
+if [[ -n "$SPECIFICATIONS_FILE" && "$PASSED_MECHANICAL" == true ]]; then
+  SPEC_FILE_PATH="$EVAL_DIR/$SPECIFICATIONS_FILE"
+  if [[ -f "$SPEC_FILE_PATH" ]]; then
+    SPEC_COUNT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$SPEC_FILE_PATH','utf8')).specifications.length)")
+    TEST_METHOD_COUNT=0
+    for f in $(node -e "console.log($TEST_FILES_JSON.join(' '))"); do
+      full_path="$PROJECT_DIR/$f"
+      if [[ -f "$full_path" ]]; then
+        count=$(grep -cE '^\s*\[(Fact|Theory)' "$full_path" || true)
+        TEST_METHOD_COUNT=$((TEST_METHOD_COUNT + count))
+      fi
+    done
+    if [[ "$TEST_METHOD_COUNT" -lt "$SPEC_COUNT" ]]; then
+      PASSED_MECHANICAL=false
+      FAILURE_CLASS='"spec-coverage"'
+      echo "[eval] spec-coverage FAILED: $TEST_METHOD_COUNT test method(s) < $SPEC_COUNT specification(s)"
+    else
+      echo "[eval] spec-coverage passed: $TEST_METHOD_COUNT test method(s) >= $SPEC_COUNT specification(s)"
+    fi
+  fi
+fi
+
 ITERATIONS_TO_GREEN="null"
 if [[ "$FINAL_STATUS" == "Done" ]]; then
   ITERATIONS_TO_GREEN="$ITER"
@@ -304,6 +353,8 @@ const row = {
   failure_class: $FAILURE_CLASS,
   wall_clock_minutes: $WALL_CLOCK_MIN,
   budget_breached: $BUDGET_BREACHED,
+  spec_count: $SPEC_COUNT,
+  test_method_count: $TEST_METHOD_COUNT,
   human_review_verdict: null,
   notes: '',
 };

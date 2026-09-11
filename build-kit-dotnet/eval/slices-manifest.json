@@ -62,7 +62,8 @@
       "implDir": "src/Modules/ShelterAdoption/K9Crush.Modules.ShelterAdoption.Api/Commands/RejectApplication",
       "testFiles": [
         "tests/K9Crush.Modules.ShelterAdoption.Tests/Handlers/RejectApplicationHandlerTests.cs"
-      ]
+      ],
+      "specificationsFile": "specifications/RejectApplication.json"
     },
     {
       "folder": "ReviewApplication",
