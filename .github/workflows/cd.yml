@@ -1,0 +1,230 @@
+name: CD
+
+# Runs after CI succeeds on main (not on its own push/PR trigger - this
+# avoids deploying a commit CI hasn't actually passed for). Cuts a semver
+# release from Conventional Commits since the last one (if any commit
+# since then warrants it), builds the 3 app images tagged with sha/latest/
+# (optionally) that version, pushes to Artifact Registry, then deploys
+# each to Cloud Run (project k9crush-prod, region europe-west1) via
+# Workload Identity Federation - no long-lived service-account key in
+# repo secrets. RabbitMQ/Redis/Postgres run on a small internal
+# Compute Engine VM (k9crush-broker, no public IP), reached over a
+# Serverless VPC Access connector (k9crush-connector).
+#
+# Retargeted from the original Hetzner SSH deploy (ADR-025) on 2026-09-11
+# -- confirmed via `gh run list --workflow=cd.yml` that the Hetzner path
+# had zero runs ever (no HETZNER_* secrets, no "production" environment
+# existed either), so this was a clean rewrite of a never-triggered job,
+# not a cutover from a live system. ADR-025 is now stale/superseded, not
+# describing anything real.
+#
+# Known, deliberately deferred gaps (not hidden): (1) Supabase:Url and
+# Supabase__Url/AnonKey are non-functional placeholders
+# (non-functional-placeholder.invalid) -- real auth needs the Authentik
+# swap (Program.cs's JWT validation is hardcoded to Supabase's specific
+# Authority path/audience/claim shape today), scoped as its own follow-up
+# task, not done here. (2) gateway's own outbound YARP-proxied requests
+# to api-host/blazor-app don't carry a Google identity token, so a
+# request through the public gateway URL currently 401s even though both
+# backend services work correctly when reached directly -- needs
+# explicit token-forwarding code in the Gateway project, also deferred.
+# (3) The GCP org's iam.allowedPolicyMemberDomains policy blocks allUsers
+# IAM bindings entirely, so all 3 Cloud Run services require an
+# authenticated Google identity to reach at all right now -- acceptable
+# for a non-prod/demo environment, revisit once auth is real.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+env:
+  REGISTRY: europe-west1-docker.pkg.dev
+  IMAGE_NAMESPACE: k9crush-prod/k9crush
+  SOLUTION_DIR: code/K9Crush-scaffold/K9Crush
+  GCP_PROJECT: k9crush-prod
+  GCP_REGION: europe-west1
+  WIF_PROVIDER: projects/1027616718366/locations/global/workloadIdentityPools/github-actions/providers/github
+  DEPLOYER_SA: github-actions-deployer@k9crush-prod.iam.gserviceaccount.com
+  RUNTIME_SA: k9crush-runtime@k9crush-prod.iam.gserviceaccount.com
+  VPC_CONNECTOR: k9crush-connector
+
+jobs:
+  release:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    outputs:
+      version: ${{ steps.semrel.outputs.new-release-version }}
+      released: ${{ steps.semrel.outputs.new-release-published }}
+    steps:
+      # semantic-release needs full history/tags to diff against the last
+      # release, not just the last commit - fetch-depth 0 is required here.
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      # Reads .releaserc.json at repo root: commit-analyzer decides the
+      # bump from Conventional Commits since the last vX.Y.Z tag (feat ->
+      # minor, fix -> patch, "BREAKING CHANGE" footer -> major; docs/
+      # chore/ci/build/refactor/test commits alone don't trigger a
+      # release - that's expected, not a misconfiguration, and doesn't
+      # fail the job). When it does release, pushes the git tag and
+      # publishes a GitHub Release with generated notes.
+      - name: Semantic Release
+        id: semrel
+        uses: cycjimmy/semantic-release-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-and-push:
+    needs: release
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      image-tag: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - id: auth
+        name: Authenticate to GCP (Workload Identity Federation)
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/1027616718366/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: ${{ env.DEPLOYER_SA }}
+
+      - name: Log in to Artifact Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      # One metadata block per image: always tags with the commit sha and
+      # `latest`, plus the semver from the release job - but only when
+      # that job actually cut a release (`enable=` drops the line
+      # otherwise, rather than pushing a blank/invalid tag).
+      - name: Docker metadata - gateway
+        id: meta-gateway
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/gateway
+          tags: |
+            type=raw,value=${{ github.event.workflow_run.head_sha }}
+            type=raw,value=latest
+            type=raw,value=${{ needs.release.outputs.version }},enable=${{ needs.release.outputs.released == 'true' }}
+
+      - name: Build and push gateway
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.SOLUTION_DIR }}
+          file: ${{ env.SOLUTION_DIR }}/deploy/docker/Gateway.Dockerfile
+          push: true
+          tags: ${{ steps.meta-gateway.outputs.tags }}
+          labels: ${{ steps.meta-gateway.outputs.labels }}
+          cache-from: type=gha,scope=gateway
+          cache-to: type=gha,mode=max,scope=gateway
+
+      - name: Docker metadata - api-host
+        id: meta-api-host
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/api-host
+          tags: |
+            type=raw,value=${{ github.event.workflow_run.head_sha }}
+            type=raw,value=latest
+            type=raw,value=${{ needs.release.outputs.version }},enable=${{ needs.release.outputs.released == 'true' }}
+
+      - name: Build and push api-host
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.SOLUTION_DIR }}
+          file: ${{ env.SOLUTION_DIR }}/deploy/docker/ApiHost.Dockerfile
+          push: true
+          tags: ${{ steps.meta-api-host.outputs.tags }}
+          labels: ${{ steps.meta-api-host.outputs.labels }}
+          cache-from: type=gha,scope=api-host
+          cache-to: type=gha,mode=max,scope=api-host
+
+      - name: Docker metadata - blazor-app
+        id: meta-blazor-app
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/blazor-app
+          tags: |
+            type=raw,value=${{ github.event.workflow_run.head_sha }}
+            type=raw,value=latest
+            type=raw,value=${{ needs.release.outputs.version }},enable=${{ needs.release.outputs.released == 'true' }}
+
+      - name: Build and push blazor-app
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.SOLUTION_DIR }}
+          file: ${{ env.SOLUTION_DIR }}/deploy/docker/BlazorApp.Dockerfile
+          push: true
+          tags: ${{ steps.meta-blazor-app.outputs.tags }}
+          labels: ${{ steps.meta-blazor-app.outputs.labels }}
+          cache-from: type=gha,scope=blazor-app
+          cache-to: type=gha,mode=max,scope=blazor-app
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    # GitHub Environment "production" - not yet created (see header comment:
+    # the original Hetzner deploy never ran, so this environment never
+    # existed either). Create it before this job can run for real, with
+    # the GCP project id below and optionally a required reviewer as a
+    # manual approval gate.
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - id: auth
+        name: Authenticate to GCP (Workload Identity Federation)
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/1027616718366/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: ${{ env.DEPLOYER_SA }}
+
+      # api-host and blazor-app carry known, deliberately-deferred
+      # placeholders (Supabase auth, see header comment) - not
+      # re-supplied here on every deploy since they're already set on
+      # the services and this step only needs to update the image.
+      - name: Deploy gateway
+        uses: google-github-actions/deploy-cloudrun@v3
+        with:
+          service: gateway
+          region: ${{ env.GCP_REGION }}
+          project_id: ${{ env.GCP_PROJECT }}
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/gateway:${{ needs.build-and-push.outputs.image-tag }}
+
+      - name: Deploy api-host
+        uses: google-github-actions/deploy-cloudrun@v3
+        with:
+          service: api-host
+          region: ${{ env.GCP_REGION }}
+          project_id: ${{ env.GCP_PROJECT }}
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/api-host:${{ needs.build-and-push.outputs.image-tag }}
+
+      - name: Deploy blazor-app
+        uses: google-github-actions/deploy-cloudrun@v3
+        with:
+          service: blazor-app
+          region: ${{ env.GCP_REGION }}
+          project_id: ${{ env.GCP_PROJECT }}
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/blazor-app:${{ needs.build-and-push.outputs.image-tag }}

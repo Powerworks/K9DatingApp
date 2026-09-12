@@ -5,31 +5,55 @@
 # Postgres, object storage, and auth are Supabase-managed (ADR-005/024) -
 # nothing to run for those here.
 #
-# Usage:
+# Manual usage (builds images locally on this box):
 #   cp deploy/compose/.env.example deploy/compose/.env   # fill in real values
 #   docker compose -f deploy/compose/docker-compose.prod.yml --env-file deploy/compose/.env up -d --build
 #
-# Only the gateway is exposed to the host. Api.Host and Blazor.App are
-# reached through it (internal Docker network only), matching
-# src/Gateway/K9Crush.Gateway/appsettings.json's existing cluster config
-# (api-host:8080, blazor-app:8080) - service names below are chosen to
-# match that file exactly, not arbitrarily.
+# CD usage (.github/workflows/cd.yml): images are built and pushed to GHCR
+# there, and this box only pulls - IMAGE_TAG/REGISTRY in .env pick which
+# tag `docker compose pull` fetches. The `build:` blocks below stay for the
+# manual path above; `image:` is what `pull` reads, one or the other wins
+# depending on which compose subcommand you run.
+#
+# Caddy is the only container exposed to the host (80/443) - it terminates
+# TLS (see Caddyfile) and reverse-proxies to the gateway over the internal
+# Docker network. Api.Host and Blazor.App are reached through the gateway
+# the same way, matching src/Gateway/K9Crush.Gateway/appsettings.json's
+# existing cluster config (api-host:8080, blazor-app:8080) - service names
+# below are chosen to match that file exactly, not arbitrarily.
 
 services:
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - k9crush_caddy_data:/data
+      - k9crush_caddy_config:/config
+    depends_on:
+      - gateway
+    restart: unless-stopped
+
   gateway:
+    image: ${REGISTRY:-ghcr.io/powerworks}/k9crush-gateway:${IMAGE_TAG:-latest}
     build:
       context: ../..
       dockerfile: deploy/docker/Gateway.Dockerfile
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-    ports:
-      - "8000:8080"   # the only port this stack exposes to the outside world
     depends_on:
       - api-host
       - blazor-app
     restart: unless-stopped
+    # No host port mapping - only caddy talks to this now, over the
+    # internal Docker network (gateway:8080, per the Caddyfile).
 
   api-host:
+    image: ${REGISTRY:-ghcr.io/powerworks}/k9crush-api-host:${IMAGE_TAG:-latest}
     build:
       context: ../..
       dockerfile: deploy/docker/ApiHost.Dockerfile
@@ -50,6 +74,7 @@ services:
     # internal Docker network by service name (api-host:8080).
 
   blazor-app:
+    image: ${REGISTRY:-ghcr.io/powerworks}/k9crush-blazor-app:${IMAGE_TAG:-latest}
     build:
       context: ../..
       dockerfile: deploy/docker/BlazorApp.Dockerfile
@@ -92,3 +117,5 @@ services:
 volumes:
   k9crush_rabbitmq_data:
   k9crush_redis_data:
+  k9crush_caddy_data:
+  k9crush_caddy_config:
